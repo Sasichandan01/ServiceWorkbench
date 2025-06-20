@@ -1,0 +1,131 @@
+---
+image: cloudwicklabs/bitbucketrunner:py312
+
+definitions:
+  scripts:
+    - script: &validate_python
+        |
+        echo "Running Python and YAML linting..."
+        echo "Searching for Python files..."
+        PY_FILES=$(find . -name "*.py")
+        if [ -n "$PY_FILES" ]; then
+          if ! command -v pylint &> /dev/null; then
+            echo "Installing pylint..."
+            pip install pylint || { echo "Failed to install pylint"; exit 1; }
+          fi
+          echo "${PY_FILES}" | xargs pylint || { echo "Pylint found errors"; exit 1; }
+        else
+          echo "No Python files found to lint."
+        fi
+    - script: &validate_yaml
+        |
+          echo "Validating YAML files..."
+          if ! command -v yamllint &> /dev/null; then
+            echo "Installing yamllint..."
+            pip install yamllint || { echo "Failed to install yamllint"; exit 1; }
+          fi
+          YAML_FILES=$(find . -name "*.yaml" -o -name "*.yml")
+          if [ -n "$YAML_FILES" ]; then
+            echo "${YAML_FILES}" | xargs yamllint || { echo "Yamllint found errors"; exit 1; }
+          else
+            echo "No YAML files found to validate."
+          fi
+
+    - script: &authenticate
+        |
+          echo "Setting up the authentication config for AWS OIDC..."
+          export AWS_REGION=us-east-1
+          export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/wb-bitbucket-idp-role
+          export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
+          echo "${BITBUCKET_STEP_OIDC_TOKEN}" > $(pwd)/web-identity-token
+
+    - script: &deploy_stack
+        |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Latest commit message: ${COMMIT_MSG}"
+
+          if echo "${COMMIT_MSG}" | grep -q "[DEPLOY]"; then
+            echo "DEPLOY found in commit."
+            BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+            echo "Branch name: $BRANCH_NAME"
+
+            STACK_NAME="${BRANCH_NAME}-simple-api"
+            echo "Stack name: $STACK_NAME"
+
+            aws cloudformation deploy \
+              --template-file templates/deploy.yaml \
+              --stack-name "$STACK_NAME" \
+              --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
+              --parameter-overrides pPrefix=${BRANCH_NAME} \
+              --no-fail-on-empty-changeset
+
+            echo "Waiting for stack creation to complete..."
+            aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+            echo "API deployment completed successfully."
+          else
+            echo "DEPLOY not found in commit."
+          fi
+    
+    - script: &deploy_infra
+        |
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Branch name: $BRANCH_NAME"
+        if [ "$BRANCH_NAME" != "develop" ]; then
+          echo "Infra deployment is allowed only from 'develop' branch"
+          exit 1
+        fi
+
+        STACK_NAME="${BRANCH_NAME}-infra"
+        echo "Infra stack name: $STACK_NAME"
+
+        aws cloudformation deploy \
+          --template-file templates/infra.yaml \
+          --stack-name "$STACK_NAME" \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --parameter-overrides Environment=dev
+
+  steps:
+    - step: &lint_and_validate
+        name: Lint and Validate
+        script:
+          - echo "Starting linting and validation..."
+          - *validate_python
+          - *validate_yaml
+          - echo "Linting and validation completed successfully."
+
+    - step: &deploy
+        name: Deploy
+        oidc: true
+        script:
+          - echo "Starting deployment process..."
+          - *authenticate
+          - *deploy_stack
+
+pipelines:
+  branches:
+    cb-*:
+      - step: *lint_and_validate
+      - step: *deploy
+    
+    develop:
+      - step: *lint_and_validate
+      - step: *deploy
+      - step: *deploy_infra
+
+  custom:
+    Infra-setup:
+      - step:
+          name: Deploy Infra (Manual)
+          oidc: true
+          script:
+            - echo "Running manual infra deployment on branch: ${BITBUCKET_BRANCH}"
+            - *authenticate
+            - *deploy_infra
+    # update-lambda:
+    #   - step:
+    #       name: Update Lambda Function (Manual)
+    #       oidc: true
+    #       script:
+    #         - echo "Running manual Lambda function update on branch: ${BITBUCKET_BRANCH}"
+    #         - *authenticate
+    #         - **lambda_update

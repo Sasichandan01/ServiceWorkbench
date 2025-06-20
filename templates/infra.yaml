@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Simple DynamoDB Table Deployment
+
+Parameters:
+  pTableName:
+    Type: String
+    Default: SimpleTable
+    Description: Name of the DynamoDB table to create
+
+  pReadCapacityUnits:
+    Type: Number
+    Default: 5
+    Description: Read capacity units for the DynamoDB table
+
+  pWriteCapacityUnits:
+    Type: Number
+    Default: 5
+    Description: Write capacity units for the DynamoDB table
+
+  pApplicationPrefix:
+    Type: String
+    Default: simple
+    Description: Prefix for the application resources
+
+Resources:
+  rSimpleDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${pApplicationPrefix}-"SimpleTable"
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
