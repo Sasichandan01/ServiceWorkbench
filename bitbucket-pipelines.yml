@@ -5,84 +5,115 @@ definitions:
   scripts:
     - script: &validate_python
         |
+        set -e  # Fail script on any command failure
         echo "Running Python and YAML linting..."
         echo "Searching for Python files..."
         PY_FILES=$(find . -name "*.py")
         if [ -n "$PY_FILES" ]; then
           if ! command -v pylint &> /dev/null; then
             echo "Installing pylint..."
-            pip install pylint || { echo "Failed to install pylint"; exit 1; }
+            pip install pylint || { echo "[ERROR] Failed to install pylint"; exit 1; }
           fi
-          echo "${PY_FILES}" | xargs pylint || { echo "Pylint found errors"; exit 1; }
+          echo "${PY_FILES}" | xargs pylint --fail-under=7.0 || { 
+            echo "[ERROR] Pylint score too low or errors found"; 
+            exit 1; 
+          }
         else
           echo "No Python files found to lint."
         fi
+
     - script: &validate_yaml
         |
-          echo "Validating YAML files..."
-          if ! command -v yamllint &> /dev/null; then
-            echo "Installing yamllint..."
-            pip install yamllint || { echo "Failed to install yamllint"; exit 1; }
-          fi
-          YAML_FILES=$(find . -name "*.yaml" -o -name "*.yml")
-          if [ -n "$YAML_FILES" ]; then
-            echo "${YAML_FILES}" | xargs yamllint || { echo "Yamllint found errors"; exit 1; }
-          else
-            echo "No YAML files found to validate."
-          fi
+        set -e
+        echo "Validating YAML files..."
+        if ! command -v yamllint &> /dev/null; then
+          echo "Installing yamllint..."
+          pip install yamllint || { echo "[ERROR] Failed to install yamllint"; exit 1; }
+        fi
+        YAML_FILES=$(find . -name "*.yaml" -o -name "*.yml")
+        if [ -n "$YAML_FILES" ]; then
+          echo "${YAML_FILES}" | xargs yamllint || { 
+            echo "[ERROR] Yamllint validation failed"; 
+            exit 1; 
+          }
+        else
+          echo "No YAML files found to validate."
+        fi
 
     - script: &authenticate
         |
-          echo "Setting up the authentication config for AWS OIDC..."
-          export AWS_REGION=us-east-1
-          export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/wb-bitbucket-idp-role
-          export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
-          echo "${BITBUCKET_STEP_OIDC_TOKEN}" > $(pwd)/web-identity-token
+        set -e
+        echo "Setting up AWS OIDC authentication..."
+        export AWS_REGION=us-east-1
+        export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/wb-bitbucket-idp-role
+        export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
+        echo "${BITBUCKET_STEP_OIDC_TOKEN}" > "$AWS_WEB_IDENTITY_TOKEN_FILE" || { 
+          echo "[ERROR] Failed to write OIDC token"; 
+          exit 1; 
+        }
+        chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"  # Restrict token file permissions
 
     - script: &deploy_stack
         |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "Latest commit message: ${COMMIT_MSG}"
+        set -e
+        COMMIT_MSG=$(git log -1 --pretty=%B)
+        echo "Latest commit message: ${COMMIT_MSG}"
 
-          if echo "${COMMIT_MSG}" | grep -q "[DEPLOY]"; then
-            echo "DEPLOY found in commit."
-            BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
-            echo "Branch name: $BRANCH_NAME"
+        if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]"; then
+          echo "DEPLOY keyword found in commit. Proceeding..."
+          BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+          STACK_NAME="${BRANCH_NAME}-simple-api"
 
-            STACK_NAME="${BRANCH_NAME}-simple-api"
-            echo "Stack name: $STACK_NAME"
-
-            aws cloudformation deploy \
-              --template-file templates/deploy.yaml \
-              --stack-name "$STACK_NAME" \
-              --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-              --parameter-overrides pPrefix=${BRANCH_NAME} \
-              --no-fail-on-empty-changeset
-
-            echo "Waiting for stack creation to complete..."
-            aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
-            echo "API deployment completed successfully."
-          else
-            echo "DEPLOY not found in commit."
+          # Validate template existence
+          if [ ! -f "templates/deploy.yaml" ]; then
+            echo "[ERROR] templates/deploy.yaml not found"; 
+            exit 1;
           fi
+
+          aws cloudformation deploy \
+            --template-file templates/deploy.yaml \
+            --stack-name "$STACK_NAME" \
+            --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" \
+            --no-fail-on-empty-changeset || { 
+              echo "[ERROR] CloudFormation deployment failed"; 
+              exit 1; 
+            }
+
+          echo "Waiting for stack creation..."
+          aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+          echo "API deployment completed successfully."
+        else
+          echo "Skipping deployment: No DEPLOY keyword in commit message."
+        fi
     
     - script: &deploy_infra
         |
+        set -e
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
+        
         if [ "$BRANCH_NAME" != "develop" ]; then
-          echo "Infra deployment is allowed only from 'develop' branch"
+          echo "[ERROR] Infra deployment only allowed from 'develop' branch"
           exit 1
         fi
 
+        if [ ! -f "templates/infra.yaml" ]; then
+          echo "[ERROR] templates/infra.yaml not found"; 
+          exit 1;
+        fi
+
         STACK_NAME="${BRANCH_NAME}-infra"
-        echo "Infra stack name: $STACK_NAME"
+        echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
           --template-file templates/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides Environment=dev
+          --parameter-overrides Environment=dev || {
+            echo "[ERROR] Infra deployment failed";
+            exit 1;
+          }
 
   steps:
     - step: &lint_and_validate
@@ -94,12 +125,20 @@ definitions:
           - echo "Linting and validation completed successfully."
 
     - step: &deploy
-        name: Deploy
+        name: Deploy Stack
         oidc: true
         script:
           - echo "Starting deployment process..."
           - *authenticate
           - *deploy_stack
+
+    - step: &deploy_infra_stack
+        name: Deploy Infrastructure
+        oidc: true
+        script:
+          - echo "Starting infrastructure deployment..."
+          - *authenticate
+          - *deploy_infra
 
 pipelines:
   branches:
@@ -110,17 +149,18 @@ pipelines:
     develop:
       - step: *lint_and_validate
       - step: *deploy
-      - step: *deploy_infra
+      - step: *deploy_infra_stack
 
   custom:
     Infra-setup:
       - step:
-          name: Deploy Infra (Manual)
+          name: Manual Infra Deployment
           oidc: true
           script:
-            - echo "Running manual infra deployment on branch: ${BITBUCKET_BRANCH}"
+            - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
-            - *deploy_infra
+            - *deploy_infra_stack
+    
     # update-lambda:
     #   - step:
     #       name: Update Lambda Function (Manual)
