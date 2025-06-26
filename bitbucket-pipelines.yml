@@ -142,7 +142,7 @@ definitions:
 
 pipelines:
   branches:
-    cb-*:
+    wb-*:
       - step: *lint_and_validate
       - step: *deploy
     
