@@ -45,7 +45,7 @@ definitions:
         set -e
         echo "Setting up AWS OIDC authentication..."
         export AWS_REGION=us-east-1
-        export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/wb-bitbucket-idp-role
+        export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/workbench-bitbucket-idp-role
         export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
         echo "${BITBUCKET_STEP_OIDC_TOKEN}" > "$AWS_WEB_IDENTITY_TOKEN_FILE" || { 
           echo "[ERROR] Failed to write OIDC token"; 
