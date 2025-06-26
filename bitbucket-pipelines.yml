@@ -110,7 +110,7 @@ definitions:
           --template-file templates/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides Environment=dev || {
+          --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed";
             exit 1;
           }
