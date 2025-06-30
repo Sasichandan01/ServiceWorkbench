@@ -8,6 +8,10 @@ Parameters:
     Default: simple
     Description: Prefix for the application resources
 
+  pKmsKeyId:
+    Type: String
+    Default: "b02a32de-34da-462e-9b2c-4a0c8dadf74f"
+
 Resources:
   rSimpleDynamoDBTable:
     Type: AWS::DynamoDB::Table
@@ -22,3 +26,69 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+
+
+  rOpenSearchDB:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: 'poc-workbench-cluster-2-1'
+
+      EngineVersion: 'OpenSearch_2.17'
+
+      ClusterConfig:
+        InstanceCount: 2
+        InstanceType: t3.small.search
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig: 
+          AvailabilityZoneCount: 2
+        WarmEnabled: false
+        MultiAZWithStandbyEnabled: false
+
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+        Iops: 3000
+        Throughput: 125
+
+      EncryptionAtRestOptions:
+        Enabled: true
+        KmsKeyId: !Ref pKmsKeyId
+
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource: "*"
+
+      AdvancedOptions:
+        indices.fielddata.cache.size: "20"
+        rest.action.multi.allow_explicit_index: "true"
+        indices.query.bool.max_clause_count: "1024"
+
+      AdvancedSecurityOptions:
+        Enabled: true
+        
+
+      OffPeakWindowOptions:
+        Enabled: true
+        OffPeakWindow: 
+          WindowStartTime: 
+            Hours: 0
+            Minutes: 0
+
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+
+      IPAddressType: dualstack
+
+
