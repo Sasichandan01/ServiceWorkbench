@@ -120,9 +120,19 @@ definitions:
     - script: &build_ui
         |
         set -e
-        echo "🔧 Building UI from Web directory..."
+        echo "Building UI from Web directory..."
 
         cd Web
+
+        echo "Installing Node.js and npm..."
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        apt-get install -y nodejs
+
+        echo "Node.js version: $(node -v)"
+        echo "npm version: $(npm -v)"
+
+        # Clean old build
+        rm -rf dist
 
         echo "Installing npm dependencies..."
         npm install || {
