@@ -62,7 +62,7 @@ definitions:
         if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]"; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
-          STACK_NAME="${BRANCH_NAME}-simple-api"
+          STACK_NAME="${BRANCH_NAME}-deployment"
 
           # Validate template existence
           if [ ! -f "templates/deploy.yaml" ]; then
@@ -142,14 +142,29 @@ definitions:
 
 pipelines:
   branches:
-    wb-*:
+    wb-mayank:
+      - step: *lint_and_validate
+      - step: *deploy
+
+    wb-abhishek:
+      - step: *lint_and_validate
+      - step: *deploy
+
+    wb-salma:
       - step: *lint_and_validate
       - step: *deploy
     
-    develop:
+    wb-bhargav:
       - step: *lint_and_validate
       - step: *deploy
+      
+    wb-*:
+      - step: *lint_and_validate
+      
+    develop:
+      - step: *lint_and_validate
       - step: *deploy_infra_stack
+      - step: *deploy
 
   custom:
     Infra-setup:
