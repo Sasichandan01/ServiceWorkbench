@@ -33,7 +33,7 @@ Resources:
   SampleLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-sample-lambda"
+      FunctionName: !Sub "${pPrefix}-sample-lambdas"
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.13
