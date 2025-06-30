@@ -9,16 +9,82 @@ Parameters:
     Description: Prefix for the application resources
 
 Resources:
-  rSimpleDynamoDBTable:
-    Type: AWS::DynamoDB::Table
+  UserPool:
+    Type: AWS::Cognito::UserPool
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-SimpleTable"
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+      UserPoolName: !Sub "${pApplicationPrefix}-UserPool"
+      UsernameAttributes:
+        - 'email'
+      # AliasAttributes:
+      #   - 'email'
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: given_name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: family_name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - 'email'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Your verification code for Fundwick"
+        EmailMessage: "Your verification code is {####}"
+
+
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${pApplicationPrefix}-Client"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        AccessToken: "minutes"
+        IdToken: "minutes"
+        RefreshToken: "days"
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_CUSTOM_AUTH 
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - "https://example.com/"
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      PreventUserExistenceErrors: ENABLED
+  
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
+      ManagedLoginVersion: "2"
