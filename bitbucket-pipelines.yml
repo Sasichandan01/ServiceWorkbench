@@ -232,6 +232,10 @@ pipelines:
       - step: *lint_and_validate
       - step: *deploy
 
+    wb-init:
+      - step: *lint_and_validate
+      - step: *deploy
+
     wb-*:
       - step: *lint_and_validate
 
