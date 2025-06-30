@@ -80,13 +80,13 @@ definitions:
             }
 
           echo "Waiting for stack creation..."
-          # aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
-          if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
-            aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
-              echo "[ERROR] Stack creation or update failed"
-              exit 1
-            }
-          fi
+          aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+          # if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
+          #   aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
+          #     echo "[ERROR] Stack creation or update failed"
+          #     exit 1
+          #   }
+          # fi
           echo "API deployment completed successfully."
         else
           echo "Skipping deployment: No DEPLOY keyword in commit message."
