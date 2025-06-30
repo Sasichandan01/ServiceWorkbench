@@ -5,3 +5,5 @@ rules:
   trailing-spaces: disable
   new-line-at-end-of-file: disable
   comments-indentation: disable
+  empty-lines:
+    max: 99
