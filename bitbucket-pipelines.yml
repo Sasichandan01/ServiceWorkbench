@@ -52,6 +52,8 @@ definitions:
           exit 1; 
         }
         chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"  # Restrict token file permissions
+        trap "rm -f $AWS_WEB_IDENTITY_TOKEN_FILE" EXIT
+
 
     - script: &deploy_stack
         |
@@ -65,13 +67,13 @@ definitions:
           STACK_NAME="${BRANCH_NAME}-deployment"
 
           # Validate template existence
-          if [ ! -f "templates/deploy.yaml" ]; then
+          if [ ! -f "Templates/Resources/deploy.yaml" ]; then
             echo "[ERROR] templates/deploy.yaml not found"; 
             exit 1;
           fi
 
           aws cloudformation deploy \
-            --template-file templates/deploy.yaml \
+            --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
             --parameter-overrides pPrefix="${BRANCH_NAME}" \
@@ -98,7 +100,7 @@ definitions:
           exit 1
         fi
 
-        if [ ! -f "templates/infra.yaml" ]; then
+        if [ ! -f "Templates/Resources/infra.yaml" ]; then
           echo "[ERROR] templates/infra.yaml not found"; 
           exit 1;
         fi
@@ -107,13 +109,71 @@ definitions:
         echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
-          --template-file templates/infra.yaml \
+          --template-file Templates/Resources/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
           --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed";
             exit 1;
           }
+
+    - script: &build_ui
+        |
+        set -e
+        echo "🔧 Building UI from Web directory..."
+
+        cd Web
+
+        echo "Installing npm dependencies..."
+        npm install || {
+          echo "[ERROR] npm install failed"
+          exit 1
+        }
+
+        echo "Checking if Vite is available..."
+        if ! npx vite --version &> /dev/null; then
+          echo "Installing Vite locally..."
+          npm install --save-dev vite || {
+            echo "[ERROR] Failed to install Vite"
+            exit 1
+          }
+        fi
+
+        echo "Running UI build..."
+        npm run build || {
+          echo "[ERROR] UI build failed"
+          exit 1
+        }
+
+        echo "Build complete. Contents of dist/:"
+        ls dist
+
+    - script: &deploy_ui_to_s3
+        |
+        set -e
+        echo "Deploying UI to S3..."
+        UI_BUCKET_NAME="develop-service-workbench-artifacts"
+        cd Web
+        if [ ! -d "dist" ]; then
+          echo "[ERROR] dist/ folder not found"
+          exit 1
+        fi
+
+        echo "Syncing contents to S3..."
+        aws s3 sync /Web/dist/* "s3://${UI_BUCKET_NAME}/web/" --delete || {
+          echo "[ERROR] S3 sync failed"
+          exit 1
+        }
+
+        echo "Creating CloudFront invalidation..."
+        aws cloudfront create-invalidation \
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+          --paths "/*" || {
+            echo "[ERROR] CloudFront invalidation failed"
+            exit 1
+        }
+
+        echo "UI successfully deployed and CloudFront cache invalidated."
 
   steps:
     - step: &lint_and_validate
@@ -139,6 +199,14 @@ definitions:
           - echo "Starting infrastructure deployment..."
           - *authenticate
           - *deploy_infra
+    
+    - step: &build_and_deploy_ui
+        name: Build and Deploy UI
+        oidc: true
+        script:
+          - *authenticate
+          - *build_ui
+          - *deploy_ui_to_s3
 
 pipelines:
   branches:
@@ -175,6 +243,15 @@ pipelines:
             - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
             - *deploy_infra_stack
+    
+    UI-setup:
+      - step:
+          name: Manual UI Deployment
+          oidc: true
+          script:
+            - *authenticate
+            - *build_ui
+            - *deploy_ui_to_s3
     
     # update-lambda:
     #   - step:

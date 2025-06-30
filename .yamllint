@@ -4,3 +4,4 @@ rules:
   line-length: disable
   trailing-spaces: disable
   new-line-at-end-of-file: disable
+  comments-indentation: disable
