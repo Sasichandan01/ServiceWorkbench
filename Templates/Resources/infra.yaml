@@ -234,6 +234,24 @@ Outputs:
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CloudFrontDistributionId"
+
   CloudFrontDomainName:
     Description: Domain name of the CloudFront distribution
     Value: !GetAtt WebsiteDistribution.DomainName
+    
+  CognitoUserPoolId:
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CognitoUserPoolId"
+
+  CognitoAppClientId:
+    Value: !Ref CognitoAppClient
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CognitoAppClientId"
+
+  CognitoRegion:
+    Value: !Ref "AWS::Region"
+    Export:
+      Name: !Sub "${pApplicationPrefix}-Region"
