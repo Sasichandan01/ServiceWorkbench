@@ -162,7 +162,7 @@ definitions:
         fi
 
         echo "Installing npm dependencies..."
-        npm install || {
+        npm install --legacy-peer-deps || {
           echo "[ERROR] npm install failed"
           exit 1
         }
@@ -325,4 +325,3 @@ pipelines:
     #         - *authenticate
     #         - **lambda_update
 
-    
