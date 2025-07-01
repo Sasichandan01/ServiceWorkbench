@@ -142,10 +142,116 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${pApplicationPrefix}-UserPool"
+
+      # Allow login via email and preferred username
+      # UsernameAttributes:
+      AliasAttributes:
+        - email
+        - preferred_username
+
+      # Only email is required, name is optional
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: preferred_username
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+
+      AutoVerifiedAttributes:
+        - email
+
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Your verification code for Fundwick"
+        EmailMessage: "Your verification code is {####}"
+
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${pApplicationPrefix}-Client"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        AccessToken: "minutes"
+        IdToken: "minutes"
+        RefreshToken: "days"
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_CUSTOM_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - "https://example.com/" # Replace with actual URL
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      PreventUserExistenceErrors: ENABLED
+
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
+      ManagedLoginVersion: "2"
+
 Outputs:
-  CLOUDFRONT_DISTRIBUTION_ID:
+  CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CloudFrontDistributionId"
+
   CloudFrontDomainName:
     Description: Domain name of the CloudFront distribution
     Value: !GetAtt WebsiteDistribution.DomainName
+    
+  CognitoUserPoolId:
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CognitoUserPoolId"
+
+  CognitoAppClientId:
+    Value: !Ref CognitoAppClient
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CognitoAppClientId"
+
+  CognitoRegion:
+    Value: !Ref "AWS::Region"
+    Export:
+      Name: !Sub "${pApplicationPrefix}-Region"

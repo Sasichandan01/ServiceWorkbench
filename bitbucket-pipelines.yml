@@ -5,18 +5,17 @@ definitions:
   scripts:
     - script: &validate_python
         |
-        set -e  # Fail script on any command failure
+        set -e
         echo "Running Python and YAML linting..."
-        echo "Searching for Python files..."
         PY_FILES=$(find . -name "*.py")
         if [ -n "$PY_FILES" ]; then
           if ! command -v pylint &> /dev/null; then
             echo "Installing pylint..."
             pip install pylint || { echo "[ERROR] Failed to install pylint"; exit 1; }
           fi
-          echo "${PY_FILES}" | xargs pylint --fail-under=7.0 || { 
-            echo "[ERROR] Pylint score too low or errors found"; 
-            exit 1; 
+          echo "${PY_FILES}" | xargs pylint --fail-under=7.0 || {
+            echo "[ERROR] Pylint score too low or errors found"
+            exit 1
           }
         else
           echo "No Python files found to lint."
@@ -32,9 +31,9 @@ definitions:
         fi
         YAML_FILES=$(find . -name "*.yaml" -o -name "*.yml")
         if [ -n "$YAML_FILES" ]; then
-          echo "${YAML_FILES}" | xargs yamllint || { 
-            echo "[ERROR] Yamllint validation failed"; 
-            exit 1; 
+          echo "${YAML_FILES}" | xargs yamllint || {
+            echo "[ERROR] Yamllint validation failed"
+            exit 1
           }
         else
           echo "No YAML files found to validate."
@@ -47,11 +46,12 @@ definitions:
         export AWS_REGION=us-east-1
         export AWS_ROLE_ARN=arn:aws:iam::043309350924:role/workbench-bitbucket-idp-role
         export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
-        echo "${BITBUCKET_STEP_OIDC_TOKEN}" > "$AWS_WEB_IDENTITY_TOKEN_FILE" || { 
-          echo "[ERROR] Failed to write OIDC token"; 
-          exit 1; 
+        echo "${BITBUCKET_STEP_OIDC_TOKEN}" > "$AWS_WEB_IDENTITY_TOKEN_FILE" || {
+          echo "[ERROR] Failed to write OIDC token"
+          exit 1
         }
-        chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"  # Restrict token file permissions
+        chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"
+        trap "rm -f $AWS_WEB_IDENTITY_TOKEN_FILE" EXIT
 
     - script: &deploy_stack
         |
@@ -64,56 +64,172 @@ definitions:
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
 
-          # Validate template existence
-          if [ ! -f "templates/deploy.yaml" ]; then
-            echo "[ERROR] templates/deploy.yaml not found"; 
-            exit 1;
+          if [ ! -f "Templates/Resources/deploy.yaml" ]; then
+            echo "[ERROR] Templates/Resources/deploy.yaml not found"
+            exit 1
           fi
 
           aws cloudformation deploy \
-            --template-file templates/deploy.yaml \
+            --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
             --parameter-overrides pPrefix="${BRANCH_NAME}" \
-            --no-fail-on-empty-changeset || { 
-              echo "[ERROR] CloudFormation deployment failed"; 
-              exit 1; 
+            --no-fail-on-empty-changeset || {
+              echo "[ERROR] CloudFormation deployment failed"
+              exit 1
             }
 
           echo "Waiting for stack creation..."
           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+          # if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
+          #   aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
+          #     echo "[ERROR] Stack creation or update failed"
+          #     exit 1
+          #   }
+          # fi
           echo "API deployment completed successfully."
         else
           echo "Skipping deployment: No DEPLOY keyword in commit message."
         fi
-    
+
     - script: &deploy_infra
         |
         set -e
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
-        
+
         if [ "$BRANCH_NAME" != "develop" ]; then
           echo "[ERROR] Infra deployment only allowed from 'develop' branch"
           exit 1
         fi
 
-        if [ ! -f "templates/infra.yaml" ]; then
-          echo "[ERROR] templates/infra.yaml not found"; 
-          exit 1;
+        if [ ! -f "Templates/Resources/infra.yaml" ]; then
+          echo "[ERROR] Templates/Resources/infra.yaml not found"
+          exit 1
         fi
 
         STACK_NAME="${BRANCH_NAME}-infra"
         echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
-          --template-file templates/infra.yaml \
+          --template-file Templates/Resources/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
           --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
-            echo "[ERROR] Infra deployment failed";
-            exit 1;
+            echo "[ERROR] Infra deployment failed"
+            exit 1
           }
+
+    - script: &build_ui
+        |
+        set -e
+        echo "Building UI from Web directory..."
+        cd Web
+
+        STACK_NAME="develop-infra"
+        REGION="us-east-1"
+
+        echo "Fetching Cognito values from stack: $STACK_NAME..."
+
+        USER_POOL_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+          --output text)
+
+        CLIENT_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoAppClientId'].OutputValue" \
+          --output text)
+
+        REGION_VALUE=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
+          --output text)
+
+        echo "Creating .env file with Cognito values..."
+        cat > .env <<EOF
+        VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
+        VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
+        VITE_COGNITO_REGION="${REGION_VALUE}"
+        EOF
+
+        if ! command -v npm &> /dev/null; then
+          echo "[ERROR] npm not found. Ensure the step image is Node.js-based (e.g., node:20)"
+          exit 1
+        fi
+
+        echo "Installing npm dependencies..."
+        npm install || {
+          echo "[ERROR] npm install failed"
+          exit 1
+        }
+
+        echo "Checking if Vite is available..."
+        if ! npx vite --version &> /dev/null; then
+          echo "Installing Vite locally..."
+          npm install --save-dev vite || {
+            echo "[ERROR] Failed to install Vite"
+            exit 1
+          }
+        fi
+
+        echo "Running UI build..."
+        npm run build || {
+          echo "[ERROR] UI build failed"
+          exit 1
+        }
+
+        echo "Build complete. Contents of dist/:"
+        ls dist
+
+    - script: &deploy_ui_to_s3
+        |
+        set -e
+        echo "Deploying UI to S3..."
+        UI_BUCKET_NAME="develop-service-workbench-artifacts"
+        echo "Current working directory: $(pwd)"
+        echo "Directory tree:"
+        find .
+        # cd Web
+        if [ ! -d "dist" ]; then
+          echo "[ERROR] dist/ folder not found"
+          exit 1
+        fi
+
+        echo "Syncing contents to S3..."
+        aws s3 sync dist/ "s3://${UI_BUCKET_NAME}/web/" --delete || {
+          echo "[ERROR] S3 sync failed"
+          exit 1
+        }
+
+
+        STACK_NAME="develop-infra" # or dynamically set based on branch
+        REGION="us-east-1"
+
+        echo "Fetching CloudFront Distribution ID from stack outputs..."
+        CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+          --output text)
+
+        if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          echo "[ERROR] Failed to fetch CloudFront Distribution ID from stack outputs"
+          exit 1
+        fi
+
+        echo "Creating CloudFront invalidation..."
+        aws cloudfront create-invalidation \
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+          --paths "/*" || {
+            echo "[ERROR] CloudFront invalidation failed"
+            exit 1
+        }
+
+        echo "UI successfully deployed and CloudFront cache invalidated."
 
   steps:
     - step: &lint_and_validate
@@ -140,6 +256,16 @@ definitions:
           - *authenticate
           - *deploy_infra
 
+    - step: &build_and_deploy_ui
+        name: Build and Deploy UI
+        image: node:20
+        oidc: true
+        script:
+          - apt-get update && apt-get install -y awscli
+          - *authenticate
+          - *build_ui
+          - *deploy_ui_to_s3
+
 pipelines:
   branches:
     wb-mayank:
@@ -153,14 +279,18 @@ pipelines:
     wb-salma:
       - step: *lint_and_validate
       - step: *deploy
-    
+
     wb-bhargav:
       - step: *lint_and_validate
       - step: *deploy
-      
+
+    wb-init:
+      - step: *lint_and_validate
+      - step: *deploy
+
     wb-*:
       - step: *lint_and_validate
-      
+
     develop:
       - step: *lint_and_validate
       - step: *deploy_infra_stack
@@ -174,7 +304,18 @@ pipelines:
           script:
             - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
-            - *deploy_infra_stack
+            - *deploy_infra
+
+    UI-setup:
+      - step:
+          name: Manual UI Deployment
+          image: node:20
+          oidc: true
+          script:
+            - apt-get update && apt-get install -y awscli
+            - *authenticate
+            - *build_ui
+            - *deploy_ui_to_s3
     
     # update-lambda:
     #   - step:
