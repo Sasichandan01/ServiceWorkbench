@@ -242,12 +242,12 @@ Outputs:
     Value: !GetAtt WebsiteDistribution.DomainName
     
   CognitoUserPoolId:
-    Value: !Ref CognitoUserPool
+    Value: !Ref UserPool
     Export:
       Name: !Sub "${pApplicationPrefix}-CognitoUserPoolId"
 
   CognitoAppClientId:
-    Value: !Ref CognitoAppClient
+    Value: !Ref UserPoolClient
     Export:
       Name: !Sub "${pApplicationPrefix}-CognitoAppClientId"
 
