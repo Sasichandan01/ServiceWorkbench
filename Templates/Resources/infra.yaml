@@ -26,72 +26,6 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-
-
-  rOpenSearchDB:
-    Type: AWS::OpenSearchService::Domain
-    Properties:
-      DomainName: 'poc-workbench-cluster-2-1'
-
-      EngineVersion: 'OpenSearch_2.17'
-
-      ClusterConfig:
-        InstanceCount: 2
-        InstanceType: t3.small.search
-        ZoneAwarenessEnabled: true
-        ZoneAwarenessConfig: 
-          AvailabilityZoneCount: 2
-        WarmEnabled: false
-        MultiAZWithStandbyEnabled: false
-
-      EBSOptions:
-        EBSEnabled: true
-        VolumeType: gp3
-        VolumeSize: 10
-        Iops: 3000
-        Throughput: 125
-
-      EncryptionAtRestOptions:
-        Enabled: true
-        KmsKeyId: !Ref pKmsKeyId
-
-      NodeToNodeEncryptionOptions:
-        Enabled: true
-
-      DomainEndpointOptions:
-        EnforceHTTPS: true
-
-      AccessPolicies:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: "*"
-            Action: "es:*"
-            Resource: "*"
-
-      AdvancedOptions:
-        indices.fielddata.cache.size: "20"
-        rest.action.multi.allow_explicit_index: "true"
-        indices.query.bool.max_clause_count: "1024"
-
-      AdvancedSecurityOptions:
-        Enabled: true
-        
-
-      OffPeakWindowOptions:
-        Enabled: true
-        OffPeakWindow: 
-          WindowStartTime: 
-            Hours: 0
-            Minutes: 0
-
-      SnapshotOptions:
-        AutomatedSnapshotStartHour: 0
-
-      IPAddressType: dualstack
-
-
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-artifacts"
       VersioningConfiguration:
         Status: Enabled
@@ -221,6 +155,105 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+
+
+  # OpenSearch DB Cluster
+  OpenSearchDB:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: 'poc-workbench-cluster-2-1'
+      EngineVersion: 'OpenSearch_2.17'
+      ClusterConfig:
+        InstanceCount: 2
+        InstanceType: t3.small.search
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig: 
+          AvailabilityZoneCount: 2
+        WarmEnabled: false
+        MultiAZWithStandbyEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+        Iops: 3000
+        Throughput: 125
+      EncryptionAtRestOptions:
+        Enabled: true
+        KmsKeyId: !Ref pKmsKeyId
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"             #????
+            Action: "es:*"
+            Resource: "*"
+      AdvancedOptions:
+        indices.fielddata.cache.size: "20"
+        rest.action.multi.allow_explicit_index: "true"
+        indices.query.bool.max_clause_count: "1024"
+      AdvancedSecurityOptions:
+        Enabled: true
+      OffPeakWindowOptions:
+        Enabled: true
+        OffPeakWindow: 
+          WindowStartTime: 
+            Hours: 0
+            Minutes: 0
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      IPAddressType: dualstack
+      Tags:
+        - Key: Name
+          Value: "ServiceWorkbench"
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      AvailabilityZones:
+        - us-east-1a
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 7
+      DatabaseName: workbench-aurora-db           
+      DBClusterIdentifier: workbench-aurora-db-cluster
+      DBClusterParameterGroupName: default.aurora-postgresql15
+      DeletionProtection: false
+      EnableIAMDatabaseAuthentication: true
+      Engine: aurora-postgresql
+      EngineMode: provisioned
+      EngineVersion: 15.4
+      MasterUsername: postgres                   
+      ManageMasterUserPassword: true
+      NetworkType: IPV4
+      PerformanceInsightsEnabled: true
+      PerformanceInsightsKmsKeyId: !Ref pKmsKeyId
+      PerformanceInsightsRetentionPeriod: 7
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 2
+      Tags:
+        - Key: Name
+          Value: "ServiceWorkbench"
+
+  AuroraDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: genai-training-rag-cluster-instance-1
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+      DBParameterGroupName: default.aurora-postgresql15
+      Tags:
+        - Key: Name
+          Value: "ServiceWorkbench"     
+
+
+
 
 Outputs:
   CLOUDFRONT_DISTRIBUTION_ID:
