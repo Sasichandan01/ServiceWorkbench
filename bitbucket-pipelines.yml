@@ -126,7 +126,7 @@ definitions:
         echo "Building UI from Web directory..."
         cd Web
 
-        STACK_NAME="develop-infra"
+        STACK_NAME="wb-mayank-infra"
         REGION="us-east-1"
 
         echo "Fetching Cognito values from stack: $STACK_NAME..."
@@ -206,7 +206,7 @@ definitions:
         }
 
 
-        STACK_NAME="develop-infra" # or dynamically set based on branch
+        STACK_NAME="wb-mayank-infra" # or dynamically set based on branch
         REGION="us-east-1"
 
         echo "Fetching CloudFront Distribution ID from stack outputs..."
