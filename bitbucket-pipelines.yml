@@ -98,10 +98,10 @@ definitions:
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
 
-        # if [ "$BRANCH_NAME" != "develop" ]; then
-        #   echo "[ERROR] Infra deployment only allowed from 'develop' branch"
-        #   exit 1
-        # fi
+        if [ "$BRANCH_NAME" != "develop" ]; then
+          echo "[ERROR] Infra deployment only allowed from 'develop' branch"
+          exit 1
+        fi
 
         if [ ! -f "Templates/Resources/infra.yaml" ]; then
           echo "[ERROR] Templates/Resources/infra.yaml not found"
@@ -115,7 +115,7 @@ definitions:
           --template-file Templates/Resources/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides pApplicationPrefix="develop" || {
+          --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
@@ -126,7 +126,7 @@ definitions:
         echo "Building UI from Web directory..."
         cd Web
 
-        STACK_NAME="wb-mayank-infra"
+        STACK_NAME="develop-infra"
         REGION="us-east-1"
 
         echo "Fetching Cognito values from stack: $STACK_NAME..."
@@ -206,7 +206,7 @@ definitions:
         }
 
 
-        STACK_NAME="wb-mayank-infra" # or dynamically set based on branch
+        STACK_NAME="develop-infra" # or dynamically set based on branch
         REGION="us-east-1"
 
         echo "Fetching CloudFront Distribution ID from stack outputs..."
