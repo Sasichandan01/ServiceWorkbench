@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Default: service-workbench
     Description: Prefix for the application resources
+  ApiName:
+    Type: String
+    Default: CloudBenchAPI
+    Description: Name of the API Gateway API
 
 Resources:
   # S3 bucket for artifacts
@@ -231,6 +235,31 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
+  CloudBenchApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      BodyS3Location:
+        Bucket: my-sample-bucket-salma
+        Key: swagger.yaml
+      FailOnWarnings: true
+
+  CloudBenchApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: CloudBenchApi
+    Properties:
+      RestApiId: !Ref CloudBenchApi
+      StageName: test
+
+  CloudBenchApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref CloudBenchApi
+      DeploymentId: !Ref CloudBenchApiDeployment
+      StageName: prod
+      Description: test stage
+      # Logging removed to prevent CloudWatch role requirement
+
 Outputs:
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
@@ -256,3 +285,7 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pApplicationPrefix}-Region"
+
+  ApiUrl:
+    Description: "Invoke URL for the deployed API"
+    Value: !Sub "https://${CloudBenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"

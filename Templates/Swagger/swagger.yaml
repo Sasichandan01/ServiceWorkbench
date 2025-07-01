@@ -1,0 +1,93 @@
+swagger: "2.0"
+info:
+  version: "2025-06-29T14:42:46Z"
+  title: "CloudBench API"
+  description: "CloudBench API for managing workspaces, solutions, datasources, and related resources"
+
+schemes:
+  - https
+basePath: /test
+host: dkwqyi9obk.execute-api.us-east-1.amazonaws.com
+
+paths:
+  /workspaces:
+    get:
+      summary: "List all workspaces"
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: "Successful response"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:workbench-v2-workspaces-lambda/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+    post:
+      summary: "Create a new workspace"
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: "Workspace created successfully"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:workbench-v2-workspaces-lambda/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /workspaces/{workspace_id}:
+    get:
+      summary: "Get workspace details"
+      produces:
+        - application/json
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          type: string
+      responses:
+        "200":
+          description: "Workspace details retrieved successfully"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:workbench-v2-workspaces-lambda/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+    put:
+      summary: "Update workspace"
+      produces:
+        - application/json
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          type: string
+        - name: action
+          in: query
+          required: false
+          type: string
+          enum: ["enable", "disable"]
+      responses:
+        "200":
+          description: "Workspace updated successfully"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:workbench-v2-workspaces-lambda/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+    delete:
+      summary: "Delete workspace"
+      produces:
+        - application/json
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          type: string
+      responses:
+        "200":
+          description: "Workspace deleted successfully"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:workbench-v2-workspaces-lambda/invocations
+        httpMethod: POST
+        type: aws_proxy
