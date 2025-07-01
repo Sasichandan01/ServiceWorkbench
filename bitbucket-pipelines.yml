@@ -81,6 +81,12 @@ definitions:
 
           echo "Waiting for stack creation..."
           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+          # if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
+          #   aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
+          #     echo "[ERROR] Stack creation or update failed"
+          #     exit 1
+          #   }
+          # fi
           echo "API deployment completed successfully."
         else
           echo "Skipping deployment: No DEPLOY keyword in commit message."
@@ -92,10 +98,10 @@ definitions:
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
 
-        if [ "$BRANCH_NAME" != "develop" ]; then
-          echo "[ERROR] Infra deployment only allowed from 'develop' branch"
-          exit 1
-        fi
+        # if [ "$BRANCH_NAME" != "develop" ]; then
+        #   echo "[ERROR] Infra deployment only allowed from 'develop' branch"
+        #   exit 1
+        # fi
 
         if [ ! -f "Templates/Resources/infra.yaml" ]; then
           echo "[ERROR] Templates/Resources/infra.yaml not found"
@@ -109,7 +115,7 @@ definitions:
           --template-file Templates/Resources/infra.yaml \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
+          --parameter-overrides pApplicationPrefix="develop" || {
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
@@ -119,6 +125,36 @@ definitions:
         set -e
         echo "Building UI from Web directory..."
         cd Web
+
+        STACK_NAME="develop-infra"
+        REGION="us-east-1"
+
+        echo "Fetching Cognito values from stack: $STACK_NAME..."
+
+        USER_POOL_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+          --output text)
+
+        CLIENT_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoAppClientId'].OutputValue" \
+          --output text)
+
+        REGION_VALUE=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
+          --output text)
+
+        echo "Creating .env file with Cognito values..."
+        cat > .env <<EOF
+        VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
+        VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
+        VITE_COGNITO_REGION="${REGION_VALUE}"
+        EOF
 
         if ! command -v npm &> /dev/null; then
           echo "[ERROR] npm not found. Ensure the step image is Node.js-based (e.g., node:20)"
@@ -168,6 +204,22 @@ definitions:
           echo "[ERROR] S3 sync failed"
           exit 1
         }
+
+
+        STACK_NAME="develop-infra" # or dynamically set based on branch
+        REGION="us-east-1"
+
+        echo "Fetching CloudFront Distribution ID from stack outputs..."
+        CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+          --output text)
+
+        if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          echo "[ERROR] Failed to fetch CloudFront Distribution ID from stack outputs"
+          exit 1
+        fi
 
         echo "Creating CloudFront invalidation..."
         aws cloudfront create-invalidation \
@@ -232,6 +284,10 @@ pipelines:
       - step: *lint_and_validate
       - step: *deploy
 
+    wb-init:
+      - step: *lint_and_validate
+      - step: *deploy
+
     wb-*:
       - step: *lint_and_validate
 
@@ -248,7 +304,7 @@ pipelines:
           script:
             - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
-            - *deploy_infra_stack
+            - *deploy_infra
 
     UI-setup:
       - step:
