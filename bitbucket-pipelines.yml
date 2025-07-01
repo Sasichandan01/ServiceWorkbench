@@ -213,7 +213,7 @@ definitions:
         CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='CloudfrontDistributionId'].OutputValue" \
           --output text)
 
         if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then

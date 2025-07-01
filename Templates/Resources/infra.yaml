@@ -232,7 +232,7 @@ Resources:
       ManagedLoginVersion: "2"
 
 Outputs:
-  CloudFrontDistributionId:
+  CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
     Export:
