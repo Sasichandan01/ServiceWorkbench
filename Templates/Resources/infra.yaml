@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Service Workbench V2 Infrastructure
 
@@ -212,7 +213,7 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - "https://example.com/" # Replace with actual URL
+        - "https://example.com/"
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - code
@@ -242,12 +243,12 @@ Outputs:
     Value: !GetAtt WebsiteDistribution.DomainName
     
   CognitoUserPoolId:
-    Value: !Ref CognitoUserPool
+    Value: !Ref UserPool
     Export:
       Name: !Sub "${pApplicationPrefix}-CognitoUserPoolId"
 
   CognitoAppClientId:
-    Value: !Ref CognitoAppClient
+    Value: !Ref UserPoolClient
     Export:
       Name: !Sub "${pApplicationPrefix}-CognitoAppClientId"
 

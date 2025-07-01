@@ -162,7 +162,7 @@ definitions:
         fi
 
         echo "Installing npm dependencies..."
-        npm install || {
+        npm install --legacy-peer-deps || {
           echo "[ERROR] npm install failed"
           exit 1
         }
@@ -213,7 +213,7 @@ definitions:
         CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='CloudfrontDistributionId'].OutputValue" \
           --output text)
 
         if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
@@ -302,7 +302,6 @@ pipelines:
           name: Manual Infra Deployment
           oidc: true
           script:
-            - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
             - *deploy_infra
 
