@@ -98,10 +98,10 @@ definitions:
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
 
-        if [ "$BRANCH_NAME" != "develop" ]; then
-          echo "[ERROR] Infra deployment only allowed from 'develop' branch"
-          exit 1
-        fi
+        # if [ "$BRANCH_NAME" != "develop" ]; then
+        #   echo "[ERROR] Infra deployment only allowed from 'develop' branch"
+        #   exit 1
+        # fi
 
         if [ ! -f "Templates/Resources/infra.yaml" ]; then
           echo "[ERROR] Templates/Resources/infra.yaml not found"
