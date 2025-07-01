@@ -302,7 +302,6 @@ pipelines:
           name: Manual Infra Deployment
           oidc: true
           script:
-            - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
             - *deploy_infra
 
