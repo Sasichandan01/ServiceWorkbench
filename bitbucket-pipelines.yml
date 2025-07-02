@@ -247,27 +247,28 @@ definitions:
         echo "📁 Listing contents of $BASE_DIR:"
         ls -alR "$BASE_DIR"
 
-        echo "🔍 Searching for directory named '$LAMBDA_NAME' inside '$BASE_DIR'..."
+        echo "🔍 Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
+        MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
 
-        MATCHING_DIRS=$(find "$BASE_DIR" -type d -name "$LAMBDA_NAME")
-
-        if [ -z "$MATCHING_DIRS" ]; then
-          echo "[ERROR] No folder found named '$LAMBDA_NAME' under $BASE_DIR"
+        if [ -z "$MATCHING_FILES" ]; then
+          echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
           exit 1
         fi
 
-        NUM_MATCHES=$(echo "$MATCHING_DIRS" | wc -l)
+        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
         if [ "$NUM_MATCHES" -gt 1 ]; then
-          echo "[ERROR] Multiple folders found with name '$LAMBDA_NAME':"
-          echo "$MATCHING_DIRS"
+          echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
+          echo "$MATCHING_FILES"
           exit 1
         fi
 
-        LAMBDA_FOLDER=$(echo "$MATCHING_DIRS" | head -n1)
+        FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
+        FILE_DIR=$(dirname "$FILE_PATH")
 
-        echo "✅ Found Lambda folder: $LAMBDA_FOLDER"
-        echo "📦 Zipping folder: $LAMBDA_FOLDER"
-        zip -r "$ZIP_PATH" "$LAMBDA_FOLDER" || {
+        echo "✅ Found Lambda file: $FILE_PATH"
+        echo "📦 Zipping the file's folder: $FILE_DIR"
+
+        zip -r "$ZIP_PATH" "$FILE_DIR" || {
           echo "[ERROR] Failed to zip folder"
           exit 1
         }
@@ -286,7 +287,8 @@ definitions:
             exit 1
           }
 
-        echo "✅ Lambda '$LAMBDA_NAME' updated successfully with zipped folder."
+        echo "✅ Lambda '$LAMBDA_NAME' updated successfully with zipped folder containing the function."
+
 
 
     - script: &zip_and_upload_lambdas
