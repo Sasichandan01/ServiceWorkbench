@@ -392,18 +392,19 @@ pipelines:
             - *deploy_ui_to_s3
 
     Update-lambda:
-      - variables:
-          - name: LAMBDA_FUNCTION_NAME
-            default: ""
-            required: true
-            description: "Enter the AWS Lambda function name (e.g., lambda1)"
-      - step:
-          name: Update Lambda Function (Manual)
-          oidc: true
-          script:
-            - echo "Running manual Lambda function update for: ${LAMBDA_FUNCTION_NAME}"
-            - *authenticate
-            - *update_lambda_code
+      variables:
+        - name: LAMBDA_FUNCTION_NAME
+          default: ""
+          required: true
+          description: "Enter the AWS Lambda function name (e.g., lambda1)"
+      steps:
+        - step:
+            name: Update Lambda Function (Manual)
+            oidc: true
+            script:
+              - echo "Running manual Lambda function update for: ${LAMBDA_FUNCTION_NAME}"
+              - *authenticate
+              - *update_lambda_code
     
     # update-lambda:
     #   - step:
