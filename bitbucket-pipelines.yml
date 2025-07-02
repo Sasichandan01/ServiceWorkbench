@@ -242,9 +242,18 @@ definitions:
 
         echo "🔍 Searching recursively for function '$LAMBDA_NAME' in 'Code/'..."
 
-        MATCHING_FILE=$(grep -rEl --include="*.py" "def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/)
+        MATCHING_FILE=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/) || {
+          echo "[ERROR] grep failed to find matching file or directory"
+          exit 1
+        }
 
-        if [ -z "$MATCHING_FILE" ]; then
+        NUM_MATCHES=$(echo "$MATCHING_FILE" | wc -l)
+        if [ "$NUM_MATCHES" -gt 1 ]; then
+          echo "[ERROR] Multiple files found for function '$LAMBDA_NAME':"
+          echo "$MATCHING_FILE"
+          exit 1
+        fi
+                if [ -z "$MATCHING_FILE" ]; then
           echo "[ERROR] No file contains function: $LAMBDA_NAME"
           exit 1
         fi
