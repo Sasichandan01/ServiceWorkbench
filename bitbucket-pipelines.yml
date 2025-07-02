@@ -403,7 +403,7 @@ pipelines:
           script:
             - *authenticate
             - *update_lambda_code
-    
+  
     # update-lambda:
     #   - step:
     #       name: Update Lambda Function (Manual)
