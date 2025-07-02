@@ -266,8 +266,9 @@ definitions:
 
         echo "✅ Found function in: $PY_FILE"
         echo "📦 Zipping folder: $FOLDER_PATH"
-        cd "$FOLDER_PATH"
-        zip -r "$ZIP_PATH" . || {
+
+        # ZIP with relative path from current dir, not just contents
+        zip -r "$ZIP_PATH" "$FOLDER_PATH" || {
           echo "[ERROR] Failed to zip folder"
           exit 1
         }
