@@ -234,40 +234,41 @@ definitions:
     - script: &update_lambda_code
         |
         set -e
+
         if [ -z "$LAMBDA_NAME" ]; then
           echo "[ERROR] LAMBDA_NAME is required"
           exit 1
         fi
 
-        pwd
-        echo "📁 Listing contents of current directory:"
-        ls -al
+        S3_BUCKET="develop-service-workbench-artifacts"
+        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+
         echo "📁 Listing contents of Code/:"
-        ls -al Code/
+        ls -alR Code/
 
         echo "🔍 Searching for function '$LAMBDA_NAME' inside 'Code/' recursively..."
+        MATCHING_FILES=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/)
 
-        MATCHING_FILE=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/) || {
+        if [ -z "$MATCHING_FILES" ]; then
           echo "[ERROR] No file contains function: $LAMBDA_NAME"
-          exit 1
-        }
-
-        NUM_MATCHES=$(echo "$MATCHING_FILE" | wc -l)
-        if [ "$NUM_MATCHES" -gt 1 ]; then
-          echo "[ERROR] Multiple files found containing function '$LAMBDA_NAME':"
-          echo "$MATCHING_FILE"
           exit 1
         fi
 
-        PY_FILE="$MATCHING_FILE"
-        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
-        S3_BUCKET="develop-service-workbench-artifacts"
+        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
+        if [ "$NUM_MATCHES" -gt 1 ]; then
+          echo "[ERROR] Multiple files found containing function '$LAMBDA_NAME':"
+          echo "$MATCHING_FILES"
+          exit 1
+        fi
 
-        echo "✅ Found: $PY_FILE"
-        echo "📦 Zipping just the file..."
-        cd "$(dirname "$PY_FILE")"
-        zip -r "$ZIP_PATH" "$(basename "$PY_FILE")" || {
-          echo "[ERROR] Failed to zip file"
+        PY_FILE=$(echo "$MATCHING_FILES" | head -n1)
+        FOLDER_PATH=$(dirname "$PY_FILE")
+
+        echo "✅ Found function in: $PY_FILE"
+        echo "📦 Zipping folder: $FOLDER_PATH"
+        cd "$FOLDER_PATH"
+        zip -r "$ZIP_PATH" . || {
+          echo "[ERROR] Failed to zip folder"
           exit 1
         }
 
@@ -285,7 +286,7 @@ definitions:
             exit 1
           }
 
-        echo "✅ Lambda '$LAMBDA_NAME' updated successfully with only the function file."
+        echo "✅ Lambda '$LAMBDA_NAME' updated successfully with zipped folder."
 
 
     - script: &zip_and_upload_lambdas
