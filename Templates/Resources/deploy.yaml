@@ -146,7 +146,7 @@ Resources:
       Handler: index.handler
       Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
       Runtime: python3.12
-      Timeout: 300
+      Timeout: 900
       Code:
         ZipFile: |
           import json
