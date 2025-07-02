@@ -38,6 +38,14 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
 
   SampleLambdaFunction:
     Type: AWS::Lambda::Function
@@ -48,10 +56,13 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-1-ID
-          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-2-ID
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
-          - !ImportValue !Sub ${VPCPrefix}-Lambda-SG-ID
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         ZipFile: |
           def handler(event, context):
@@ -66,22 +77,17 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-1-ID
-          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-2-ID
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
-          - !ImportValue !Sub ${VPCPrefix}-Lambda-SG-ID
+          - Fn::ImportValue: 
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         ZipFile: |
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
-
-  WorkspaceLambdaInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt WorkspaceLambdaFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
@@ -92,9 +98,16 @@ Resources:
         Key: develop/swagger.yaml
       FailOnWarnings: true
 
+  WorkspaceLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WorkspaceLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: WorkbenchApi
     Properties:
       RestApiId: !Ref WorkbenchApi
       StageName: test
