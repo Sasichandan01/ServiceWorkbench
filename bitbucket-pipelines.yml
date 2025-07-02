@@ -253,30 +253,18 @@ definitions:
           echo "$MATCHING_FILE"
           exit 1
         fi
-                if [ -z "$MATCHING_FILE" ]; then
+
+        if [ "$NUM_MATCHES" -eq 0 ]; then
           echo "[ERROR] No file contains function: $LAMBDA_NAME"
           exit 1
         fi
 
         echo "✅ Found function '$LAMBDA_NAME' in file: $MATCHING_FILE"
 
-        # Setup paths
-        S3_BUCKET="develop-service-workbench-artifacts"
+        FILE_NAME=$(basename "$MATCHING_FILE")
         TMP_DIR="/tmp/lambda_update"
         TMP_ZIP="/tmp/lambda_package.zip"
-
-        echo "🔍 Searching recursively for function '${LAMBDA_NAME}' in 'Code/'..."
-
-        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}(" Code/)
-
-        if [ -z "$MATCHING_FILE" ]; then
-          echo "[ERROR] No Python function named '${LAMBDA_NAME}' found in Code/."
-          exit 1
-        fi
-
-        echo "✅ Found matching file: $MATCHING_FILE"
-
-        FILE_NAME=$(basename "$MATCHING_FILE")
+        S3_BUCKET="develop-service-workbench-artifacts"
 
         mkdir -p "$TMP_DIR"
         cp "$MATCHING_FILE" "$TMP_DIR/$FILE_NAME"
@@ -307,7 +295,7 @@ definitions:
         set -e
         echo "Zipping and uploading lambda files to S3..."
 
-        LAMBDA_SRC_DIR="code"
+        LAMBDA_SRC_DIR="Code"
         DEST_BUCKET="develop-service-workbench-artifacts"
 
         LAMBDA_ZIP_DIR="lambda_zips"
