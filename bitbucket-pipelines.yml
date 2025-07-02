@@ -397,7 +397,7 @@ pipelines:
             default: "abc"
             required: true
             description: "Enter the AWS Lambda function name (e.g., lambda1)"
-        step:
+      - step:
           name: Update Lambda Function (Manual)
           oidc: true
           script:
