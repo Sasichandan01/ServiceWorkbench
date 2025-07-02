@@ -268,7 +268,7 @@ definitions:
         echo "✅ Found Lambda file: $FILE_PATH"
         echo "📦 Zipping the file's folder: $FILE_DIR"
 
-        zip -r "$ZIP_PATH" "$FILE_DIR" || {
+        zip -j "$ZIP_PATH" "$FILE_PATH" || {
           echo "[ERROR] Failed to zip folder"
           exit 1
         }
