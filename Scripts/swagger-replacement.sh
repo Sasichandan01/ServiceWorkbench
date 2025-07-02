@@ -13,7 +13,7 @@ if [ -z "$PREFIX" ]; then
   exit 1
 fi
 
-if [ -f "swagger.yaml" ]; then
+if [ -f "Templates/Swagger/swagger.yaml" ]; then
   sed -i "s/placeholder-workspaces-lambda/${PREFIX}-workspaces-lambda/g" swagger.yaml
   echo "Swagger file updated successfully"
   
