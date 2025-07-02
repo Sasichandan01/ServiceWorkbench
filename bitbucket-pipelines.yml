@@ -262,9 +262,21 @@ definitions:
 
         # Setup paths
         S3_BUCKET="develop-service-workbench-artifacts"
-        FILE_NAME=$(basename "$MATCHING_FILE")
         TMP_DIR="/tmp/lambda_update"
         TMP_ZIP="/tmp/lambda_package.zip"
+
+        echo "🔍 Searching recursively for function '${LAMBDA_NAME}' in 'Code/'..."
+
+        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}(" Code/)
+
+        if [ -z "$MATCHING_FILE" ]; then
+          echo "[ERROR] No Python function named '${LAMBDA_NAME}' found in Code/."
+          exit 1
+        fi
+
+        echo "✅ Found matching file: $MATCHING_FILE"
+
+        FILE_NAME=$(basename "$MATCHING_FILE")
 
         mkdir -p "$TMP_DIR"
         cp "$MATCHING_FILE" "$TMP_DIR/$FILE_NAME"
