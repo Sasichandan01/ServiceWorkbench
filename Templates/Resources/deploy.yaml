@@ -56,12 +56,12 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         ZipFile: |
@@ -77,12 +77,12 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
-          - !ImportValue 
+          - Fn::ImportValue: 
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         ZipFile: |
