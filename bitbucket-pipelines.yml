@@ -241,6 +241,7 @@ definitions:
         fi
 
         echo "🔍 Searching recursively for function '$LAMBDA_NAME' in 'Code/'..."
+        pwd
 
         MATCHING_FILE=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/) || {
           echo "[ERROR] grep failed to find matching file or directory"
