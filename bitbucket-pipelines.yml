@@ -242,6 +242,10 @@ definitions:
 
         echo "🔍 Searching recursively for function '$LAMBDA_NAME' in 'Code/'..."
         pwd
+        echo "📁 Listing contents of current directory:"
+        ls -al
+        echo "📁 Listing contents of Code/:"
+        ls -al Code/
 
         MATCHING_FILE=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/) || {
           echo "[ERROR] grep failed to find matching file or directory"
