@@ -242,33 +242,32 @@ definitions:
 
         S3_BUCKET="develop-service-workbench-artifacts"
         ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+        BASE_DIR="Code"
 
-        echo "📁 Listing contents of Code/:"
-        ls -alR Code/
+        echo "📁 Listing contents of $BASE_DIR:"
+        ls -alR "$BASE_DIR"
 
-        echo "🔍 Searching for function '$LAMBDA_NAME' inside 'Code/' recursively..."
-        MATCHING_FILES=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/)
+        echo "🔍 Searching for directory named '$LAMBDA_NAME' inside '$BASE_DIR'..."
 
-        if [ -z "$MATCHING_FILES" ]; then
-          echo "[ERROR] No file contains function: $LAMBDA_NAME"
+        MATCHING_DIRS=$(find "$BASE_DIR" -type d -name "$LAMBDA_NAME")
+
+        if [ -z "$MATCHING_DIRS" ]; then
+          echo "[ERROR] No folder found named '$LAMBDA_NAME' under $BASE_DIR"
           exit 1
         fi
 
-        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
+        NUM_MATCHES=$(echo "$MATCHING_DIRS" | wc -l)
         if [ "$NUM_MATCHES" -gt 1 ]; then
-          echo "[ERROR] Multiple files found containing function '$LAMBDA_NAME':"
-          echo "$MATCHING_FILES"
+          echo "[ERROR] Multiple folders found with name '$LAMBDA_NAME':"
+          echo "$MATCHING_DIRS"
           exit 1
         fi
 
-        PY_FILE=$(echo "$MATCHING_FILES" | head -n1)
-        FOLDER_PATH=$(dirname "$PY_FILE")
+        LAMBDA_FOLDER=$(echo "$MATCHING_DIRS" | head -n1)
 
-        echo "✅ Found function in: $PY_FILE"
-        echo "📦 Zipping folder: $FOLDER_PATH"
-
-        # ZIP with relative path from current dir, not just contents
-        zip -r "$ZIP_PATH" "$FOLDER_PATH" || {
+        echo "✅ Found Lambda folder: $LAMBDA_FOLDER"
+        echo "📦 Zipping folder: $LAMBDA_FOLDER"
+        zip -r "$ZIP_PATH" "$LAMBDA_FOLDER" || {
           echo "[ERROR] Failed to zip folder"
           exit 1
         }
