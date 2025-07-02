@@ -436,6 +436,14 @@ pipelines:
           script:
             - *authenticate
             - *update_lambda_code
+
+    Zip-and-upload-lambdas:
+      - step:
+          name: Zip and Upload Lambdas (Manual)
+          oidc: true
+          script:
+            - *authenticate
+            - *zip_and_upload_lambdas
   
     # update-lambda:
     #   - step:
