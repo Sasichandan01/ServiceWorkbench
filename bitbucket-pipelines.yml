@@ -267,7 +267,7 @@ definitions:
 
         echo "🔍 Searching recursively for function '${LAMBDA_NAME}' in 'Code/'..."
 
-        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}("Code/)
+        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}(" Code/)
 
         if [ -z "$MATCHING_FILE" ]; then
           echo "[ERROR] No Python function named '${LAMBDA_NAME}' found in Code/."
