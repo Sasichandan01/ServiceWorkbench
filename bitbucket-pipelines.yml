@@ -413,7 +413,7 @@ pipelines:
 
     Update-lambda:
       - variables:
-          - name: LAMBDA_FUNCTION_NAME
+          - name: LAMBDA_NAME
             default: "abc"
             required: true
             description: "Enter the AWS Lambda function name (e.g., lambda1)"
