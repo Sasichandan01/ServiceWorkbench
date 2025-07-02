@@ -1,6 +1,5 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda and pPrefix parameter
+Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
 
 Parameters:
   pPrefix:
@@ -12,6 +11,7 @@ Parameters:
     Description: Name of the API Gateway API
 
 Resources:
+
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -58,12 +58,20 @@ Resources:
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
 
+  WorkspaceLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt WorkspaceLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !Ref ApiName
       BodyS3Location:
-        Bucket: develop-service-workbench-artifacts 
+        Bucket: develop-service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
 
