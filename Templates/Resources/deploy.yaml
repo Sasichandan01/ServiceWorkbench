@@ -63,8 +63,8 @@ Resources:
     Properties:
       Name: !Ref ApiName
       BodyS3Location:
-        Bucket: my-sample-bucket-salma
-        Key: swagger.yaml
+        Bucket: develop-service-workbench-artifacts 
+        Key: develop/swagger.yaml
       FailOnWarnings: true
 
   WorkbenchApiDeployment:
@@ -81,7 +81,6 @@ Resources:
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
       Description: test stage
-      # Logging removed to prevent CloudWatch role requirement
 
 Outputs:
   LambdaFunctionName:

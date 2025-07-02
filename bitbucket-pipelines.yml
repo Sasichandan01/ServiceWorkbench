@@ -69,6 +69,18 @@ definitions:
             exit 1
           fi
 
+          echo "Updating swagger file with prefix: ${BRANCH_NAME}"
+          if [ -f "swagger.yaml" ]; then
+            sed -i "s/placeholder-workspaces-lambda/${BRANCH_NAME}-workspaces-lambda/g" swagger.yaml
+            echo "Swagger file updated successfully"
+            
+            aws s3 cp swagger.yaml s3://develop-service-workbench-artifacts/develop/swagger.yaml
+            echo "Updated swagger file uploaded to S3"
+          else
+            echo "[WARNING] swagger.yaml not found, skipping update"
+          fi
+
+
           aws cloudformation deploy \
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
