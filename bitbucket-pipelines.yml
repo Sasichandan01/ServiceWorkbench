@@ -444,12 +444,3 @@ pipelines:
           script:
             - *authenticate
             - *zip_and_upload_lambdas
-  
-    # update-lambda:
-    #   - step:
-    #       name: Update Lambda Function (Manual)
-    #       oidc: true
-    #       script:
-    #         - echo "Running manual Lambda function update on branch: ${BITBUCKET_BRANCH}"
-    #         - *authenticate
-    #         - **lambda_update
