@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
 Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
