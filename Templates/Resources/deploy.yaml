@@ -57,9 +57,9 @@ Resources:
       VpcConfig:
         SubnetIds:
           - !ImportValue 
-              Fn::Sub: "${VPCPrefix}-Public-Subnet-1-ID"
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
           - !ImportValue 
-              Fn::Sub: "${VPCPrefix}-Public-Subnet-2-ID"
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - !ImportValue 
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
@@ -78,9 +78,9 @@ Resources:
       VpcConfig:
         SubnetIds:
           - !ImportValue 
-              Fn::Sub: "${VPCPrefix}-Public-Subnet-1-ID"
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
           - !ImportValue 
-              Fn::Sub: "${VPCPrefix}-Public-Subnet-2-ID"
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - !ImportValue 
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
