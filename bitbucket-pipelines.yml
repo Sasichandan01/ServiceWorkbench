@@ -240,9 +240,9 @@ definitions:
           exit 1
         fi
 
-        echo "🔍 Searching for function '$LAMBDA_NAME' in 'codes/' directory..."
+        echo "🔍 Searching recursively for function '$LAMBDA_NAME' in 'codes/'..."
 
-        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}(" codes/)
+        MATCHING_FILE=$(grep -rEl --include="*.py" "def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" codes/)
 
         if [ -z "$MATCHING_FILE" ]; then
           echo "[ERROR] No file contains function: $LAMBDA_NAME"
