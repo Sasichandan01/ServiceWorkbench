@@ -234,32 +234,52 @@ definitions:
     - script: &update_lambda_code
         |
         set -e
-        if [ -z "$LAMBDA_FUNCTION_NAME" ]; then
-          echo "[ERROR] LAMBDA_FUNCTION_NAME environment variable not set"
+
+        if [ -z "$LAMBDA_NAME" ]; then
+          echo "[ERROR] LAMBDA_NAME is required"
           exit 1
         fi
 
-        echo "Updating Lambda function: $LAMBDA_FUNCTION_NAME"
+        echo "🔍 Searching for function '$LAMBDA_NAME' in 'codes/' directory..."
 
-        DEST_BUCKET="develop-service-workbench-artifacts"
-        S3_KEY="lambdas/${LAMBDA_FUNCTION_NAME}.zip"
+        MATCHING_FILE=$(grep -rl --include="*.py" "def ${LAMBDA_NAME}(" codes/)
 
-        echo "Checking if S3 object exists..."
-        if ! aws s3 ls "s3://${DEST_BUCKET}/${S3_KEY}" > /dev/null; then
-          echo "[ERROR] S3 object s3://${DEST_BUCKET}/${S3_KEY} not found"
+        if [ -z "$MATCHING_FILE" ]; then
+          echo "[ERROR] No file contains function: $LAMBDA_NAME"
           exit 1
         fi
 
-        echo "Updating Lambda function code from S3..."
+        echo "✅ Found function '$LAMBDA_NAME' in file: $MATCHING_FILE"
+
+        # Setup paths
+        S3_BUCKET="develop-service-workbench-artifacts"
+        FILE_NAME=$(basename "$MATCHING_FILE")
+        TMP_DIR="/tmp/lambda_update"
+        TMP_ZIP="/tmp/lambda_package.zip"
+
+        mkdir -p "$TMP_DIR"
+        cp "$MATCHING_FILE" "$TMP_DIR/$FILE_NAME"
+
+        echo "📤 Uploading to S3: s3://${S3_BUCKET}/lambdas/${FILE_NAME}"
+        aws s3 cp "$TMP_DIR/$FILE_NAME" "s3://${S3_BUCKET}/lambdas/${FILE_NAME}" || {
+          echo "[ERROR] Failed to upload to S3"
+          exit 1
+        }
+
+        echo "📦 Zipping Lambda for deployment..."
+        cd "$TMP_DIR"
+        zip -r "$TMP_ZIP" "$FILE_NAME"
+
+        echo "🚀 Updating AWS Lambda function: $LAMBDA_NAME"
         aws lambda update-function-code \
-          --function-name "$LAMBDA_FUNCTION_NAME" \
-          --s3-bucket "$DEST_BUCKET" \
-          --s3-key "$S3_KEY" || {
-            echo "[ERROR] Lambda update failed"
+          --function-name "$LAMBDA_NAME" \
+          --zip-file "fileb://${TMP_ZIP}" || {
+            echo "[ERROR] Failed to update Lambda"
             exit 1
           }
 
-        echo "Lambda function updated successfully."
+        echo "✅ Lambda function '$LAMBDA_NAME' updated successfully."
+
 
     - script: &zip_and_upload_lambdas
         |
