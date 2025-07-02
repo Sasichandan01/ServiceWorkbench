@@ -1,13 +1,17 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda and pPrefix parameter
+Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
 
 Parameters:
   pPrefix:
     Type: String
     Description: Prefix for Lambda function naming
+  ApiName:
+    Type: String
+    Default: WorkbenchAPI
+    Description: Name of the API Gateway API
 
 Resources:
+
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -42,7 +46,55 @@ Resources:
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
 
+  WorkspaceLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-workspaces-lambda"
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.13
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Hello from Lambda!"}
+
+  WorkspaceLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt WorkspaceLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
+  WorkbenchApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      BodyS3Location:
+        Bucket: develop-service-workbench-artifacts
+        Key: develop/swagger.yaml
+      FailOnWarnings: true
+
+  WorkbenchApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: WorkbenchApi
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      StageName: test
+
+  WorkbenchApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      DeploymentId: !Ref WorkbenchApiDeployment
+      StageName: prod
+      Description: test stage
+
 Outputs:
   LambdaFunctionName:
     Description: Name of the Lambda function
     Value: !Ref SampleLambdaFunction
+
+  ApiUrl:
+    Description: "Invoke URL for the deployed API"
+    Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"

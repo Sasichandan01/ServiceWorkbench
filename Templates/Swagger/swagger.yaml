@@ -1,0 +1,356 @@
+openapi: "3.0.1"
+info:
+  version: "2025-06-29T14:42:46Z"
+  title: "CloudBench API"
+  description: "CloudBench API for managing workspaces, solutions, datasources, and related resources"
+
+servers:
+  - url: "https://dkwqyi9obk.execute-api.us-east-1.amazonaws.com/{basePath}"
+    variables:
+      basePath:
+        default: "test"
+
+paths:
+  /workspaces:
+    get:
+      summary: "List all workspaces"
+      parameters:
+        - name: "filterBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Filter criteria"
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort criteria"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to skip"
+      responses:
+        "200":
+          description: "Successful response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspacesResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    post:
+      summary: "Create a new workspace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceRequest"
+      responses:
+        "200":
+          description: "Workspace created successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateWorkspaceResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
+  /workspaces/{workspace_id}:
+    get:
+      summary: "Get workspace details"
+      description: "Get the details of an individual workspace"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+      responses:
+        "200":
+          description: "Workspace details"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceDetails"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    put:
+      summary: "Update workspace"
+      description: "Update the details of a workspace"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "action"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            enum: ["enable", "disable"]
+          description: "Action to enable/disable workspace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorkspaceRequest"
+      responses:
+        "200":
+          description: "Workspace updated successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    delete:
+      summary: "Delete workspace"
+      description: "Delete a workspace"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+      responses:
+        "200":
+          description: "Workspace deleted successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
+components:
+  schemas:
+    Empty:
+      title: "Empty Schema"
+      type: "object"
+
+    MessageResponse:
+      type: "object"
+      properties:
+        Message:
+          type: "string"
+
+    WorkspacesResponse:
+      type: "object"
+      properties:
+        Workspaces:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/WorkspaceDetails"
+        Pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    CreateWorkspaceResponse:
+      type: "object"
+      properties:
+        Message:
+          type: "string"
+        WorkspaceId:
+          type: "string"
+
+    WorkspaceDetails:
+      type: "object"
+      properties:
+        WorkspaceId:
+          type: "string"
+        WorkspaceName:
+          type: "string"
+        Description:
+          type: "string"
+        Tags:
+          type: "array"
+          items:
+            type: "string"
+        WorkspaceStatus:
+          type: "string"
+        Datasources:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Datasource"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+        Cost:
+          type: "string"
+
+    CreateWorkspaceRequest:
+      type: "object"
+      properties:
+        WorkspaceName:
+          type: "string"
+        Description:
+          type: "string"
+        Tags:
+          type: "array"
+          items:
+            type: "string"
+
+    UpdateWorkspaceRequest:
+      type: "object"
+      properties:
+        WorkspaceName:
+          type: "string"
+        Description:
+          type: "string"
+        Tags:
+          type: "array"
+          items:
+            type: "string"
+
+    Pagination:
+      type: "object"
+      properties:
+        limit:
+          type: "integer"
+        offset:
+          type: "integer"
+        total:
+          type: "integer"
+
+    Datasource:
+      type: "object"
+      properties:
+        DatasourceId:
+          type: "string"
+        DatasourceName:
+          type: "string"
+        DatasourceType:
+          type: "string"
+        Status:
+          type: "string"
