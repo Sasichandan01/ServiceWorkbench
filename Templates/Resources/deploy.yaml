@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
 
@@ -41,6 +42,12 @@ Resources:
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue PrivateSubnet1Id
+          - !ImportValue PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue LambdaSecurityGroupId
       Code:
         ZipFile: |
           def handler(event, context):
@@ -53,6 +60,12 @@ Resources:
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue PrivateSubnet1Id
+          - !ImportValue PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue LambdaSecurityGroupId
       Code:
         ZipFile: |
           def handler(event, context):
