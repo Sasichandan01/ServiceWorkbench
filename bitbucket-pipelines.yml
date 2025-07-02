@@ -239,6 +239,12 @@ definitions:
           exit 1
         fi
 
+        pwd
+        echo "📁 Listing contents of current directory:"
+        ls -al
+        echo "📁 Listing contents of Code/:"
+        ls -al Code/
+
         echo "🔍 Searching for function '$LAMBDA_NAME' inside 'Code/' recursively..."
 
         MATCHING_FILE=$(grep -rEl --include="*.py" -E "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+${LAMBDA_NAME}[[:space:]]*\(" Code/) || {
