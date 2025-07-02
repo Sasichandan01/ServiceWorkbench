@@ -395,7 +395,6 @@ pipelines:
       - variables:
         - name: LambdaFunctionName
           default: "abc"
-          required: true
           description: "Enter the AWS Lambda function name (e.g., lambda1)"
       
       - step:
