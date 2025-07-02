@@ -1,16 +1,11 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
-Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
 
 Parameters:
   pPrefix:
     Type: String
     Description: Prefix for Lambda function naming
-  ApiName:
-    Type: String
-    Default: WorkbenchAPI
-    Description: Name of the API Gateway API
   ApiName:
     Type: String
     Default: WorkbenchAPI
