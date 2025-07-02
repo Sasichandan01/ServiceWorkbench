@@ -392,7 +392,6 @@ pipelines:
             - *deploy_ui_to_s3
 
     Update-lambda:
-      Update-lambda:
       - step:
           name: Update Lambda Function (Manual)
           oidc: true
