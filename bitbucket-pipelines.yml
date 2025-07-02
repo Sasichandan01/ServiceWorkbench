@@ -69,6 +69,10 @@ definitions:
             exit 1
           fi
 
+          chmod +x Scripts/swagger-replacement.sh
+          ./Scripts/swagger-replacement.sh "${BRANCH_NAME}"
+
+
           aws cloudformation deploy \
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
