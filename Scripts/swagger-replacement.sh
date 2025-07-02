@@ -13,13 +13,23 @@ if [ -z "$PREFIX" ]; then
   exit 1
 fi
 
-if [ -f "Templates/Swagger/swagger.yaml" ]; then
-  sed -i "s/placeholder-workspaces-lambda/${PREFIX}-workspaces-lambda/g" swagger.yaml
-  echo "Swagger file updated successfully"
-  
-  aws s3 cp swagger.yaml s3://develop-service-workbench-artifacts/develop/swagger.yaml
-  echo "Updated swagger file uploaded to S3"
+echo "Updating swagger file with prefix: ${PREFIX}"
+
+# Check multiple possible locations for swagger.yaml
+SWAGGER_FILE=""
+if [ -f "swagger.yaml" ]; then
+  SWAGGER_FILE="swagger.yaml"
+elif [ -f "Templates/Swagger/swagger.yaml" ]; then
+  SWAGGER_FILE="Templates/Swagger/swagger.yaml"
 else
-  echo "[WARNING] swagger.yaml not found, skipping update"
+  echo "[ERROR] swagger.yaml not found in any expected location"
+  ls -la
   exit 1
 fi
+
+echo "Found swagger file at: ${SWAGGER_FILE}"
+sed -i "s/placeholder-workspaces-lambda/${PREFIX}-workspaces-lambda/g" "${SWAGGER_FILE}"
+echo "Swagger file updated successfully"
+
+aws s3 cp "${SWAGGER_FILE}" s3://develop-service-workbench-artifacts/develop/swagger.yaml
+echo "Updated swagger file uploaded to S3"
