@@ -396,7 +396,6 @@ pipelines:
           name: Update Lambda Function (Manual)
           oidc: true
           script:
-            - echo "Running manual Lambda function update for: ${LAMBDA_FUNCTION_NAME}"
             - *authenticate
             - *update_lambda_code
           variables:
