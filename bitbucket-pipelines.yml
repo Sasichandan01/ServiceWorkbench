@@ -393,11 +393,11 @@ pipelines:
 
     Update-lambda:
       - variables:
-        - name: LambdaFunctionName
-          default: "abc"
-          description: "Enter the AWS Lambda function name (e.g., lambda1)"
-      
-      - step:
+          - name: LAMBDA_FUNCTION_NAME
+            default: "abc"
+            required: true
+            description: "Enter the AWS Lambda function name (e.g., lambda1)"
+        step:
           name: Update Lambda Function (Manual)
           oidc: true
           script:
