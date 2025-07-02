@@ -126,13 +126,43 @@ definitions:
         echo "Building UI from Web directory..."
         cd Web
 
+        STACK_NAME="develop-infra"
+        REGION="us-east-1"
+
+        echo "Fetching Cognito values from stack: $STACK_NAME..."
+
+        USER_POOL_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+          --output text)
+
+        CLIENT_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoAppClientId'].OutputValue" \
+          --output text)
+
+        REGION_VALUE=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
+          --output text)
+
+        echo "Creating .env file with Cognito values..."
+        cat > .env <<EOF
+        VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
+        VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
+        VITE_COGNITO_REGION="${REGION_VALUE}"
+        EOF
+
         if ! command -v npm &> /dev/null; then
           echo "[ERROR] npm not found. Ensure the step image is Node.js-based (e.g., node:20)"
           exit 1
         fi
 
         echo "Installing npm dependencies..."
-        npm install || {
+        npm install --legacy-peer-deps || {
           echo "[ERROR] npm install failed"
           exit 1
         }
@@ -175,6 +205,22 @@ definitions:
           exit 1
         }
 
+
+        STACK_NAME="develop-infra" # or dynamically set based on branch
+        REGION="us-east-1"
+
+        echo "Fetching CloudFront Distribution ID from stack outputs..."
+        CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CloudfrontDistributionId'].OutputValue" \
+          --output text)
+
+        if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          echo "[ERROR] Failed to fetch CloudFront Distribution ID from stack outputs"
+          exit 1
+        fi
+
         echo "Creating CloudFront invalidation..."
         aws cloudfront create-invalidation \
           --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
@@ -184,6 +230,65 @@ definitions:
         }
 
         echo "UI successfully deployed and CloudFront cache invalidated."
+
+    - script: &update_lambda_code
+        |
+        set -e
+        if [ -z "$LAMBDA_FUNCTION_NAME" ]; then
+          echo "[ERROR] LAMBDA_FUNCTION_NAME environment variable not set"
+          exit 1
+        fi
+
+        echo "Updating Lambda function: $LAMBDA_FUNCTION_NAME"
+
+        DEST_BUCKET="develop-service-workbench-artifacts"
+        S3_KEY="lambdas/${LAMBDA_FUNCTION_NAME}.zip"
+
+        echo "Checking if S3 object exists..."
+        if ! aws s3 ls "s3://${DEST_BUCKET}/${S3_KEY}" > /dev/null; then
+          echo "[ERROR] S3 object s3://${DEST_BUCKET}/${S3_KEY} not found"
+          exit 1
+        fi
+
+        echo "Updating Lambda function code from S3..."
+        aws lambda update-function-code \
+          --function-name "$LAMBDA_FUNCTION_NAME" \
+          --s3-bucket "$DEST_BUCKET" \
+          --s3-key "$S3_KEY" || {
+            echo "[ERROR] Lambda update failed"
+            exit 1
+          }
+
+        echo "Lambda function updated successfully."
+
+    - script: &zip_and_upload_lambdas
+        |
+        set -e
+        echo "Zipping and uploading lambda files to S3..."
+
+        LAMBDA_SRC_DIR="code"
+        DEST_BUCKET="develop-service-workbench-artifacts"
+
+        LAMBDA_ZIP_DIR="lambda_zips"
+        mkdir -p "$LAMBDA_ZIP_DIR"
+        trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
+
+        find "$LAMBDA_SRC_DIR" -type f -name "*.py" | while read -r py_file; do
+          LAMBDA_NAME=$(basename "$py_file" .py)
+          ZIP_PATH="lambda_zips/${LAMBDA_NAME}.zip"
+
+          echo "Zipping $py_file as $ZIP_PATH"
+          zip -j "$ZIP_PATH" "$py_file"
+
+          echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/lambdas/"
+          aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/lambdas/${LAMBDA_NAME}.zip" || {
+            echo "[ERROR] Failed to upload $ZIP_PATH"
+            exit 1
+          }
+        done
+
+        echo "All lambda zips uploaded to S3."
+
 
   steps:
     - step: &lint_and_validate
@@ -219,12 +324,28 @@ definitions:
           - *authenticate
           - *build_ui
           - *deploy_ui_to_s3
+    
+    - step: &updating_lambda
+        name: Update Lambda Function
+        oidc: true
+        script:
+          - echo "Starting Lambda function update..."
+          - *authenticate
+          - *update_lambda_code
+    
+    - step: &zipping_and_uploading_lambdas
+        name: Zip and Upload Lambdas
+        oidc: true
+        script:
+          - echo "Zipping and uploading lambda files..."
+          - *zip_and_upload_lambdas
 
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
       - step: *deploy
+      - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
@@ -235,6 +356,10 @@ pipelines:
       - step: *deploy
 
     wb-bhargav:
+      - step: *lint_and_validate
+      - step: *deploy
+
+    wb-init:
       - step: *lint_and_validate
       - step: *deploy
 
@@ -252,7 +377,6 @@ pipelines:
           name: Manual Infra Deployment
           oidc: true
           script:
-            - echo "Manual trigger from branch: ${BITBUCKET_BRANCH}"
             - *authenticate
             - *deploy_infra
 
@@ -266,6 +390,20 @@ pipelines:
             - *authenticate
             - *build_ui
             - *deploy_ui_to_s3
+
+    Update-lambda:
+      - variables:
+          - name: LAMBDA_FUNCTION_NAME
+            default: ""
+            required: true
+            description: "Enter the AWS Lambda function name (e.g., lambda1)"
+      - step:
+          name: Update Lambda Function (Manual)
+          oidc: true
+          script:
+            - echo "Running manual Lambda function update for: ${LAMBDA_FUNCTION_NAME}"
+            - *authenticate
+            - *update_lambda_code
     
     # update-lambda:
     #   - step:
