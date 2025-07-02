@@ -48,10 +48,10 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue ${VPCPrefix}-Public-Subnet-1-ID
-          - !ImportValue ${VPCPrefix}-Public-Subnet-2-ID
+          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-1-ID
+          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-2-ID
         SecurityGroupIds:
-          - !ImportValue ${VPCPrefix}-Lambda-SG-ID
+          - !ImportValue !Sub ${VPCPrefix}-Lambda-SG-ID
       Code:
         ZipFile: |
           def handler(event, context):
@@ -66,10 +66,10 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue ${VPCPrefix}-Public-Subnet-1-ID
-          - !ImportValue ${VPCPrefix}-Public-Subnet-2-ID
+          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-1-ID
+          - !ImportValue !Sub ${VPCPrefix}-Public-Subnet-2-ID
         SecurityGroupIds:
-          - !ImportValue ${VPCPrefix}-Lambda-SG-ID
+          - !ImportValue !Sub ${VPCPrefix}-Lambda-SG-ID
       Code:
         ZipFile: |
           def handler(event, context):
