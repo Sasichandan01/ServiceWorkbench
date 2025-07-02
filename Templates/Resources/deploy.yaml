@@ -13,7 +13,6 @@ Parameters:
 
 Resources:
 
-
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -45,10 +44,10 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue PrivateSubnet1Id
-          - !ImportValue PrivateSubnet2Id
+          - !ImportValue ${pPrefix}-Public-Subnet-1-ID
+          - !ImportValue ${pPrefix}-Public-Subnet-2-ID
         SecurityGroupIds:
-          - !ImportValue LambdaSecurityGroupId
+          - !ImportValue ${pPrefix}-Lambda-SG-ID
       Code:
         ZipFile: |
           def handler(event, context):
@@ -63,10 +62,10 @@ Resources:
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
-          - !ImportValue PrivateSubnet1Id
-          - !ImportValue PrivateSubnet2Id
+          - !ImportValue ${pPrefix}-Public-Subnet-1-ID
+          - !ImportValue ${pPrefix}-Public-Subnet-2-ID
         SecurityGroupIds:
-          - !ImportValue LambdaSecurityGroupId
+          - !ImportValue ${pPrefix}-Lambda-SG-ID
       Code:
         ZipFile: |
           def handler(event, context):
