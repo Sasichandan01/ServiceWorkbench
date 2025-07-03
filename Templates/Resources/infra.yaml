@@ -617,23 +617,6 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
-# Lambda Function for Cognito Triggers Custom Resource
-  CognitoTriggersCustomResource:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-CognitoTriggersCustomResource"
-      Handler: lambda_function.lambda_handler
-      Runtime: python3.13
-      Role: !GetAtt CustomResourceExecutionRoles.Arn
-      Timeout: 300
-      MemorySize: 128
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
 # IAM Role for the Custom Resource Lambda
   CustomResourceExecutionRoles:
     Type: AWS::IAM::Role
@@ -664,21 +647,6 @@ Resources:
                 Action:
                   - cognito-idp:UpdateUserPool
                 Resource: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-# Custom Resource Definition
-  CognitoTriggersResource:
-    Type: Custom::CognitoTriggers
-    Properties:
-      ServiceToken: !GetAtt CognitoTriggersCustomResource.Arn
-      UserPoolId: !Ref UserPool
-      PreSignUpLambdaArn: !GetAtt PreSignUpFunction.Arn
-      PreAuthLambdaArn: !GetAtt PreAuthFunction.Arn
-      PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
-      PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
-      PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -776,170 +744,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-# Event Source Mapping for Cleanup Queue
-  CleanupQueueEventSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      Enabled: true
-      EventSourceArn: !GetAtt CleanupQueue.Arn
-      FunctionName: !GetAtt UserPoolCleanUp.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-
-#Permissions for Lambda to call Cognito
-  PreSignUpPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt PreSignUpFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
-
-  PreAuthPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt PreAuthFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
-
-  PreTokenPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt PreTokenGenerationFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
-
-  PostConfirmPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt PostConfirmationFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
-  
-  PostAuthPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt PostAuthFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
-
-#Lambdas
-  PreSignUpFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-PreSignUp"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpresignuplambda/WorkbenchPresignup.zip"
-      Environment:
-        Variables:
-          QUEUE_URL: !Ref CleanupQueue
-      Layers:
-        - !Ref RequestLayer
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  PreAuthFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-PreAuth"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpreauthlambda/WorkbenchPreAuth.zip"
-      Environment:
-        Variables:
-          USER_TABLE_NAME: !Ref UserTable
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  PreTokenGenerationFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-PreTokenGen"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
-      Environment:
-        Variables:
-          USER_TABLE_NAME: !Ref UserTable
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  PostConfirmationFunction:
-    Type: AWS::Lambda::Function
-    Properties: 
-      FunctionName: !Sub "${pApplicationPrefix}-PostConfirm"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
-      Environment:
-        Variables:
-          USER_TABLE_NAME: !Ref UserTable
-          DOMAIN: "ServiceWorkbench v2.0"
-          SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  PostAuthFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
-      Handler: lambda_function.lambda_handler
-      Runtime: python3.13
-      Role: !GetAtt UserExecutionRole.Arn
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPostAuth.zip"
-      Environment:
-        Variables:
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  UserPoolCleanUp:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
-      Handler: lambda_function.lambda_handler
-      Runtime: python3.13
-      Role: !GetAtt UserExecutionRole.Arn
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
-      Timeout: 60
-      MemorySize: 1024
-      Environment:
-        Variables:
-          QUEUE_URL: !Ref CleanupQueue
-          USER_POOL_ID: !Ref UserPool
-          USER_TABLE_NAME: !Ref UserTable
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
 #DynamoDB Tables
   UserTable:
@@ -1007,8 +811,10 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        S3Bucket: develop-service-workbench-artifacts
-        S3Key: layer/layer.zip
+        # S3Bucket: develop-service-workbench-artifacts
+        # S3Key: layer/layer.zip
+        S3Bucket: "mayank-swb"
+        S3Key: "layers.zip"
       CompatibleRuntimes:
         - python3.12
 
@@ -1057,7 +863,7 @@ Resources:
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:BatchWriteItem
-                Resource: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+                Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1091,7 +897,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - dynamodb:UpdateItem
-                Resource: "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
         - !Ref LambdaVPCAccessManagedPolicy
       Tags:
@@ -1198,12 +1004,60 @@ Outputs:
 
   CustomResourceLambdaExecutionRole:
     Description: Name of the custom resource lambda execution role
-    Value: !Ref CustomResourceLambdaExecutionRole
+    Value: !GetAtt CustomResourceLambdaExecutionRole.Arn
     Export:
       Name: "WorkbenchCustomResourceLambdaExecutionRole"
 
   RolesLambdaFunctionRole:
     Description: Name of the roles lambda function role
-    Value: !Ref RolesLambdaFunctionRole
+    Value: !GetAtt RolesLambdaFunctionRole.Arn
     Export:
       Name: "RolesLambdaFunctionRole"
+    
+  UserExecutionRole:
+    Description: Name of the user execution role
+    Value: !GetAtt UserExecutionRole.Arn
+    Export:
+      Name: "UserExecutionRole"
+
+  CustomResourceExecutionRoles:
+    Description: Name of the custom resource execution roles
+    Value: !GetAtt CustomResourceExecutionRoles.Arn
+    Export:
+      Name: "CustomResourceExecutionRoles"
+  
+  UserTableName:
+    Description: Name of the DynamoDB User Table
+    Value: !Ref UserTable
+    Export:
+      Name: "UserTableName"
+
+  ActivityLogsTableName:
+    Description: Name of the DynamoDB Activity Logs Table
+    Value: !Ref ActivityLogsTable
+    Export:
+      Name: "ActivityLogsTableName"
+
+  CleanupQueueArn:
+    Description: ARN of the Cleanup SQS Queue
+    Value: !GetAtt CleanupQueue.Arn
+    Export:
+      Name: "CleanupQueueArn"
+
+  CleanupQueueURL:
+    Description: URL of the Cleanup SQS Queue
+    Value: !Ref CleanupQueue
+    Export:
+      Name: "CleanupQueueURL"
+  
+  RequestLayerExport:
+    Description: ARN of the Lambda Request Layer
+    Value: !Ref RequestLayer
+    Export:
+      Name: "RequestLayerExport"
+
+  CognitoUserPoolArn:
+    Description: ARN of the Cognito User Pool
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: "CognitoUserPoolArn"
