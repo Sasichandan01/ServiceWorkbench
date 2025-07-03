@@ -9,7 +9,19 @@ Parameters:
     Description: Prefix for the application resources
 
 Resources:
-  # S3 bucket for artifacts
+#Lambda Layers
+  RequestLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "${pApplicationPrefix}-requests-layer"
+      Description: Request validator layer for Lambda functions
+      Content:
+        S3Bucket: "mayank-swb"
+        S3Key: "Workbench-requests.zip"
+      CompatibleRuntimes:
+        - python3.13
+
+# S3 bucket for artifacts
   ArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -50,7 +62,7 @@ Resources:
         - Key: Name
           Value: "ServiceWorkbench"
 
-  # CloudFront Origin Access Control (OAC)
+# CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -60,7 +72,7 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # CloudFront Distribution
+# CloudFront Distribution
   WebsiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -101,7 +113,7 @@ Resources:
         - Key: Name
           Value: "ServiceWorkbench"
 
-  # S3 Bucket Policy to allow CloudFront OAC access only
+# S3 Bucket Policy to allow CloudFront OAC access only
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -118,7 +130,7 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
-  # Bucket policy to allow CloudFront to write logs
+# Bucket policy to allow CloudFront to write logs
   CloudFrontLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -205,15 +217,6 @@ Resources:
         - ALLOW_CUSTOM_AUTH
       SupportedIdentityProviders:
         - COGNITO
-      # CallbackURLs:
-      #   - "https://example.com/" # Replace with actual URL
-      # AllowedOAuthFlowsUserPoolClient: true
-      # AllowedOAuthFlows:
-      #   - code
-      # AllowedOAuthScopes:
-      #   - email
-      #   - openid
-      #   - profile
       PreventUserExistenceErrors: ENABLED
 
   UserPoolDomain:
@@ -228,87 +231,17 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-CognitoTriggersCustomResource"
-      Handler: index.lambda_handler
-      Runtime: python3.13  # Changed to match your other Lambdas
-      Role: !GetAtt CognitoTriggersCustomResourceRole.Arn
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      Role: !GetAtt CustomResourceExecutionRoles.Arn
       Timeout: 300
       MemorySize: 128
       Code:
-        ZipFile: |
-          import json
-          import boto3
-          import urllib3
-          import logging
-          
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-          http = urllib3.PoolManager()
-          
-          def send_cfn_response(event, context, status, data=None, physical_id=None, reason=None):
-              response_body = {
-                  "Status": status,
-                  "Reason": reason or f"See CloudWatch Logs: {context.log_stream_name}",
-                  "PhysicalResourceId": physical_id or context.log_stream_name,
-                  "StackId": event['StackId'],
-                  "RequestId": event['RequestId'],
-                  "LogicalResourceId": event['LogicalResourceId'],
-                  "Data": data or {}
-              }
-              try:
-                  encoded_body = json.dumps(response_body).encode('utf-8')
-                  headers = {'Content-Type': 'application/json'}
-                  resp = http.request('PUT', event['ResponseURL'], body=encoded_body, headers=headers)
-                  logger.info(f"CloudFormation response sent: {resp.status}")
-              except Exception as e:
-                  logger.error(f"Failed to send CloudFormation response: {e}")
-                  raise
-          
-          def lambda_handler(event, context):
-              logger.info("Received event: " + json.dumps(event))
-              
-              request_type = event.get('RequestType')
-              props = event.get('ResourceProperties', {})
-              physical_id = f"CognitoTriggers-{props.get('UserPoolId', 'UNKNOWN')}"
-              
-              # Skip if not Create or Update
-              if request_type not in ['Create', 'Update']:
-                  logger.info(f"No action required for request type: {request_type}")
-                  send_cfn_response(event, context, 'SUCCESS', {}, physical_id)
-                  return
-              
-              try:
-                  cognito = boto3.client('cognito-idp')
-                  user_pool_id = props['UserPoolId']
-                  
-                  # Configure all four triggers from your template
-                  lambda_config = {
-                      'PreSignUp': props.get('PreSignUpLambdaArn'),
-                      'PreAuthentication': props.get('PreAuthLambdaArn'),
-                      'PreTokenGeneration': props.get('PreTokenLambdaArn'),
-                      'PostConfirmation': props.get('PostConfirmationLambdaArn'),
-                      'PostAuthentication': props.get('PostAuthLambdaArn') 
-                  }
-                  
-                  # Remove None values
-                  lambda_config = {k: v for k, v in lambda_config.items() if v}
-                  
-                  if not lambda_config:
-                      raise ValueError("No valid Lambda triggers provided")
-                  
-                  logger.info(f"Updating UserPool {user_pool_id} with LambdaConfig: {lambda_config}")
-                  cognito.update_user_pool(
-                      UserPoolId=user_pool_id,
-                      LambdaConfig=lambda_config
-                  )
-                  
-                  send_cfn_response(event, context, 'SUCCESS', {}, physical_id)
-              
-              except Exception as e:
-                  logger.error(f"Error updating Cognito triggers: {e}")
-                  send_cfn_response(event, context, 'FAILED', {}, physical_id, reason=str(e))
+        S3Bucket: "mayank-swb"
+        S3Key: "Workbench-CognitoCustomResource.zip"
 
 # IAM Role for the Custom Resource Lambda
-  CognitoTriggersCustomResourceRole:
+  CustomResourceExecutionRoles:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -351,7 +284,7 @@ Resources:
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
 
 #Lambda Roles
-  PreSignupLambdaExecutionRole:
+  UserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -373,6 +306,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "*"
+        
         - PolicyName: SQSPolicies
           PolicyDocument:
             Version: "2012-10-17"
@@ -381,105 +315,30 @@ Resources:
                 Effect: Allow
                 Action:
                   - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
                 Resource: !GetAtt CleanupQueue.Arn
-
-  PreAuthLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchLogsAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-        - PolicyName: S3Policies
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: DynamoDBAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:Query
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
-  
-  PreTokenGenerationLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchLogsAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-        - PolicyName: S3Policies
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: DynamoDBAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:Query
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
-    
-  PostConfirmationLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudwatchLogs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
+        
         - PolicyName: DynamoDBPolicies
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: DynamoDBAccess
+              - Sid: DynamoDBUserTableAccess
                 Effect: Allow
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:DeleteItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
+              - Sid: DynamoDBActivityLogsAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
+        
         - PolicyName: CognitoPolicies
           PolicyDocument:
             Version: "2012-10-17"
@@ -490,7 +349,9 @@ Resources:
                   - cognito-idp:AdminCreateUser
                   - cognito-idp:AdminDeleteUser
                   - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
                 Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
+        
         - PolicyName: SESPolicies
           PolicyDocument:
             Version: "2012-10-17"
@@ -500,6 +361,7 @@ Resources:
                 Action:
                   - ses:SendEmail
                 Resource: "*"
+        
         - PolicyName: SSMPolicies
           PolicyDocument:
             Version: "2012-10-17"
@@ -511,87 +373,14 @@ Resources:
                   - ssm:PutParameter
                 Resource: "*"
 
-  PostAuthLambdaExecutionRole:
-    Type: AWS::IAM::Role
+# Event Source Mapping for Cleanup Queue
+  CleanupQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudwatchLogs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-        - PolicyName: DynamoDBPolicies
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: DynamoDBAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
-
-  UserPoolLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudwatchLogs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-        - PolicyName: UserPoolLambdaPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cognito-idp:ListUsers
-                  - cognito-idp:AdminDeleteUser
-                Resource: !GetAtt UserPool.Arn
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - sqs:ReceiveMessage
-                  - sqs:DeleteMessage
-                  - sqs:GetQueueAttributes
-                Resource: !GetAtt CleanupQueue.Arn
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt CleanupQueue.Arn
+      FunctionName: !GetAtt UserPoolCleanUp.Arn
 
 
 #Permissions for Lambda to call Cognito
@@ -635,25 +424,13 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
-#Lambda Layers
-  RequestLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub "${pApplicationPrefix}-requests-layer"
-      Description: Request validator layer for Lambda functions
-      Content:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-requests.zip"
-      CompatibleRuntimes:
-        - python3.13
-
 #Lambdas
   PreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-PreSignUp"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt PreSignupLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
         S3Bucket: "mayank-swb"
@@ -669,7 +446,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-PreAuth"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt PreAuthLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
         S3Bucket: "mayank-swb"
@@ -683,7 +460,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-PreTokenGen"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt PreTokenGenerationLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
         S3Bucket: "mayank-swb"
@@ -697,7 +474,7 @@ Resources:
     Properties: 
       FunctionName: !Sub "${pApplicationPrefix}-PostConfirm"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt PostConfirmationLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
         S3Bucket: "mayank-swb"
@@ -714,7 +491,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
-      Role: !GetAtt PostAuthLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: "mayank-swb"
         S3Key: "Workbench-PostAuth.zip"
@@ -728,7 +505,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
-      Role: !GetAtt UserPoolLambdaExecutionRole.Arn
+      Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: "mayank-swb"
         S3Key: "Workbench-Userpool.zip"
