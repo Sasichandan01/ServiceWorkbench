@@ -303,8 +303,8 @@ definitions:
         echo "Zipping and uploading lambda files under Code/Lambdas to S3..."
 
         BASE_DIR="Code/Lambdas"
-        # DEST_BUCKET="develop-service-workbench-artifacts"
-        DEST_BUCKET="mayank-swb"
+        DEST_BUCKET="develop-service-workbench-artifacts"
+        # DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
