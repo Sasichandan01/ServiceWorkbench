@@ -305,7 +305,8 @@ Resources:
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
       Tags:
-      
+        - Key: Name
+          Value: "WorkbenchV2"
 
 Outputs:
   LambdaFunctionName:
