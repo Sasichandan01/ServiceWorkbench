@@ -300,31 +300,38 @@ definitions:
     - script: &zip_and_upload_lambdas
         |
         set -e
-        echo "Zipping and uploading lambda files to S3..."
+        echo "Zipping and uploading lambda and layer files to S3..."
 
-        LAMBDA_SRC_DIR="Code"
+        BASE_DIR="Code"
         DEST_BUCKET="develop-service-workbench-artifacts"
-
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
 
-        find "$LAMBDA_SRC_DIR" -type f -name "*.py" | while read -r py_file; do
-          LAMBDA_NAME=$(basename "$py_file" .py)
-          ZIP_PATH="lambda_zips/${LAMBDA_NAME}.zip"
+        for CATEGORY in $(find "$BASE_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;); do
+          SRC_DIR="${BASE_DIR}/${CATEGORY}"
+          S3_PREFIX=$(echo "$CATEGORY" | tr '[:upper:]' '[:lower:]')
 
-          echo "Zipping $py_file as $ZIP_PATH"
-          zip -j "$ZIP_PATH" "$py_file"
+          if [ -d "$SRC_DIR" ]; then
+            find "$SRC_DIR" -type f -name "*.py" | while read -r py_file; do
+              FILE_NAME=$(basename "$py_file" .py)
+              ZIP_PATH="${LAMBDA_ZIP_DIR}/${FILE_NAME}.zip"
 
-          echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/lambdas/"
-          aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/lambdas/${LAMBDA_NAME}.zip" || {
-            echo "[ERROR] Failed to upload $ZIP_PATH"
-            exit 1
-          }
+              echo "Zipping $py_file -> $ZIP_PATH"
+              zip -j "$ZIP_PATH" "$py_file"
+
+              echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
+              aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
+                echo "[ERROR] Failed to upload $ZIP_PATH"
+                exit 1
+              }
+            done
+          else
+            echo "[WARN] Directory $SRC_DIR not found, skipping."
+          fi
         done
 
-        echo "All lambda zips uploaded to S3."
-
+        echo "All zips uploaded to S3."
 
   steps:
     - step: &lint_and_validate
