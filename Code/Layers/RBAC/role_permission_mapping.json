@@ -1,0 +1,4 @@
+{
+    "ITAdmin": ["users.fullaccess"],
+    "Default": ["users.view"]
+}
