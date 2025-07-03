@@ -28,14 +28,14 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-VPC
+          Value: "WorkbenchV2"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-IGW
+          Value: "WorkbenchV2"
 
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -52,7 +52,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ1
+          Value: "WorkbenchV2"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -63,7 +63,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ2
+          Value: "WorkbenchV2"
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -74,7 +74,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ1
+          Value: "WorkbenchV2"
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -85,7 +85,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ2
+          Value: "WorkbenchV2"
 
   NatGatewayEIP:
     Type: AWS::EC2::EIP
@@ -94,7 +94,7 @@ Resources:
       Domain: vpc
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-NAT-EIP
+          Value: "WorkbenchV2"
 
   NatGateway:
     Type: AWS::EC2::NatGateway
@@ -103,7 +103,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-NAT-Gateway
+          Value: "WorkbenchV2"
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -111,7 +111,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Routes
+          Value: "WorkbenchV2"
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -139,7 +139,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Routes
+          Value: "WorkbenchV2"
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -166,7 +166,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-NACL
+          Value: "WorkbenchV2"
 
   PrivateNACL:
     Type: AWS::EC2::NetworkAcl
@@ -174,7 +174,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-NACL
+          Value: "WorkbenchV2"
 
   # Public NACL Rules
   PublicNACLInboundAll:
@@ -346,7 +346,7 @@ Resources:
           Description: HTTP to internet
       Tags: 
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Lambda-SG
+          Value: "WorkbenchV2"
       VpcId: !Ref VPC
 
   EndpointSecurityGroup:
@@ -368,7 +368,7 @@ Resources:
           Description: HTTPS from Lambda SG
       Tags: 
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Endpoint-SG
+          Value: "WorkbenchV2"
       VpcId: !Ref VPC  
 
   # VPC Endpoints
@@ -382,7 +382,7 @@ Resources:
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-S3-Endpoint
+          Value: "WorkbenchV2"
 
   DynamoDBEndpoint:
     Type: AWS::EC2::VPCEndpoint
@@ -394,7 +394,7 @@ Resources:
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-DynamoDB-Endpoint
+          Value: "WorkbenchV2"
 
   # S3 bucket for artifacts
   ArtifactsBucket:
@@ -414,7 +414,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # S3 bucket for logs
   LogsBucket:
@@ -435,7 +435,7 @@ Resources:
           - ObjectOwnership: BucketOwnerPreferred
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
@@ -486,7 +486,7 @@ Resources:
         IPV6Enabled: true
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # S3 Bucket Policy to allow CloudFront OAC access only
   WebsiteBucketPolicy:
