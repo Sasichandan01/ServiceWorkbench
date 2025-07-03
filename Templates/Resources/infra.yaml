@@ -20,6 +20,9 @@ Resources:
         S3Key: "Workbench-requests.zip"
       CompatibleRuntimes:
         - python3.13
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 # S3 bucket for artifacts
   ArtifactsBucket:
@@ -39,7 +42,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # S3 bucket for logs
   LogsBucket:
@@ -60,7 +63,7 @@ Resources:
           - ObjectOwnership: BucketOwnerPreferred
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
 # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
@@ -196,6 +199,9 @@ Resources:
         DefaultEmailOption: CONFIRM_WITH_CODE
         EmailSubject: "Your verification code for WorkBench"
         EmailMessage: "Your verification code is {####}"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -218,6 +224,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       PreventUserExistenceErrors: ENABLED
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -225,6 +234,9 @@ Resources:
       UserPoolId: !Ref UserPool
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 # Lambda Function for Cognito Triggers Custom Resource
   CognitoTriggersCustomResource:
@@ -239,6 +251,9 @@ Resources:
       Code:
         S3Bucket: "mayank-swb"
         S3Key: "Workbench-CognitoCustomResource.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 # IAM Role for the Custom Resource Lambda
   CustomResourceExecutionRoles:
@@ -270,6 +285,9 @@ Resources:
                 Action:
                   - cognito-idp:UpdateUserPool
                 Resource: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 # Custom Resource Definition
   CognitoTriggersResource:
@@ -282,6 +300,9 @@ Resources:
       PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
       PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 #Lambda Roles
   UserExecutionRole:
@@ -372,6 +393,9 @@ Resources:
                   - ssm:GetParameter
                   - ssm:PutParameter
                 Resource: "*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 # Event Source Mapping for Cleanup Queue
   CleanupQueueEventSourceMapping:
@@ -381,6 +405,9 @@ Resources:
       Enabled: true
       EventSourceArn: !GetAtt CleanupQueue.Arn
       FunctionName: !GetAtt UserPoolCleanUp.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 
 #Permissions for Lambda to call Cognito
@@ -391,6 +418,9 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PreAuthPermission:
     Type: AWS::Lambda::Permission
@@ -399,6 +429,9 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PreTokenPermission:
     Type: AWS::Lambda::Permission
@@ -407,6 +440,9 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PostConfirmPermission:
     Type: AWS::Lambda::Permission
@@ -415,6 +451,9 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
   
   PostAuthPermission:
     Type: AWS::Lambda::Permission
@@ -423,6 +462,9 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 #Lambdas
   PreSignUpFunction:
@@ -440,6 +482,9 @@ Resources:
           QUEUE_URL: !Ref CleanupQueue
       Layers:
         - !Ref RequestLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PreAuthFunction:
     Type: AWS::Lambda::Function
@@ -454,6 +499,9 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PreTokenGenerationFunction:
     Type: AWS::Lambda::Function
@@ -468,6 +516,9 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PostConfirmationFunction:
     Type: AWS::Lambda::Function
@@ -484,6 +535,9 @@ Resources:
           USER_TABLE_NAME: !Ref UserTable
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   PostAuthFunction:
     Type: AWS::Lambda::Function
@@ -498,6 +552,9 @@ Resources:
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   UserPoolCleanUp:
     Type: AWS::Lambda::Function
@@ -516,6 +573,9 @@ Resources:
           QUEUE_URL: !Ref CleanupQueue
           UserPoolId: !Ref UserPool
           USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 #DynamoDB Tables
   UserTable:
@@ -531,6 +591,9 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
   
   ActivityLogsTable:
     Type: AWS::DynamoDB::Table
@@ -545,6 +608,9 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
       
 #SQS Queues
   CleanupQueue:
@@ -554,6 +620,9 @@ Resources:
       VisibilityTimeout: 65
       ReceiveMessageWaitTimeSeconds: 20
       DelaySeconds: 900
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 
 Outputs:
