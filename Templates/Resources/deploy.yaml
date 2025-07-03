@@ -139,9 +139,6 @@ Resources:
     Properties:
       RestApiId: !Ref WorkbenchApi
       StageName: test
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
