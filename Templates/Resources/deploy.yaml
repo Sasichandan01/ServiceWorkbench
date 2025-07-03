@@ -1,10 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
+Description: 'CloudBench Core Infrastructure - Lambda, API Gateway, DynamoDB Tables'
 
 Parameters:
   pPrefix:
     Type: String
-    Description: Prefix for Lambda function naming
+    Default: 'dev'
+    Description: 'Prefix for resource naming (dev, staging, prod)'
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -15,7 +16,7 @@ Parameters:
     Description: Environment name prefix for VPC resources
 
 Resources:
-
+  # IAM Role for Lambda Functions
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -45,10 +46,25 @@ Resources:
                   - ec2:AssignPrivateIpAddresses
                   - ec2:UnassignPrivateIpAddresses
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt WorkspacesTable.Arn
+                  - !GetAtt SolutionsTable.Arn
+                  - !GetAtt DatasourcesTable.Arn
+                  - !GetAtt ResourceAccessTable.Arn
+                  - !GetAtt SolutionExecutionsTable.Arn
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
+  # Lambda Functions
   SampleLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -97,6 +113,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  # API Gateway
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -133,6 +150,90 @@ Resources:
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
       Description: test stage
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  # DynamoDB Tables
+  WorkspacesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${pPrefix}-WorkspacesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${pPrefix}-SolutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+        - AttributeName: SolutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: HASH
+        - AttributeName: SolutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  DatasourcesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${pPrefix}-DatasourcesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: DatasourceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: DatasourceId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ResourceAccessTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${pPrefix}-ResourceAccessTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: AccessKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+        - AttributeName: AccessKey
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionExecutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${pPrefix}-SolutionExecutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ExecutionId
+          KeyType: HASH
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
