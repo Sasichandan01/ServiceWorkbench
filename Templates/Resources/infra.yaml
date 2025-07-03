@@ -20,9 +20,6 @@ Resources:
         S3Key: "Workbench-requests.zip"
       CompatibleRuntimes:
         - python3.13
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
 # S3 bucket for artifacts
   ArtifactsBucket:
@@ -199,9 +196,6 @@ Resources:
         DefaultEmailOption: CONFIRM_WITH_CODE
         EmailSubject: "Your verification code for WorkBench"
         EmailMessage: "Your verification code is {####}"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -224,9 +218,6 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       PreventUserExistenceErrors: ENABLED
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -234,9 +225,6 @@ Resources:
       UserPoolId: !Ref UserPool
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
 # Lambda Function for Cognito Triggers Custom Resource
   CognitoTriggersCustomResource:
@@ -418,9 +406,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   PreAuthPermission:
     Type: AWS::Lambda::Permission
@@ -429,9 +414,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   PreTokenPermission:
     Type: AWS::Lambda::Permission
@@ -440,9 +422,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   PostConfirmPermission:
     Type: AWS::Lambda::Permission
@@ -451,9 +430,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
   
   PostAuthPermission:
     Type: AWS::Lambda::Permission
@@ -462,9 +438,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
 #Lambdas
   PreSignUpFunction:
@@ -571,7 +544,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
-          UserPoolId: !Ref UserPool
+          USER_POOL_ID: !Ref UserPool
           USER_TABLE_NAME: !Ref UserTable
       Tags:
         - Key: Name
@@ -611,8 +584,18 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-      
-#SQS Queues
+
+# DLQ for failed messages
+  CleanupDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pApplicationPrefix}-CleanupDLQ"
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+# Main SQS queue with redrive policy
   CleanupQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -620,10 +603,12 @@ Resources:
       VisibilityTimeout: 65
       ReceiveMessageWaitTimeSeconds: 20
       DelaySeconds: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CleanupDLQ.Arn
+        maxReceiveCount: 5  # Message is sent to DLQ after 5 failed receives
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
 
 Outputs:
   CloudfrontDistributionId:
