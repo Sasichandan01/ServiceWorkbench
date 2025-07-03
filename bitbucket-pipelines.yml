@@ -331,7 +331,37 @@ definitions:
         done
 
         echo "All zips uploaded to S3 under lambdas/<folder>/ structure."
+  
+    - script: &zip_and_upload_layers
+        |
+        set -e
+        echo "Zipping and uploading full layer folders under Code/Layers to S3..."
 
+        BASE_DIR="Code/Layers"
+        DEST_BUCKET="develop-service-workbench-artifacts"
+        LAYER_ZIP_DIR="layers_zips"
+        mkdir -p "$LAYER_ZIP_DIR"
+        trap "rm -rf $LAYER_ZIP_DIR" EXIT
+
+        # Loop over immediate subdirectories of Code/Layers
+        for CATEGORY in "$BASE_DIR"/*; do
+          if [ -d "$CATEGORY" ]; then
+            CATEGORY_NAME=$(basename "$CATEGORY")
+            ZIP_PATH="${LAYER_ZIP_DIR}/${CATEGORY_NAME}.zip"
+            S3_PREFIX="layers/${CATEGORY_NAME,,}"  # Lowercase folder name
+
+            echo "Zipping full folder $CATEGORY -> $ZIP_PATH"
+            (cd "$CATEGORY" && zip -r "../../$ZIP_PATH" .)
+
+            echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/${S3_PREFIX}/${CATEGORY_NAME}.zip"
+            aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/${S3_PREFIX}/${CATEGORY_NAME}.zip" || {
+              echo "[ERROR] Failed to upload $ZIP_PATH"
+              exit 1
+            }
+          fi
+        done
+
+        echo "All full layer folders zipped and uploaded to S3 under layers/<folder>/ structure."
   steps:
     - step: &lint_and_validate
         name: Lint and Validate
