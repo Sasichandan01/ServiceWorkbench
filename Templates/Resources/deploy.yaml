@@ -248,11 +248,13 @@ Resources:
       LayerName: !Sub "${pPrefix}-ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
+        S3Bucket: develop-service-workbench-artifacts
+        S3Key: layer/layer.zip
       CompatibleRuntimes:
         - python3.12
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   RolesLambdaFunctionRole:
     Type: AWS::IAM::Role
