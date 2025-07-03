@@ -2,12 +2,15 @@ import logging
 import json
 import os
 import boto3
-from RBAC.rbac import add_roles_to_table
+from RBAC.rbac import sync_system_roles
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
 ROLES_TABLE = os.getenv('ROLES_TABLE')
+if not ROLES_TABLE:
+    LOGGER.critical("Environment variable 'ROLES_TABLE' is not set.")
+    raise RuntimeError("ROLES_TABLE env var must be set")
 
 DYNAMODB_RESOURCE = boto3.resource('dynamodb')
 table = DYNAMODB_RESOURCE.Table(ROLES_TABLE)
@@ -23,21 +26,7 @@ def handler(event, context):
         query_params = event.get('queryStringParameters', {})
         action = query_params.get('action')
         if resource == '/roles' and method == 'POST' and action == 'sync-role':
-            body = event.get('body',{})
-            try:
-                body = json.loads(body)
-            except json.JSONDecodeError as e:
-                LOGGER.error("Error parsing request body: %s", e)
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"Error": "Invalid request body"})
-                }
-            if 'Roles' not in body:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"Error": "RoleName and Permissions are required"})
-                }
-            add_roles_to_table(table, body.get('Roles')[0])
+            sync_system_roles(table)
             return {
                 "statusCode": 200,
                 "body": json.dumps({"Message": "Role added successfully"})
@@ -45,7 +34,7 @@ def handler(event, context):
         else:
             return {
                 "statusCode": 404,
-                "body": json.dumps({"Error": "Not found"})
+                "body": json.dumps({"Error": "Invalid action"})
             }
     except Exception as e:
         LOGGER.exception("Error in handler: %s", e)

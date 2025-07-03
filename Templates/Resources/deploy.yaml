@@ -123,7 +123,7 @@ Resources:
   RolesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${pPrefix}-RolesTable"
+      TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
       AttributeDefinitions:
         - AttributeName: Role
           AttributeType: S
@@ -135,48 +135,16 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  CustomResourceLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:BatchWriteItem
-                Resource: !GetAtt RolesTable.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-RBACCustomResource"
       Handler: index.handler
-      Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
+      Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
       Runtime: python3.12
       Timeout: 900
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         ZipFile: |
           import json
@@ -242,67 +210,12 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  ServiceWorkbenchLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub "${pPrefix}-ServiceWorkbenchLambdaLayer"
-      Description: "Service Workbench Lambda Layer"
-      Content:
-        S3Bucket: develop-service-workbench-artifacts
-        S3Key: layer/layer.zip
-      CompatibleRuntimes:
-        - python3.12
-
-  RolesLambdaFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:BatchWriteItem
-                Resource: !GetAtt RolesTable.Arn
-        - PolicyName: VPCAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: "*"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
   RolesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
       Handler: index.handler
-      Role: !GetAtt RolesLambdaFunctionRole.Arn
+      Role: !ImportValue RolesLambdaFunctionRole
       Runtime: python3.12
       Timeout: 900
       Environment:
@@ -318,7 +231,7 @@ Resources:
           - Fn::ImportValue:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Layers:
-        - !Ref ServiceWorkbenchLambdaLayer
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         ZipFile: |
           def handler(event, context):
