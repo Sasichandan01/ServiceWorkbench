@@ -811,10 +811,10 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        # S3Bucket: develop-service-workbench-artifacts
-        # S3Key: layer/layer.zip
-        S3Bucket: "mayank-swb"
-        S3Key: "layers.zip"
+        S3Bucket: develop-service-workbench-artifacts
+        S3Key: layer/layer.zip
+        # S3Bucket: "mayank-swb"
+        # S3Key: "layers.zip"
       CompatibleRuntimes:
         - python3.12
 
