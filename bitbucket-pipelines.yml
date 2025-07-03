@@ -243,7 +243,8 @@ definitions:
           exit 1
         fi
 
-        S3_BUCKET="develop-service-workbench-artifacts"
+        # S3_BUCKET="develop-service-workbench-artifacts"
+        S3_BUCKET="mayank-swb"
         ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
         BASE_DIR="Code"
 
