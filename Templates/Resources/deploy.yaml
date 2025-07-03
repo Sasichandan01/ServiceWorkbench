@@ -311,10 +311,13 @@ Resources:
       Timeout: 900
       VpcConfig:
         SubnetIds:
-          - !ImportValue PrivateSubnet1Id
-          - !ImportValue PrivateSubnet2Id
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
-          - !ImportValue LambdaSecurityGroupId
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Layers:
         - !Ref ServiceWorkbenchLambdaLayer
       Code:
