@@ -640,9 +640,6 @@ Resources:
               - ec2:DescribeNetworkInterfaces
               - ec2:DeleteNetworkInterface
             Resource: "*"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -655,17 +652,9 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref LambdaVPCAccessManagedPolicy
       Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
         - PolicyName: DynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -674,7 +663,7 @@ Resources:
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:BatchWriteItem
-                Resource: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -690,30 +679,13 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:UpdateItem
-                Resource: "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
-        - !Ref LambdaVPCAccessManagedPolicy
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+
 
 Outputs:
   VPCId:
@@ -815,12 +787,12 @@ Outputs:
 
   CustomResourceLambdaExecutionRole:
     Description: Name of the custom resource lambda execution role
-    Value: !Ref CustomResourceLambdaExecutionRole
+    Value: !GetAtt CustomResourceLambdaExecutionRole.Arn
     Export:
       Name: "WorkbenchCustomResourceLambdaExecutionRole"
 
   RolesLambdaFunctionRole:
     Description: Name of the roles lambda function role
-    Value: !Ref RolesLambdaFunctionRole
+    Value: !GetAtt RolesLambdaFunctionRole.Arn
     Export:
       Name: "RolesLambdaFunctionRole"
