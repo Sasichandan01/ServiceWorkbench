@@ -243,8 +243,7 @@ definitions:
           exit 1
         fi
 
-        # S3_BUCKET="develop-service-workbench-artifacts"
-        S3_BUCKET="mayank-swb"
+        S3_BUCKET="develop-service-workbench-artifacts"
         ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
         BASE_DIR="Code"
 
@@ -304,7 +303,8 @@ definitions:
         echo "Zipping and uploading lambda files under Code/Lambdas to S3..."
 
         BASE_DIR="Code/Lambdas"
-        DEST_BUCKET="develop-service-workbench-artifacts"
+        # DEST_BUCKET="develop-service-workbench-artifacts"
+        DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
