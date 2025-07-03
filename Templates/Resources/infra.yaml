@@ -15,7 +15,7 @@ Parameters:
   
   VPCPrefix:
     Type: String
-    Default: WorkbenchVPC
+    Default: test-vpcs-salma
     Description: Environment name prefix for VPC resources
 
 Resources:
@@ -396,6 +396,40 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WorkbenchV2-LambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   # S3 bucket for artifacts
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -670,6 +704,12 @@ Outputs:
     Value: !Ref NatGateway
     Export:
       Name: !Sub ${VPCPrefix}-NAT-Gateway-ID
+
+  LambdaExecutionRoleName:
+    Description: Name of the IAM role for Lambda execution
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: WorkbenchV2-LambdaExecutionRole
 
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
