@@ -16,53 +16,6 @@ Parameters:
     Description: Environment name prefix for VPC resources
 
 Resources:
-  # IAM Role for Lambda Functions
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                  - ec2:AssignPrivateIpAddresses
-                  - ec2:UnassignPrivateIpAddresses
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                Resource: 
-                  - !GetAtt WorkspacesTable.Arn
-                  - !GetAtt SolutionsTable.Arn
-                  - !GetAtt DatasourcesTable.Arn
-                  - !GetAtt ResourceAccessTable.Arn
-                  - !GetAtt SolutionExecutionsTable.Arn
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   # Lambda Functions
   SampleLambdaFunction:
@@ -70,8 +23,8 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-sample-lambda"
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.13
+      Role: !ImportValue WorkbenchV2-LambdaExecutionRole
+      Runtime: python3.12
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -94,8 +47,8 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-workspaces-lambda"
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.13
+      Role: !ImportValue WorkbenchV2-LambdaExecutionRole
+      Runtime: python3.12
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -118,13 +71,54 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !Ref ApiName
-      BodyS3Location:
-        Bucket: develop-service-workbench-artifacts
-        Key: develop/swagger.yaml
-      FailOnWarnings: true
+      Description: "Workbench API Gateway"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+
+  # API Gateway Resources and Methods
+  WorkbenchApiRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      ResourceId: !GetAtt WorkbenchApi.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SampleLambdaFunction.Arn}/invocations'
+
+  WorkspaceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      ParentId: !GetAtt WorkbenchApi.RootResourceId
+      PathPart: workspaces
+
+  WorkspaceMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      ResourceId: !Ref WorkspaceResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WorkspaceLambdaFunction.Arn}/invocations'
+
+  # Lambda Permissions
+  SampleLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SampleLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -132,13 +126,17 @@ Resources:
       FunctionName: !Ref WorkspaceLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
+  # API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - WorkbenchApiRootMethod
+      - WorkspaceMethod
     Properties:
       RestApiId: !Ref WorkbenchApi
-      StageName: test
+      Description: "Initial deployment"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
@@ -146,7 +144,7 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
-      Description: test stage
+      Description: "Production stage"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -155,7 +153,7 @@ Resources:
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-WorkspacesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-WorkspacesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -170,7 +168,7 @@ Resources:
   SolutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-SolutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -189,7 +187,7 @@ Resources:
   DatasourcesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-DatasourcesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-DatasourcesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: DatasourceId
@@ -204,7 +202,7 @@ Resources:
   ResourceAccessTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-ResourceAccessTable'
+      TableName: !Sub 'Workbench-${pPrefix}-ResourceAccessTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -223,7 +221,7 @@ Resources:
   SolutionExecutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-SolutionExecutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: ExecutionId
@@ -236,10 +234,26 @@ Resources:
           Value: "WorkbenchV2"
 
 Outputs:
-  LambdaFunctionName:
-    Description: Name of the Lambda function
+  SampleLambdaFunctionName:
+    Description: Name of the Sample Lambda function
     Value: !Ref SampleLambdaFunction
+
+  WorkspaceLambdaFunctionName:
+    Description: Name of the Workspace Lambda function
+    Value: !Ref WorkspaceLambdaFunction
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+
+  ApiId:
+    Description: "API Gateway ID"
+    Value: !Ref WorkbenchApi
+
+  WorkspacesTableName:
+    Description: "Name of the Workspaces DynamoDB table"
+    Value: !Ref WorkspacesTable
+
+  SolutionsTableName:
+    Description: "Name of the Solutions DynamoDB table"
+    Value: !Ref SolutionsTable

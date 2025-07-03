@@ -28,7 +28,7 @@ else
 fi
 
 echo "Found swagger file at: ${SWAGGER_FILE}"
-sed -i "s/placeholder-workspaces-lambda/${PREFIX}-workspaces-lambda/g" "${SWAGGER_FILE}"
+sed -i "s/placeholder/${PREFIX}/g" "${SWAGGER_FILE}"
 echo "Swagger file updated successfully"
 
 aws s3 cp "${SWAGGER_FILE}" s3://develop-service-workbench-artifacts/develop/swagger.yaml
