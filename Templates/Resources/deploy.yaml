@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
+Description: Development cloudFormation template for the Service Workbench V2
 
 Parameters:
   pPrefix:
@@ -119,6 +119,134 @@ Resources:
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
       Description: test stage
+
+  RolesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
+      AttributeDefinitions:
+        - AttributeName: Role
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Role
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResourceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RBACCustomResource"
+      Handler: index.handler
+      Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
+      Runtime: python3.12
+      Timeout: 900
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        ZipFile: |
+          import json
+          import logging
+          import urllib3
+
+          # set up logging
+          LOGGER = logging.getLogger()
+          LOGGER.setLevel(logging.INFO)
+
+          # http client to send response to cloudformation
+          http = urllib3.PoolManager()
+
+          def send_cfn_response(event, context, status, data=None, physical_id=None, reason=None):
+              """
+              Function to send a response to the CloudFormation stack to signal success or failure of the custom resource.
+              Args:
+                  event (dict): The event dictionary from CloudFormation.
+                  context (LambdaContext): The Lambda execution context object.
+                  status (str): Status of the operation, either 'SUCCESS' or 'FAILED'.
+                  data (dict, optional): Additional data to return to CloudFormation.
+                  physical_id (str, optional): Unique ID for the custom resource.
+                  reason (str, optional): Reason for failure, if applicable.
+              Raises:
+                  Exception: If the response cannot be sent to CloudFormation.
+              """
+              response_body = {
+                  "Status": status,
+                  "Reason": reason or f"See CloudWatch Logs: {context.log_stream_name}",
+                  "PhysicalResourceId": physical_id or context.log_stream_name,
+                  "StackId": event['StackId'],
+                  "RequestId": event['RequestId'],
+                  "LogicalResourceId": event['LogicalResourceId'],
+                  "Data": data or {}
+              }
+              try:
+                  encoded_body = json.dumps(response_body).encode('utf-8')
+                  headers = {'Content-Type': 'application/json'}
+                  resp = http.request('PUT', event['ResponseURL'], body=encoded_body, headers=headers)
+                  LOGGER.info("CloudFormation response sent: %s", resp.status)
+              except Exception as e:
+                  LOGGER.exception("Failed to send CloudFormation response: %s", e)
+                  raise
+
+          def handler(event, context):
+              """
+              Custom resource to add roles to the Roles Table.
+              """
+              send_cfn_response(event, context, "SUCCESS")
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResource:
+    Type: Custom::RBACCustomResource
+    DependsOn:
+      - RBACCustomResourceLambda
+    Properties:
+      ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
+      RolesTable: !Sub "${pPrefix}-RolesTable"
+      Changesetflag: "2025-07-02"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
+      Handler: index.handler
+      Role: !ImportValue RolesLambdaFunctionRole
+      Runtime: python3.12
+      Timeout: 900
+      Environment:
+        Variables:
+          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Hello from Lambda!"}
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RolesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
 Outputs:
   LambdaFunctionName:
