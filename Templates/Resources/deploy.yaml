@@ -153,7 +153,7 @@ Resources:
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-WorkspacesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-WorkspacesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -168,7 +168,7 @@ Resources:
   SolutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-SolutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -187,7 +187,7 @@ Resources:
   DatasourcesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-DatasourcesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-DatasourcesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: DatasourceId
@@ -202,7 +202,7 @@ Resources:
   ResourceAccessTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-ResourceAccessTable'
+      TableName: !Sub 'Workbench-${pPrefix}-ResourceAccessTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -221,7 +221,7 @@ Resources:
   SolutionExecutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${pPrefix}-SolutionExecutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: ExecutionId
