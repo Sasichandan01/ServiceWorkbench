@@ -469,10 +469,10 @@ components:
         - Roles
     
     ErrorResponse:
-      required:
-      - "Message"
-      type: "object"
+      type: object
       properties:
-        Message:
-          type: "string"
+        message:
+          type: string
           description: "Error message"
+      required:
+        - message
