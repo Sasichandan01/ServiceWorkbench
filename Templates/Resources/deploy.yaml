@@ -116,7 +116,7 @@ Resources:
           KeyType: HASH
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -150,7 +150,7 @@ Resources:
                 Resource: !GetAtt RolesTable.Arn
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
@@ -211,7 +211,7 @@ Resources:
               send_cfn_response(event, context, "SUCCESS")
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   RBACCustomResource:
     Type: Custom::RBACCustomResource
@@ -223,7 +223,89 @@ Resources:
       Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
+
+  ServiceWorkbenchLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "${pPrefix}-ServiceWorkbenchLambdaLayer"
+      Description: "Service Workbench Lambda Layer"
+      Content:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Hello from Lambda!"}
+      CompatibleRuntimes:
+        - python3.12
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt RolesTable.Arn
+        - PolicyName: VPCAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
+      Handler: index.handler
+      Role: !GetAtt RolesLambdaFunctionRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue PrivateSubnet1Id
+          - !ImportValue PrivateSubnet2Id
+        SecurityGroupIds:
+          - !ImportValue LambdaSecurityGroupId
+      Layers:
+        - !Ref ServiceWorkbenchLambdaLayer
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Hello from Lambda!"}
+      Tags:
+      
 
 Outputs:
   LambdaFunctionName:
