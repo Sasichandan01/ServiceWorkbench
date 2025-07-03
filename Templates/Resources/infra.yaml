@@ -686,7 +686,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-
 Outputs:
   VPCId:
     Description: VPC ID
