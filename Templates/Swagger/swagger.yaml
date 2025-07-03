@@ -245,6 +245,12 @@ paths:
   /roles:
     post:
       summary: "Add a new role"
+      parameters:
+      - name: "action"
+        in: "query"
+        required: true
+        schema:
+          type: "string"
       requestBody:
         required: true
         content:
@@ -300,9 +306,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      x-amazon-apigateway-request-validator: "Validate body, query string parameters,\
+        \ and headers"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-RolesLambdaFunction/invocations
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wb-abhishek-RolesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -456,14 +464,14 @@ components:
           items:
             type: object
             properties:
-              Role:
+              RoleName:
                 type: string
               Permissions:
                 type: array
                 items:
                   type: string
             required:
-              - Role
+              - RoleName
               - Permissions
       required:
         - Roles
@@ -476,3 +484,13 @@ components:
           description: "Error message"
       required:
         - message
+x-amazon-apigateway-request-validators:
+  Validate body:
+    validateRequestParameters: false
+    validateRequestBody: true
+  Validate query string parameters and headers:
+    validateRequestParameters: true
+    validateRequestBody: false
+  Validate body, query string parameters, and headers:
+    validateRequestParameters: true
+    validateRequestBody: true
