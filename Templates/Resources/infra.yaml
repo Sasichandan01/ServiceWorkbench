@@ -1,4 +1,3 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Service Workbench V2 Infrastructure with VPC
 
@@ -616,6 +615,106 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
+  ServiceWorkbenchLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: "ServiceWorkbenchLambdaLayer"
+      Description: "Service Workbench Lambda Layer"
+      Content:
+        S3Bucket: develop-service-workbench-artifacts
+        S3Key: layer/layer.zip
+      CompatibleRuntimes:
+        - python3.12
+
+  LambdaVPCAccessManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${pApplicationPrefix}-LambdaVPCAccess"
+      Description: "Allows Lambda functions to manage VPC network interfaces"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:CreateNetworkInterface
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DeleteNetworkInterface
+            Resource: "*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  CustomResourceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:BatchWriteItem
+                Resource: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-RolesLambdaFunctionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource: "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+      ManagedPolicyArns:
+        - !Ref LambdaVPCAccessManagedPolicy
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 Outputs:
   VPCId:
     Description: VPC ID
@@ -707,3 +806,21 @@ Outputs:
     Value: !Ref LogsBucket
     Export:
       Name: !Sub "${pApplicationPrefix}-LogsBucket"
+
+  ServiceWorkbenchLambdaLayer:
+    Description: Name of the service workbench lambda layer
+    Value: !Ref ServiceWorkbenchLambdaLayer
+    Export:
+      Name: "ServiceWorkbenchLambdaLayer"
+
+  CustomResourceLambdaExecutionRole:
+    Description: Name of the custom resource lambda execution role
+    Value: !Ref CustomResourceLambdaExecutionRole
+    Export:
+      Name: "WorkbenchCustomResourceLambdaExecutionRole"
+
+  RolesLambdaFunctionRole:
+    Description: Name of the roles lambda function role
+    Value: !Ref RolesLambdaFunctionRole
+    Export:
+      Name: "RolesLambdaFunctionRole"
