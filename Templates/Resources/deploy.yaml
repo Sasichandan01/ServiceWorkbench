@@ -119,6 +119,52 @@ Resources:
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
       Description: test stage
+      
+  OpenSearchClusterCustomResource:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: !GetAtt OpenSearchClusterLambda.Arn
+      changesetflag: '20'
+      IAMRole: !GetAtt AgentsRole.Arn
+      OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
+      IndexName: "aws-docs-vector-index"
+      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+      DatabaseName: !Ref pDatabaseName
+      SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn      #rds.secret!.secretArn
+
+ KnowledgeBaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WorkBenchAgnetIAMRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - bedrock.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: logs:CreateLogGroup
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*:*"
+        - PolicyName: AccessOpensearch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 'es:*'
+                Resource: '*'
 
 Outputs:
   LambdaFunctionName:
