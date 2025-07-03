@@ -305,6 +305,9 @@ Resources:
       Role: !GetAtt RolesLambdaFunctionRole.Arn
       Runtime: python3.12
       Timeout: 900
+      Environment:
+        Variables:
+          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
