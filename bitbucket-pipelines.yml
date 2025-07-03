@@ -311,7 +311,8 @@ definitions:
         # Loop over all subdirectories at depth 1 and 2 under Code/
         for CATEGORY in $(find "$BASE_DIR" -mindepth 1 -maxdepth 2 -type d -exec realpath --relative-to="$BASE_DIR" {} \;); do
           SRC_DIR="${BASE_DIR}/${CATEGORY}"
-          S3_PREFIX=$(echo "$CATEGORY" | tr '[:upper:]' '[:lower:]')  # Preserve structure: Lambdas/Auth -> lambdas/auth
+          # Convert to lowercase, replace spaces with dashes
+          S3_FOLDER_NAME=$(echo "$CATEGORY" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
           if [ -d "$SRC_DIR" ]; then
             find "$SRC_DIR" -type f -name "*.py" | while read -r py_file; do
@@ -321,8 +322,10 @@ definitions:
               echo "Zipping $py_file -> $ZIP_PATH"
               zip -j "$ZIP_PATH" "$py_file"
 
-              echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
-              aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
+              # Upload to: s3://<bucket>/lambdas/<folder>/<filename>.zip
+              S3_KEY="lambdas/${S3_FOLDER_NAME}/${FILE_NAME}.zip"
+              echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/${S3_KEY}"
+              aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/${S3_KEY}" || {
                 echo "[ERROR] Failed to upload $ZIP_PATH"
                 exit 1
               }
@@ -330,7 +333,8 @@ definitions:
           fi
         done
 
-        echo "All zips uploaded to S3 under the preserved folder structure."
+        echo "All Lambda zips uploaded to S3 with folder-based structure under 'lambdas/'."
+
 
   steps:
     - step: &lint_and_validate
