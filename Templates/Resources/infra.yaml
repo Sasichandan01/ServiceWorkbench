@@ -1026,9 +1026,6 @@ Resources:
               - ec2:DescribeNetworkInterfaces
               - ec2:DeleteNetworkInterface
             Resource: "*"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
