@@ -14,10 +14,6 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
-  VPCPrefix:
-    Type: String
-    Default: WorkbenchVPC
-    Description: Environment name prefix for VPC resources
 
 Resources:
   # IAM Role for Lambda Functions
