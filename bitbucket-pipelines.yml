@@ -483,3 +483,11 @@ pipelines:
           script:
             - *authenticate
             - *zip_and_upload_lambdas
+
+    Zip-and-upload-layers:
+      - step:
+          name: Zip and Upload Layers (Manual)
+          oidc: true
+          script:
+            - *authenticate
+            - *zip_and_upload_layers
