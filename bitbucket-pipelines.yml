@@ -335,20 +335,25 @@ definitions:
     - script: &zip_and_upload_layers
         |
         set -e
-        echo "Zipping the entire Code/Layers folder and uploading to S3..."
+        echo "Zipping contents of Code/Layers into a zip with top-level folder named 'python'..."
 
         BASE_DIR="Code/Layers"
         DEST_BUCKET="develop-service-workbench-artifacts"
         LAYER_ZIP_DIR="layers_zips"
         ZIP_NAME="layers.zip"
+        ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
 
         mkdir -p "$LAYER_ZIP_DIR"
         trap "rm -rf $LAYER_ZIP_DIR" EXIT
 
-        ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
+        echo "Creating zip archive at $ZIP_PATH with top-level folder 'python/'..."
 
-        echo "Zipping full folder $BASE_DIR -> $ZIP_PATH"
-        (cd "$BASE_DIR" && zip -r "../../${ZIP_PATH}" .)
+        # Create the zip with all contents of Code/Layers inside a folder named python/
+        (cd "$BASE_DIR"/.. && zip -r "../${ZIP_PATH}" "Layers" -x "*.DS_Store")
+
+        # Rename the folder inside zip from 'Layers' to 'python'
+        echo "Renaming 'Layers/' to 'python/' inside zip..."
+        zipnote "$ZIP_PATH" | sed 's@^@@"s/Layers/python/"@' | zipnote -w "$ZIP_PATH"
 
         echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layers/${ZIP_NAME}"
         aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layers/${ZIP_NAME}" || {
@@ -356,7 +361,8 @@ definitions:
           exit 1
         }
 
-        echo "Full Layers folder zipped and uploaded successfully to S3."
+        echo "Zipped folder with 'python/' and uploaded to S3 successfully."
+        
   steps:
     - step: &lint_and_validate
         name: Lint and Validate
