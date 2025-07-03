@@ -16,7 +16,7 @@ Resources:
       LayerName: !Sub "${pApplicationPrefix}-requests-layer"
       Description: Request validator layer for Lambda functions
       Content:
-        S3Bucket: "develop-service-workbench-artifacts"
+        S3Bucket: "mayank-swb"
         S3Key: "Workbench-requests.zip"
       CompatibleRuntimes:
         - python3.13
@@ -238,7 +238,7 @@ Resources:
       MemorySize: 128
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "Workbench-CognitoCustomResource.zip"
+        S3Key: "lambdas/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -449,7 +449,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPresignup.zip"
+        S3Key: "lambdas/workbenchpresignuplambda/WorkbenchPresignup.zip"
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
@@ -468,7 +468,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPreAuth.zip"
+        S3Key: "lambdas/workbenchpreauthlambda/WorkbenchPreAuth.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -485,7 +485,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPreTokengeneration.zip"
+        S3Key: "lambdas/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -502,7 +502,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPostConfirmation.zip"
+        S3Key: "lambdas/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -538,7 +538,7 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: "develop-service-workbench-artifacts"
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchUserpoolCleanup.zip"
+        S3Key: "lambdas/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
       Timeout: 60
       MemorySize: 1024
       Environment:
