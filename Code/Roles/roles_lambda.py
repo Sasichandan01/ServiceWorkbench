@@ -32,12 +32,12 @@ def handler(event, context):
                     "statusCode": 400,
                     "body": json.dumps({"Error": "Invalid request body"})
                 }
-            if not body.get('Role') or not body.get('Permissions'):
+            if 'Roles' not in body:
                 return {
                     "statusCode": 400,
-                    "body": json.dumps({"Error": "Role and Permissions are required"})
+                    "body": json.dumps({"Error": "RoleName and Permissions are required"})
                 }
-            add_roles_to_table(table, body)
+            add_roles_to_table(table, body.get('Roles')[0])
             return {
                 "statusCode": 200,
                 "body": json.dumps({"Message": "Role added successfully"})
