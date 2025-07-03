@@ -428,11 +428,12 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
 
     wb-abhishek:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-salma:
@@ -453,6 +454,7 @@ pipelines:
     develop:
       - step: *lint_and_validate
       - step: *deploy_infra_stack
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
   custom:
