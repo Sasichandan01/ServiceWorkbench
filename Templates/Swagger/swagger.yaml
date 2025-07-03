@@ -310,7 +310,7 @@ paths:
         \ and headers"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wb-abhishek-RolesLambdaFunction/invocations"
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-RolesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -484,7 +484,7 @@ components:
           description: "Error message"
       required:
         - message
-        
+
 x-amazon-apigateway-request-validators:
   Validate body:
     validateRequestParameters: false
