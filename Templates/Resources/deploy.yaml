@@ -252,9 +252,6 @@ Resources:
         S3Key: layer/layer.zip
       CompatibleRuntimes:
         - python3.12
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   RolesLambdaFunctionRole:
     Type: AWS::IAM::Role
