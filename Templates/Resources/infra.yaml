@@ -16,7 +16,7 @@ Resources:
       LayerName: !Sub "${pApplicationPrefix}-requests-layer"
       Description: Request validator layer for Lambda functions
       Content:
-        S3Bucket: "mayank-swb"
+        S3Bucket: "develop-service-workbench-artifacts"
         S3Key: "Workbench-requests.zip"
       CompatibleRuntimes:
         - python3.13
@@ -237,7 +237,7 @@ Resources:
       Timeout: 300
       MemorySize: 128
       Code:
-        S3Bucket: "mayank-swb"
+        S3Bucket: "develop-service-workbench-artifacts"
         S3Key: "Workbench-CognitoCustomResource.zip"
       Tags:
         - Key: Name
@@ -448,8 +448,8 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-Presignup.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPresignup.zip"
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
@@ -467,8 +467,8 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-PreAuth.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPreAuth.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -484,8 +484,8 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-PreTokenGeneration.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPreTokengeneration.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -501,8 +501,8 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-Postconfirmation.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPostConfirmation.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -520,8 +520,8 @@ Resources:
       Runtime: python3.13
       Role: !GetAtt UserExecutionRole.Arn
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-PostAuth.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPostAuth.zip"
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
@@ -537,8 +537,8 @@ Resources:
       Runtime: python3.13
       Role: !GetAtt UserExecutionRole.Arn
       Code:
-        S3Bucket: "mayank-swb"
-        S3Key: "Workbench-Userpool.zip"
+        S3Bucket: "develop-service-workbench-artifacts"
+        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchUserpoolCleanup.zip"
       Timeout: 60
       MemorySize: 1024
       Environment:
