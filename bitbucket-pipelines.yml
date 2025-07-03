@@ -353,7 +353,7 @@ definitions:
         cp -r "$BASE_DIR"/* /tmp/layer_temp/python/
 
         echo "Zipping /tmp/layer_temp/python/ -> $ZIP_PATH"
-        (cd /tmp/layer_temp && zip -r "../../$ZIP_PATH" python)
+        (cd /tmp/layer_temp && zip -r "$OLDPWD/$ZIP_PATH" python)
 
         echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layers/${ZIP_NAME}"
         aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layers/${ZIP_NAME}" || {
