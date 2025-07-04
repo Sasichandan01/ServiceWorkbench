@@ -412,11 +412,11 @@ Resources:
         - Key: Name
           Value: !Sub ${VPCPrefix}-DynamoDB-Endpoint
 
-# S3 bucket for artifacts
-  ArtifactsBucket:
+  # S3 bucket for artifacts
+  WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${pApplicationPrefix}-service-workbench-artifacts"
+      BucketName: !Sub "${pApplicationPrefix}-service-workbench-website"
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -472,7 +472,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !GetAtt ArtifactsBucket.RegionalDomainName
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
             S3OriginConfig: {}
             OriginAccessControlId: !Ref WebsiteOAC
             OriginPath: /web
@@ -508,7 +508,7 @@ Resources:
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref ArtifactsBucket
+      Bucket: !Ref WebsiteBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -516,7 +516,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${ArtifactsBucket.Arn}/*'
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
@@ -818,21 +818,6 @@ Resources:
       CompatibleRuntimes:
         - python3.12
 
-  LambdaVPCAccessManagedPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      ManagedPolicyName: !Sub "${pApplicationPrefix}-LambdaVPCAccess"
-      Description: "Allows Lambda functions to manage VPC network interfaces"
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - ec2:CreateNetworkInterface
-              - ec2:DescribeNetworkInterfaces
-              - ec2:DeleteNetworkInterface
-            Resource: "*"
-
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -844,17 +829,10 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
         - PolicyName: DynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -863,7 +841,8 @@ Resources:
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:BatchWriteItem
-                Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -879,27 +858,42 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/*
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:UpdateItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
-        - !Ref LambdaVPCAccessManagedPolicy
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+    
+  WorkspaceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-WorkspaceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -984,12 +978,6 @@ Outputs:
     Export:
       Name: !Sub "${pApplicationPrefix}-Region"
 
-  ArtifactsBucketName:
-    Description: Name of the artifacts S3 bucket
-    Value: !Ref ArtifactsBucket
-    Export:
-      Name: !Sub "${pApplicationPrefix}-ArtifactsBucket"
-
   LogsBucketName:
     Description: Name of the logs S3 bucket
     Value: !Ref LogsBucket
@@ -1001,6 +989,12 @@ Outputs:
     Value: !Ref ServiceWorkbenchLambdaLayer
     Export:
       Name: "ServiceWorkbenchLambdaLayer"
+
+  WorkspaceLambdaExecutionRole:
+    Description: Name of the workbench lambda execution role
+    Value: !GetAtt WorkspaceLambdaExecutionRole.Arn
+    Export:
+      Name: "WorkspaceLambdaExecutionRole"
 
   CustomResourceLambdaExecutionRole:
     Description: Name of the custom resource lambda execution role
