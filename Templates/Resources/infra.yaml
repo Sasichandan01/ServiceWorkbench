@@ -5,7 +5,7 @@ Description: Service Workbench V2 Infrastructure with VPC
 Parameters:
   pApplicationPrefix:
     Type: String
-    Default: develop
+    Default: service-workbench
     Description: Prefix for the application resources
   
   VPCCidr:
@@ -17,11 +17,6 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
-
-  pDatabaseName:
-    Type: String
-    Default: "workbenchdb"
-    Description: Database name for Aurora
 
 Resources:
   # VPC Resources
@@ -405,16 +400,6 @@ Resources:
   ArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-SimpleTable"
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-artifacts"
       VersioningConfiguration:
         Status: Enabled
@@ -630,7 +615,6 @@ Resources:
       UserPoolId: !Ref UserPool
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
-
 
 Outputs:
   VPCId:
