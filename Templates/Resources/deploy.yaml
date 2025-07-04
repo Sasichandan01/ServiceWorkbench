@@ -107,7 +107,7 @@ Resources:
       - RBACCustomResourceLambda
     Properties:
       ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
-      RolesTable: !Sub "${pPrefix}-RolesTable"
+      RolesTable: !Sub "Workbench-${pPrefix}-RolesTable"
       Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
