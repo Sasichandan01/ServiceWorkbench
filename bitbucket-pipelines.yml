@@ -313,7 +313,7 @@ definitions:
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-            S3_PREFIX="lambdas/${CATEGORY_NAME,,}"  # Lowercase folder name
+            S3_PREFIX="lambda/${CATEGORY_NAME,,}"  # Lowercase folder name
 
             # Loop over all Python files inside the folder
             find "$CATEGORY" -maxdepth 1 -type f -name "*.py" | while read -r py_file; do
