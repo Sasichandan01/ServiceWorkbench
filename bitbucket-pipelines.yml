@@ -548,7 +548,6 @@ pipelines:
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *deploy_infra_stack
-      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
   custom:
