@@ -59,12 +59,15 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-  # API Gateway Deployment
+  # API Gateway Deployment with forced redeploy logic
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
+    DependsOn: WorkspaceLambdaInvokePermission
     Properties:
       RestApiId: !Ref WorkbenchApi
-      Description: "Initial deployment"
+      Description: "Deployment triggered on template update"
+      Variables:
+        redeployHash: !Sub "${AWS::StackName}-${AWS::Region}-${AWS::Timestamp}"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
