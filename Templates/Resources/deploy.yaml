@@ -17,7 +17,6 @@ Parameters:
   DeploymentTrigger:
     Type: String
     Description: time
-    
 
 Resources:
 
