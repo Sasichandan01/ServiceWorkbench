@@ -621,7 +621,7 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        S3Bucket: develop-service-workbench-artifacts
+        S3Bucket: service-workbench-artifacts
         S3Key: layer/layer.zip
       CompatibleRuntimes:
         - python3.12
