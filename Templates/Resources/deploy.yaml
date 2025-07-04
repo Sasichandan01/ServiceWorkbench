@@ -22,7 +22,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-workspaces-lambda"
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
@@ -107,7 +107,7 @@ Resources:
       - RBACCustomResourceLambda
     Properties:
       ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
-      RolesTable: !Sub "${pPrefix}-RolesTable"
+      RolesTable: !Sub "Workbench-${pPrefix}-RolesTable"
       Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
@@ -151,9 +151,6 @@ Resources:
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
 Outputs:
-  LambdaFunctionName:
-    Description: Name of the Lambda function
-    Value: !Ref SampleLambdaFunction
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"
