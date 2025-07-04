@@ -192,7 +192,7 @@ definitions:
         |
         set -e
         echo "Deploying UI to S3..."
-        UI_BUCKET_NAME="develop-service-workbench-artifacts"
+        UI_BUCKET_NAME="service-workbench-artifacts"
         echo "Current working directory: $(pwd)"
         echo "Directory tree:"
         find .
@@ -243,7 +243,7 @@ definitions:
           exit 1
         fi
 
-        S3_BUCKET="develop-service-workbench-artifacts"
+        S3_BUCKET="service-workbench-artifacts"
         ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
         BASE_DIR="Code"
 
@@ -303,7 +303,7 @@ definitions:
         echo "Zipping and uploading lambda files under Code/Lambdas to S3..."
 
         BASE_DIR="Code/Lambdas"
-        DEST_BUCKET="develop-service-workbench-artifacts"
+        DEST_BUCKET="service-workbench-artifacts"
         # DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
@@ -348,7 +348,7 @@ definitions:
         echo "Zipping contents of Code/Layers into a 'python/' folder inside the zip..."
 
         BASE_DIR="Code/Layers"
-        DEST_BUCKET="develop-service-workbench-artifacts"
+        DEST_BUCKET="service-workbench-artifacts"
         LAYER_ZIP_DIR="layers_zips"
         ZIP_NAME="layers.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
