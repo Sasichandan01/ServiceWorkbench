@@ -821,7 +821,7 @@ Resources:
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
+      RoleName: !Sub "${pApplicationPrefix}-WorkbenchCustomResourceLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
