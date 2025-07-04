@@ -685,6 +685,50 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    
+  WorkspaceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-WorkspaceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 Outputs:
   VPCId:
@@ -778,11 +822,11 @@ Outputs:
     Export:
       Name: "ServiceWorkbenchLambdaLayer"
 
-  WorkbenchLambdaExecutionRole:
+  WorkspaceLambdaExecutionRole:
     Description: Name of the workbench lambda execution role
-    Value: !GetAtt WorkbenchLambdaExecutionRole.Arn
+    Value: !GetAtt WorkspaceLambdaExecutionRole.Arn
     Export:
-      Name: "WorkbenchLambdaExecutionRole"
+      Name: "WorkspaceLambdaExecutionRole"
 
   CustomResourceLambdaExecutionRole:
     Description: Name of the custom resource lambda execution role
