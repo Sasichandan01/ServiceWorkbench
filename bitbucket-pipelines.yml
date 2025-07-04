@@ -422,6 +422,7 @@ definitions:
         oidc: true
         script:
           - echo "Zipping and uploading layer files..."
+          - *authenticate
           - *zip_and_upload_layers
     
     - step: &zipping_and_uploading_lambdas
@@ -429,6 +430,7 @@ definitions:
         oidc: true
         script:
           - echo "Zipping and uploading lambda files..."
+          - *authenticate
           - *zip_and_upload_lambdas
 
 pipelines:
