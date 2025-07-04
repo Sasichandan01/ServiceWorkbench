@@ -14,6 +14,9 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
+  DeploymentTrigger:
+    Type: String
+    Description: time
 
 Resources:
 
@@ -62,9 +65,10 @@ Resources:
   # API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
+    DependsOn: WorkspaceLambdaInvokePermission
     Properties:
       RestApiId: !Ref WorkbenchApi
-      Description: "Initial deployment"
+      Description: "Deployment triggered on template update"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
@@ -72,10 +76,8 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
-      Description: "Production stage"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
+      Variables:
+        redeployHash: !Sub "${DeploymentTrigger}"
 
   # DynamoDB Tables
   WorkspacesTable:
