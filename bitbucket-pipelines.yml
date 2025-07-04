@@ -59,7 +59,7 @@ definitions:
         COMMIT_MSG=$(git log -1 --pretty=%B)
         echo "Latest commit message: ${COMMIT_MSG}"
 
-        if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]"; then
+        if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
