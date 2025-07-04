@@ -345,7 +345,7 @@ definitions:
     - script: &zip_and_upload_layers
         |
         set -e
-        echo "Zipping contents of Code/Layers into a 'python/' folder inside the zip..."
+        echo "Zipping Code/Layers + installing dependencies from root-level requirements.txt..."
 
         BASE_DIR="Code/Layers"
         DEST_BUCKET="service-workbench-artifacts"
@@ -356,22 +356,37 @@ definitions:
         mkdir -p "$LAYER_ZIP_DIR"
         trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
 
-        # Create temporary structure: /tmp/layer_temp/python/
-        mkdir -p /tmp/layer_temp/python
+        TEMP_LAYER_DIR="/tmp/layer_temp"
+        PYTHON_DIR="${TEMP_LAYER_DIR}/python"
 
-        echo "Copying contents of $BASE_DIR into /tmp/layer_temp/python/"
-        cp -r "$BASE_DIR"/* /tmp/layer_temp/python/
+        mkdir -p "$PYTHON_DIR"
 
-        echo "Zipping /tmp/layer_temp/python/ -> $ZIP_PATH"
-        (cd /tmp/layer_temp && zip -r "$OLDPWD/$ZIP_PATH" python)
+        echo "Copying all files and folders from $BASE_DIR to $PYTHON_DIR"
+        cp -r "$BASE_DIR"/* "$PYTHON_DIR/"
 
-        echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layers/${ZIP_NAME}"
+        # Install dependencies from repo root-level requirements.txt (not copied into zip)
+        if [ -f "requirements.txt" ]; then
+          echo "Installing dependencies from root-level requirements.txt..."
+          pip install --upgrade pip
+          pip install -r requirements.txt -t "$PYTHON_DIR" || {
+            echo "[ERROR] Failed to install requirements"
+            exit 1
+          }
+        else
+          echo "[WARN] No root-level requirements.txt found."
+        fi
+
+        echo "Creating layers zip at: $ZIP_PATH"
+        (cd "$TEMP_LAYER_DIR" && zip -r "$OLDPWD/$ZIP_PATH" python)
+
+        echo "Uploading to s3://${DEST_BUCKET}/layers/${ZIP_NAME}"
         aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layers/${ZIP_NAME}" || {
-          echo "[ERROR] Failed to upload $ZIP_PATH"
+          echo "[ERROR] Upload to S3 failed"
           exit 1
         }
 
-        echo "Upload complete. Zip contains top-level folder 'python/'."
+        echo "✅ Layer zip created and uploaded successfully — only includes 'python/' directory"
+
 
 
   steps:
