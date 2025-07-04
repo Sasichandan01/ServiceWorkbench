@@ -421,9 +421,7 @@ definitions:
 
         # List of Lambda functions to update
         TARGET_FUNCTIONS=(
-          "wb-lambda-function-1"
-          "wb-lambda-function-2"
-          "wb-lambda-function-3"
+          "wb-abhishek-RolesLambdaFunction"
         )
 
         for FN in "${TARGET_FUNCTIONS[@]}"; do
