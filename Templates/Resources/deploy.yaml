@@ -67,7 +67,7 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       Description: "Deployment triggered on template update"
       Variables:
-        redeployHash: !Sub "${AWS::StackName}-${AWS::Region}-${AWS::Timestamp}"
+        redeployHash: !Ref DeploymentTrigger
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage

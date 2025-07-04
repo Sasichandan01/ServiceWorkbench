@@ -77,6 +77,7 @@ definitions:
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
             --parameter-overrides pPrefix="${BRANCH_NAME}" \
+            --parameter-overrides DeploymentTrigger="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
