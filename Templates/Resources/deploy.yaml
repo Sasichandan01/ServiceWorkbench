@@ -62,7 +62,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-  # API Gateway Deployment with forced redeploy logic
+  # API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn: WorkspaceLambdaInvokePermission
