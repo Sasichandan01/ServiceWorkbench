@@ -1,4 +1,3 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Service Workbench V2 Infrastructure with VPC
 
@@ -15,7 +14,7 @@ Parameters:
   
   VPCPrefix:
     Type: String
-    Default: test-vpcs-salma
+    Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
 
 Resources:
@@ -28,14 +27,14 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-VPC
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-IGW
 
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -52,7 +51,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -63,7 +62,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ2
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -74,7 +73,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -85,7 +84,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ2
 
   NatGatewayEIP:
     Type: AWS::EC2::EIP
@@ -94,7 +93,7 @@ Resources:
       Domain: vpc
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-NAT-EIP
 
   NatGateway:
     Type: AWS::EC2::NatGateway
@@ -103,7 +102,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-NAT-Gateway
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -111,7 +110,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Public-Routes
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -139,7 +138,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Private-Routes
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -166,7 +165,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Public-NACL
 
   PrivateNACL:
     Type: AWS::EC2::NetworkAcl
@@ -174,7 +173,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Private-NACL
 
   # Public NACL Rules
   PublicNACLInboundAll:
@@ -346,7 +345,7 @@ Resources:
           Description: HTTP to internet
       Tags: 
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Lambda-SG
       VpcId: !Ref VPC
 
   EndpointSecurityGroup:
@@ -368,7 +367,7 @@ Resources:
           Description: HTTPS from Lambda SG
       Tags: 
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-Endpoint-SG
       VpcId: !Ref VPC  
 
   # VPC Endpoints
@@ -382,7 +381,7 @@ Resources:
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: !Sub ${VPCPrefix}-S3-Endpoint
 
   DynamoDBEndpoint:
     Type: AWS::EC2::VPCEndpoint
@@ -394,58 +393,13 @@ Resources:
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
-
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: WorkbenchV2-LambdaExecutionRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                  - ec2:AssignPrivateIpAddresses
-                  - ec2:UnassignPrivateIpAddresses
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
+          Value: !Sub ${VPCPrefix}-DynamoDB-Endpoint
 
   # S3 bucket for artifacts
-  ArtifactsBucket:
+  WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${pApplicationPrefix}-service-workbench-artifacts"
+      BucketName: !Sub "${pApplicationPrefix}-service-workbench-website"
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -459,7 +413,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: "ServiceWorkbench"
 
   # S3 bucket for logs
   LogsBucket:
@@ -480,7 +434,7 @@ Resources:
           - ObjectOwnership: BucketOwnerPreferred
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: "ServiceWorkbench"
 
   # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
@@ -501,7 +455,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !GetAtt ArtifactsBucket.RegionalDomainName
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
             S3OriginConfig: {}
             OriginAccessControlId: !Ref WebsiteOAC
             OriginPath: /web
@@ -531,13 +485,13 @@ Resources:
         IPV6Enabled: true
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"
+          Value: "ServiceWorkbench"
 
   # S3 Bucket Policy to allow CloudFront OAC access only
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref ArtifactsBucket
+      Bucket: !Ref WebsiteBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -545,7 +499,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${ArtifactsBucket.Arn}/*'
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
@@ -661,6 +615,95 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
+  ServiceWorkbenchLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: "ServiceWorkbenchLambdaLayer"
+      Description: "Service Workbench Lambda Layer"
+      Content:
+        S3Bucket: service-workbench-artifacts
+        S3Key: layer/layer.zip
+      CompatibleRuntimes:
+        - python3.12
+
+  CustomResourceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-RolesLambdaFunctionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+    
+  WorkspaceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-WorkspaceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 Outputs:
   VPCId:
     Description: VPC ID
@@ -716,12 +759,6 @@ Outputs:
     Export:
       Name: !Sub ${VPCPrefix}-NAT-Gateway-ID
 
-  LambdaExecutionRoleName:
-    Description: Name of the IAM role for Lambda execution
-    Value: !GetAtt LambdaExecutionRole.Arn
-    Export:
-      Name: WorkbenchV2-LambdaExecutionRole
-
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
@@ -747,14 +784,32 @@ Outputs:
     Export:
       Name: !Sub "${pApplicationPrefix}-Region"
 
-  ArtifactsBucketName:
-    Description: Name of the artifacts S3 bucket
-    Value: !Ref ArtifactsBucket
-    Export:
-      Name: !Sub "${pApplicationPrefix}-ArtifactsBucket"
-
   LogsBucketName:
     Description: Name of the logs S3 bucket
     Value: !Ref LogsBucket
     Export:
       Name: !Sub "${pApplicationPrefix}-LogsBucket"
+
+  ServiceWorkbenchLambdaLayer:
+    Description: Name of the service workbench lambda layer
+    Value: !Ref ServiceWorkbenchLambdaLayer
+    Export:
+      Name: "ServiceWorkbenchLambdaLayer"
+
+  WorkspaceLambdaExecutionRole:
+    Description: Name of the workbench lambda execution role
+    Value: !GetAtt WorkspaceLambdaExecutionRole.Arn
+    Export:
+      Name: "WorkspaceLambdaExecutionRole"
+
+  CustomResourceLambdaExecutionRole:
+    Description: Name of the custom resource lambda execution role
+    Value: !GetAtt CustomResourceLambdaExecutionRole.Arn
+    Export:
+      Name: "WorkbenchCustomResourceLambdaExecutionRole"
+
+  RolesLambdaFunctionRole:
+    Description: Name of the roles lambda function role
+    Value: !GetAtt RolesLambdaFunctionRole.Arn
+    Export:
+      Name: "RolesLambdaFunctionRole"
