@@ -4,8 +4,13 @@ Description: Service Workbench V2 Infrastructure with VPC
 Parameters:
   pApplicationPrefix:
     Type: String
-    Default: service-workbench
+    Default: "wb-WorkBench"
     Description: Prefix for the application resources
+  
+  pArtifactsBucketName:
+    Type: String
+    Default: "service-workbench-artifacts"
+    Description: Name of the S3 bucket for artifacts
   
   VPCCidr:
     Type: String
@@ -18,6 +23,18 @@ Parameters:
     Description: Environment name prefix for VPC resources
 
 Resources:
+#Lambda Layers
+  RequestLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "${pApplicationPrefix}-requests-layer"
+      Description: Request validator layer for Lambda functions
+      Content:
+        S3Bucket: "mayank-swb"
+        S3Key: "Workbench-requests.zip"
+      CompatibleRuntimes:
+        - python3.13
+
   # VPC Resources
   VPC:
     Type: AWS::EC2::VPC
@@ -413,7 +430,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # S3 bucket for logs
   LogsBucket:
@@ -434,9 +451,9 @@ Resources:
           - ObjectOwnership: BucketOwnerPreferred
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
-  # CloudFront Origin Access Control (OAC)
+# CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -446,7 +463,7 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # CloudFront Distribution
+# CloudFront Distribution
   WebsiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -487,7 +504,7 @@ Resources:
         - Key: Name
           Value: "ServiceWorkbench"
 
-  # S3 Bucket Policy to allow CloudFront OAC access only
+# S3 Bucket Policy to allow CloudFront OAC access only
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -504,7 +521,7 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
-  # Bucket policy to allow CloudFront to write logs
+# Bucket policy to allow CloudFront to write logs
   CloudFrontLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -529,18 +546,14 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
+# Cognito User Pool and Client
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "${pApplicationPrefix}-UserPool"
-
-      # Allow login via email and preferred username
-      # UsernameAttributes:
       AliasAttributes:
         - email
         - preferred_username
-
-      # Only email is required, name is optional
       Schema:
         - Name: email
           AttributeDataType: String
@@ -554,13 +567,13 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
-
       AutoVerifiedAttributes:
         - email
-
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: false
-
+        InviteMessageTemplate:
+          EmailSubject: "Your temporary password for WorkBench"
+          EmailMessage: "Your username is {username} and temporary password is {####}"
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -568,13 +581,11 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
-
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
-
       VerificationMessageTemplate:
         DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailSubject: "Your verification code for Fundwick"
+        EmailSubject: "Your verification code for WorkBench"
         EmailMessage: "Your verification code is {####}"
 
   UserPoolClient:
@@ -597,15 +608,6 @@ Resources:
         - ALLOW_CUSTOM_AUTH
       SupportedIdentityProviders:
         - COGNITO
-      CallbackURLs:
-        - "https://example.com/"
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-        - code
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
       PreventUserExistenceErrors: ENABLED
 
   UserPoolDomain:
@@ -615,6 +617,194 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
+# IAM Role for the Custom Resource Lambda
+  CustomResourceExecutionRoles:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:UpdateUserPool
+                Resource: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+#Lambda Roles
+  UserExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        
+        - PolicyName: SQSPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SQSPutPolicies
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt CleanupQueue.Arn
+        
+        - PolicyName: DynamoDBPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DynamoDBUserTableAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
+              - Sid: DynamoDBActivityLogsAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
+        
+        - PolicyName: CognitoPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CognitoAccess
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
+        
+        - PolicyName: SESPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SESAccess
+                Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: "*"
+        
+        - PolicyName: SSMPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SSMAccess
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+
+#DynamoDB Tables
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${pApplicationPrefix}-UserTable"
+      AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+  
+  ActivityLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${pApplicationPrefix}-ActivityLogsTable"
+      AttributeDefinitions:
+        - AttributeName: LogId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LogId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+# DLQ for failed messages
+  CleanupDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pApplicationPrefix}-CleanupDLQ"
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+# Main SQS queue with redrive policy
+  CleanupQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pApplicationPrefix}-CleanupQueue"
+      VisibilityTimeout: 65
+      ReceiveMessageWaitTimeSeconds: 20
+      DelaySeconds: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CleanupDLQ.Arn
+        maxReceiveCount: 5  # Message is sent to DLQ after 5 failed receives
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   ServiceWorkbenchLambdaLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -623,13 +813,15 @@ Resources:
       Content:
         S3Bucket: service-workbench-artifacts
         S3Key: layer/layer.zip
+        # S3Bucket: "mayank-swb"
+        # S3Key: "layers.zip"
       CompatibleRuntimes:
         - python3.12
 
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
+      RoleName: !Sub "${pApplicationPrefix}-WorkbenchCustomResourceLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -647,6 +839,8 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - dynamodb:PutItem
+                  - dynamodb:BatchWriteItem
                   - dynamodb:UpdateItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
@@ -813,3 +1007,51 @@ Outputs:
     Value: !GetAtt RolesLambdaFunctionRole.Arn
     Export:
       Name: "RolesLambdaFunctionRole"
+    
+  UserExecutionRole:
+    Description: Name of the user execution role
+    Value: !GetAtt UserExecutionRole.Arn
+    Export:
+      Name: "UserExecutionRole"
+
+  CustomResourceExecutionRoles:
+    Description: Name of the custom resource execution roles
+    Value: !GetAtt CustomResourceExecutionRoles.Arn
+    Export:
+      Name: "CustomResourceExecutionRoles"
+  
+  UserTableName:
+    Description: Name of the DynamoDB User Table
+    Value: !Ref UserTable
+    Export:
+      Name: "UserTableName"
+
+  ActivityLogsTableName:
+    Description: Name of the DynamoDB Activity Logs Table
+    Value: !Ref ActivityLogsTable
+    Export:
+      Name: "ActivityLogsTableName"
+
+  CleanupQueueArn:
+    Description: ARN of the Cleanup SQS Queue
+    Value: !GetAtt CleanupQueue.Arn
+    Export:
+      Name: "CleanupQueueArn"
+
+  CleanupQueueURL:
+    Description: URL of the Cleanup SQS Queue
+    Value: !Ref CleanupQueue
+    Export:
+      Name: "CleanupQueueURL"
+  
+  RequestLayerExport:
+    Description: ARN of the Lambda Request Layer
+    Value: !Ref RequestLayer
+    Export:
+      Name: "RequestLayerExport"
+
+  CognitoUserPoolArn:
+    Description: ARN of the Cognito User Pool
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: "CognitoUserPoolArn"
