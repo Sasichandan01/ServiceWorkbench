@@ -1275,8 +1275,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Private Subnets for Aurora DB"
       SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1487,4 +1487,3 @@ Outputs:
     Description: The name of the database
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
-

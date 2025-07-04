@@ -267,9 +267,9 @@ Resources:
         OpensearchManagedClusterConfiguration:
           DomainArn: !ImportValue "develop-OpenSearchDBArn"
           DomainEndpoint: !Join
-           - ""
-           - - "https://"
-             - !ImportValue "develop-OpenSearchEndpoint"
+            - ""
+            - - "https://"
+              - !ImportValue "develop-OpenSearchEndpoint"
           FieldMapping: 
             VectorField: "bedrock-knowledge-base-default-vector"  
             TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
