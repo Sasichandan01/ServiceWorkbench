@@ -279,8 +279,8 @@ definitions:
           exit 1
         }
 
-        echo "Uploading to S3: s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip"
-        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip" || {
+        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
           echo "[ERROR] Failed to upload to S3"
           exit 1
         }
@@ -300,16 +300,16 @@ definitions:
     - script: &zip_and_upload_lambdas
         |
         set -e
-        echo "Zipping and uploading lambda files under Code/Lambdas to S3..."
+        echo "Zipping and uploading lambda files under Code/Lambda to S3..."
 
-        BASE_DIR="Code/Lambdas"
+        BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
         # DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
 
-        # Loop over immediate subdirectories of Code/Lambdas
+        # Loop over immediate subdirectories of Code/Lambda
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
@@ -340,16 +340,16 @@ definitions:
           fi
         done
 
-        echo "All zips uploaded to S3 under lambdas/<folder>/ structure."
+        echo "All zips uploaded to S3 under lambda/<folder>/ structure."
   
     - script: &zip_and_upload_layers
         |
         set -e
-        echo "Zipping Code/Layer + installing dependencies from root-level requirements.txt..."
+        echo "Zipping contents of Code/Layer into a 'python/' folder inside the zip..."
 
         BASE_DIR="Code/Layer"
         DEST_BUCKET="service-workbench-artifacts"
-        LAYER_ZIP_DIR="layers_zips"
+        LAYER_ZIP_DIR="layer_zips"
         ZIP_NAME="layer.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
 
@@ -457,7 +457,7 @@ definitions:
 
         echo "All targeted Lambdas updated."
 
-# Bitbucket Pipeline Configuration for Service Workbench
+
   steps:
     - step: &lint_and_validate
         name: Lint and Validate
@@ -500,12 +500,21 @@ definitions:
           - echo "Starting Lambda function update..."
           - *authenticate
           - *update_lambda_code
+
+    - step: &zipping_and_uploading_layers
+        name: Zip and Upload Layers
+        oidc: true
+        script:
+          - echo "Zipping and uploading layer files..."
+          - *authenticate
+          - *zip_and_upload_layers
     
     - step: &zipping_and_uploading_lambdas
         name: Zip and Upload Lambdas
         oidc: true
         script:
           - echo "Zipping and uploading lambda files..."
+          - *authenticate
           - *zip_and_upload_lambdas
 
 pipelines:
@@ -514,6 +523,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
+      - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
@@ -537,6 +547,8 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy_infra_stack
       - step: *zipping_and_uploading_lambdas
       - step: *deploy

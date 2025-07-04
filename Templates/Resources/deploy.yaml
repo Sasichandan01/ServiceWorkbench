@@ -17,57 +17,6 @@ Parameters:
 
 Resources:
 
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                  - ec2:AssignPrivateIpAddresses
-                  - ec2:UnassignPrivateIpAddresses
-                Resource: "*"
-
-  SampleLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pPrefix}-sample-lambda"
-      Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.13
-      VpcConfig:
-        SubnetIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
-        SecurityGroupIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
-      Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
-
   WorkspaceLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -139,61 +88,15 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-RBACCustomResource"
-      Handler: index.handler
+      Handler: lambda_function.lambda_handler
       Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
       Runtime: python3.12
       Timeout: 900
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        ZipFile: |
-          import json
-          import logging
-          import urllib3
-
-          # set up logging
-          LOGGER = logging.getLogger()
-          LOGGER.setLevel(logging.INFO)
-
-          # http client to send response to cloudformation
-          http = urllib3.PoolManager()
-
-          def send_cfn_response(event, context, status, data=None, physical_id=None, reason=None):
-              """
-              Function to send a response to the CloudFormation stack to signal success or failure of the custom resource.
-              Args:
-                  event (dict): The event dictionary from CloudFormation.
-                  context (LambdaContext): The Lambda execution context object.
-                  status (str): Status of the operation, either 'SUCCESS' or 'FAILED'.
-                  data (dict, optional): Additional data to return to CloudFormation.
-                  physical_id (str, optional): Unique ID for the custom resource.
-                  reason (str, optional): Reason for failure, if applicable.
-              Raises:
-                  Exception: If the response cannot be sent to CloudFormation.
-              """
-              response_body = {
-                  "Status": status,
-                  "Reason": reason or f"See CloudWatch Logs: {context.log_stream_name}",
-                  "PhysicalResourceId": physical_id or context.log_stream_name,
-                  "StackId": event['StackId'],
-                  "RequestId": event['RequestId'],
-                  "LogicalResourceId": event['LogicalResourceId'],
-                  "Data": data or {}
-              }
-              try:
-                  encoded_body = json.dumps(response_body).encode('utf-8')
-                  headers = {'Content-Type': 'application/json'}
-                  resp = http.request('PUT', event['ResponseURL'], body=encoded_body, headers=headers)
-                  LOGGER.info("CloudFormation response sent: %s", resp.status)
-              except Exception as e:
-                  LOGGER.exception("Failed to send CloudFormation response: %s", e)
-                  raise
-
-          def handler(event, context):
-              """
-              Custom resource to add roles to the Roles Table.
-              """
-              send_cfn_response(event, context, "SUCCESS")
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/rbaccustomresource/rbac_custom_resource.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -214,7 +117,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
-      Handler: index.handler
+      Handler: lambda_function.lambda_handler
       Role: !ImportValue RolesLambdaFunctionRole
       Runtime: python3.12
       Timeout: 900
@@ -233,9 +136,8 @@ Resources:
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/roles/roles_lambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
