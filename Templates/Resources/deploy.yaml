@@ -25,6 +25,10 @@ Parameters:
   DeploymentTrigger:
     Type: String
     Description: time
+  pRAGPrefix:
+    Type: String
+    Description: rag-prefix
+    Default: develop
 
 Resources:
 
@@ -292,7 +296,7 @@ Resources:
           ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
           CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
           DatabaseName: !ImportValue "develop-AuroraDBName"
-          TableName: !Sub "${pPrefix}_aurora_table" 
+          TableName: !Sub "${pRAGPrefix}_aurora_table" 
           FieldMapping:
             VectorField: "embedding"
             TextField: "content"

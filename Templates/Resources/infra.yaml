@@ -1273,22 +1273,10 @@ Resources:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
       Layers:
-        - !Ref RAGLambdaLayer
         - !Ref ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
-  RAGLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub "${pApplicationPrefix}-RAGLambdaLayer"
-      CompatibleRuntimes:
-        - python3.12
-      Content:
-        S3Bucket: service-workbench-artifacts
-        S3Key: layer/OpensearchLayer.zip
-
 
   AuroraSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -1346,8 +1334,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-
-
   OpenSearchClusterCustomResource:
     Type: "AWS::CloudFormation::CustomResource"
     Properties:
@@ -1357,7 +1343,6 @@ Resources:
       ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
       DatabaseName: !Ref pDatabaseName
       SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
-
 
 Outputs:
   VPCId:
