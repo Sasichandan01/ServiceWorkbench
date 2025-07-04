@@ -69,8 +69,6 @@ Resources:
     Properties:
       RestApiId: !Ref WorkbenchApi
       Description: "Deployment triggered on template update"
-      Variables:
-        redeployHash: !Sub "${DeploymentTrigger}"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
@@ -78,6 +76,8 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
+      Variables:
+        redeployHash: !Sub "${DeploymentTrigger}"
 
   # DynamoDB Tables
   WorkspacesTable:
