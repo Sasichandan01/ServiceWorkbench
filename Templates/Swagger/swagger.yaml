@@ -251,12 +251,6 @@ paths:
           required: true
           schema:
             type: "string"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddRoleRequest"
       responses:
         "200":
           description: "Role added successfully"
@@ -274,24 +268,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
-        "400":
-          description: "Bad request"
-          headers:
-            Access-Control-Allow-Origin:
-              schema:
-                type: "string"
-            Access-Control-Allow-Methods:
-              schema:
-                type: "string"
-            Access-Control-Allow-Headers:
-              schema:
-                type: "string"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: "Not found"
+          description: "Invalid action"
           headers:
             Access-Control-Allow-Origin:
               schema:
@@ -306,11 +284,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      x-amazon-apigateway-request-validator: "Validate body, query string parameters,\
-        \ and headers"
+        "500":
+          description: "Internal server error"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wb-abhishek-RolesLambdaFunction/invocations"
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-RolesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -455,26 +448,6 @@ components:
           type: "string"
         Status:
           type: "string"
-
-    AddRoleRequest:
-      type: object
-      properties:
-        Roles:
-          type: array
-          items:
-            type: object
-            properties:
-              RoleName:
-                type: string
-              Permissions:
-                type: array
-                items:
-                  type: string
-            required:
-              - RoleName
-              - Permissions
-      required:
-        - Roles
     
     ErrorResponse:
       type: object
@@ -484,7 +457,7 @@ components:
           description: "Error message"
       required:
         - message
-        
+
 x-amazon-apigateway-request-validators:
   Validate body:
     validateRequestParameters: false
