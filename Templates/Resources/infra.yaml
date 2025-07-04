@@ -396,10 +396,10 @@ Resources:
           Value: !Sub ${VPCPrefix}-DynamoDB-Endpoint
 
   # S3 bucket for artifacts
-  ArtifactsBucket:
+  WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${pApplicationPrefix}-service-workbench-artifacts"
+      BucketName: !Sub "${pApplicationPrefix}-service-workbench-website"
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -455,7 +455,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !GetAtt ArtifactsBucket.RegionalDomainName
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
             S3OriginConfig: {}
             OriginAccessControlId: !Ref WebsiteOAC
             OriginPath: /web
@@ -491,7 +491,7 @@ Resources:
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref ArtifactsBucket
+      Bucket: !Ref WebsiteBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -499,7 +499,7 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${ArtifactsBucket.Arn}/*'
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
@@ -621,7 +621,7 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        S3Bucket: develop-service-workbench-artifacts
+        S3Bucket: service-workbench-artifacts
         S3Key: layer/layer.zip
       CompatibleRuntimes:
         - python3.12
@@ -765,12 +765,6 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pApplicationPrefix}-Region"
-
-  ArtifactsBucketName:
-    Description: Name of the artifacts S3 bucket
-    Value: !Ref ArtifactsBucket
-    Export:
-      Name: !Sub "${pApplicationPrefix}-ArtifactsBucket"
 
   LogsBucketName:
     Description: Name of the logs S3 bucket

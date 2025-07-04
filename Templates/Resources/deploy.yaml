@@ -94,7 +94,7 @@ Resources:
     Properties:
       Name: !Ref ApiName
       BodyS3Location:
-        Bucket: develop-service-workbench-artifacts
+        Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
 
