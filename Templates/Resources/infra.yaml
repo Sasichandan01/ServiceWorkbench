@@ -777,27 +777,6 @@ Resources:
                 - lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: logs:CreateLogGroup
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: 
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*:*"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                  - ec2:AssignPrivateIpAddresses
-                  - ec2:UnassignPrivateIpAddresses
-                Resource: "*"
         - PolicyName: VectorStoreAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -816,6 +795,9 @@ Resources:
                   - "bedrock:RetrieveAndGenerate"
                   - "bedrock:CreateKnowledgeBase"
                 Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -866,7 +848,7 @@ Resources:
           REGION: !Ref AWS::Region
       Code: 
         S3Bucket: service-workbench-artifacts
-        S3Key: layer/RAGCustomResourceLambda.zip
+        S3Key: lambda/ragcustomresourcelambda/rag_custom_resource_lambda.zip
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -875,6 +857,7 @@ Resources:
           - !Ref LambdaSecurityGroup
       Layers:
         - !Ref RAGLambdaLayer
+        - !Ref ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"

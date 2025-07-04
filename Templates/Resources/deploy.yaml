@@ -6,7 +6,7 @@ Parameters:
   pApplicationPrefix:
     Type: String
     Description: Prefix for Lambda function naming
-    Default: wb-bhargav
+    Default: develop
   pTableName:
     Type: String
     Description: Table name for Aurora DB
@@ -74,51 +74,6 @@ Resources:
       StageName: prod
       Description: test stage
       
-  OpenSearchClusterCustomResource:
-    Type: "AWS::CloudFormation::CustomResource"
-    Properties:
-      ServiceToken: !GetAtt OpenSearchClusterLambda.Arn
-      changesetflag: '20'
-      IAMRole: !GetAtt AgentsRole.Arn
-      OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
-      IndexName: "aws-docs-vector-index"
-      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
-      DatabaseName: !Ref pDatabaseName
-      SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn      #rds.secret!.secretArn
-
- KnowledgeBaseRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: WorkBenchAgnetIAMRole
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - bedrock.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchLogsPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: logs:CreateLogGroup
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: 
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*:*"
-        - PolicyName: AccessOpensearch
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: 'es:*'
-                Resource: '*'
 
   RolesTable:
     Type: AWS::DynamoDB::Table
@@ -201,49 +156,52 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
- VectorKnowledgeBase:
-    Type: AWS::Bedrock::KnowledgeBase
-    Properties:
-      Name: "ServiceWorkbench-KnowledgeBase"
-      Description: "Stores vectorized data in OpenSearch"
-      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
-      StorageConfiguration:
-        Type: OPENSEARCH_MANAGED_CLUSTER
-        OpensearchManagedClusterConfiguration:
-          DomainArn: !ImportValue "develop-OpenSearchDBArn"
-          DomainEndpoint: !Sub "https://${!ImportValue "develop-OpenSearchEndpoint"}"
-          FieldMapping: 
-            VectorField: "bedrock-knowledge-base-default-vector"  
-            TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
-            MetadataField: "AMAZON_BEDROCK_METADATA"  
-          VectorIndexName: !Sub "${pApplicationPrefix}-vector-index"
-      KnowledgeBaseConfiguration:
-        Type: VECTOR
-        VectorKnowledgeBaseConfiguration:
-          EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+  # VectorKnowledgeBase:
+  #   Type: AWS::Bedrock::KnowledgeBase
+  #   Properties:
+  #     Name: !Sub "${pApplicationPrefix}-KnowledgeBase"
+  #     Description: "Stores vectorized data in OpenSearch"
+  #     RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+  #     StorageConfiguration:
+  #       Type: OPENSEARCH_MANAGED_CLUSTER
+  #       OpensearchManagedClusterConfiguration:
+  #         DomainArn: !ImportValue "develop-OpenSearchDBArn"
+  #         DomainEndpoint: !Join
+  #          - ""
+  #          - - "https://"
+  #            - !ImportValue "develop-OpenSearchEndpoint"
+  #         FieldMapping: 
+  #           VectorField: "bedrock-knowledge-base-default-vector"  
+  #           TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
+  #           MetadataField: "AMAZON_BEDROCK_METADATA"  
+  #         VectorIndexName: !Sub "${pApplicationPrefix}-vector-index"
+  #     KnowledgeBaseConfiguration:
+  #       Type: VECTOR
+  #       VectorKnowledgeBaseConfiguration:
+  #         EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
 
-  AuroraKnowledgeBase:
-    Type: AWS::Bedrock::KnowledgeBase
-    Properties:
-      Name: "WorkbenchAuroraKBb"
-      Description: "Knowledge base using Aurora PostgreSQL"
-      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
-      KnowledgeBaseConfiguration:
-        Type: "VECTOR"
-        VectorKnowledgeBaseConfiguration:
-          EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
-      StorageConfiguration:
-        Type: "RDS"
-          RdsConfiguration:
-          ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
-          CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
-          DatabaseName: !ImportValue "develop-AuroraDBName"
-          TableName: !Sub "${pTableName}_aurora_table" 
-          FieldMapping:
-            VectorField: "embedding"
-            TextField: "content"
-            MetadataField: "metadata"
-            PrimaryKeyField: "id" 
+  # AuroraKnowledgeBase:
+  #   Type: AWS::Bedrock::KnowledgeBase
+  #   Properties:
+  #     Name: !Sub "${pApplicationPrefix}-AuroraKB"
+  #     Description: "Knowledge base using Aurora PostgreSQL"
+  #     RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+  #     KnowledgeBaseConfiguration:
+  #       Type: "VECTOR"
+  #       VectorKnowledgeBaseConfiguration:
+  #         EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+  #     StorageConfiguration:
+  #       Type: "RDS"
+  #        RdsConfiguration:
+  #         ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
+  #         CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
+  #         DatabaseName: !ImportValue "develop-AuroraDBName"
+  #         TableName: !Sub "${pApplicationPrefix}_aurora_table" 
+  #         FieldMapping:
+  #           VectorField: "embedding"
+  #           TextField: "content"
+  #           MetadataField: "metadata"
+  #           PrimaryKeyField: "id" 
 
 Outputs:
 
