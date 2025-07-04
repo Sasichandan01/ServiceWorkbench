@@ -14,6 +14,9 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
+  DeploymentTrigger:
+    Type: String
+    Description: time
 
 Resources:
 
@@ -67,7 +70,7 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       Description: "Deployment triggered on template update"
       Variables:
-        redeployHash: !Ref DeploymentTrigger
+        redeployHash: !Sub "${DeploymentTrigger}
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
