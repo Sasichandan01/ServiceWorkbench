@@ -20,7 +20,7 @@ def lambda_handler(event, context):
         roles_table = props.get('RolesTable')
         table = DYNAMODB_RESOURCE.Table(roles_table)
         # load the role permission mapping from the json file
-        with open('/opt/RBAC/role_permission_mapping.json', 'r', encoding='utf-8') as f:
+        with open('/opt/python/RBAC/role_permission_mapping.json', 'r', encoding='utf-8') as f:
             role_mapping = json.load(f)
         # add roles to the table in a batch writer
         sync_system_roles(table, role_mapping)
