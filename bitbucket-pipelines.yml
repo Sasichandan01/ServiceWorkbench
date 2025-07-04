@@ -59,7 +59,7 @@ definitions:
         COMMIT_MSG=$(git log -1 --pretty=%B)
         echo "Latest commit message: ${COMMIT_MSG}"
 
-        if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]"; then
+        if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -192,7 +192,7 @@ definitions:
         |
         set -e
         echo "Deploying UI to S3..."
-        UI_BUCKET_NAME="develop-service-workbench-website"
+        UI_BUCKET_NAME="service-workbench-artifacts"
         echo "Current working directory: $(pwd)"
         echo "Directory tree:"
         find .
@@ -354,24 +354,106 @@ definitions:
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
 
         mkdir -p "$LAYER_ZIP_DIR"
-        trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
+        # trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
 
-        # Create temporary structure: /tmp/layer_temp/python/
-        mkdir -p /tmp/layer_temp/python
+        TEMP_LAYER_DIR="/tmp/layer_temp"
+        PYTHON_DIR="${TEMP_LAYER_DIR}/python"
 
-        echo "Copying contents of $BASE_DIR into /tmp/layer_temp/python/"
-        cp -r "$BASE_DIR"/* /tmp/layer_temp/python/
+        mkdir -p "$PYTHON_DIR"
 
-        echo "Zipping /tmp/layer_temp/python/ -> $ZIP_PATH"
-        (cd /tmp/layer_temp && zip -r "$OLDPWD/$ZIP_PATH" python)
+        echo "Copying all files and folders from $BASE_DIR to $PYTHON_DIR"
+        cp -r "$BASE_DIR"/* "$PYTHON_DIR/"
 
-        echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layer/${ZIP_NAME}"
+        # Install dependencies from repo root-level requirements.txt (not copied into zip)
+        if [ -f "requirements.txt" ]; then
+          echo "Installing dependencies from root-level requirements.txt..."
+          pip install --upgrade pip
+          pip install -r requirements.txt -t "$PYTHON_DIR" || {
+            echo "[ERROR] Failed to install requirements"
+            exit 1
+          }
+        else
+          echo "[WARN] No root-level requirements.txt found."
+        fi
+
+        echo "Creating layer zip at: $ZIP_PATH"
+        (cd "$TEMP_LAYER_DIR" && zip -r "$OLDPWD/$ZIP_PATH" python)
+
+        echo "Uploading to s3://${DEST_BUCKET}/layer/${ZIP_NAME}"
         aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layer/${ZIP_NAME}" || {
-          echo "[ERROR] Failed to upload $ZIP_PATH"
+          echo "[ERROR] Upload to S3 failed"
           exit 1
         }
 
-        echo "Upload complete. Zip contains top-level folder 'python/'."
+        echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
+
+    - script: &update_selected_lambdas_with_layer
+        |
+        set -e
+        echo "Updating selected Lambda functions with new Layer version..."
+
+        # Config
+        DEST_BUCKET="service-workbench-artifacts"
+        LAYER_NAME="layer.zip"
+        REGION="us-east-1"
+
+        # Upload layer zip 
+        # echo "Uploading layer zip to S3..."
+        # aws s3 cp "layer_zips/${LAYER_NAME}" "s3://${DEST_BUCKET}/layer/${LAYER_NAME}"
+
+        echo "Publishing new Lambda Layer version..."
+        PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
+          --layer-name "ServiceWorkbenchLambdaLayer" \
+          --description "Auto-published by Bitbucket Pipeline" \
+          --content S3Bucket="${DEST_BUCKET}",S3Key="layer/${LAYER_NAME}" \
+          --compatible-runtimes python3.12 python3.13 \
+          --region "${REGION}" \
+          --output json)
+
+        NEW_LAYER_ARN=$(echo "$PUBLISH_OUTPUT" | jq -r '.LayerVersionArn')
+
+        if [ -z "$NEW_LAYER_ARN" ]; then
+          echo "[ERROR] Failed to publish new layer version."
+          exit 1
+        fi
+
+        echo "New Layer Version ARN: $NEW_LAYER_ARN"
+
+        # List of Lambda functions to update
+        TARGET_FUNCTIONS=(
+          "wb-abhishek-RolesLambdaFunction"
+        )
+
+        for FN in "${TARGET_FUNCTIONS[@]}"; do
+          echo "Checking $FN"
+
+          EXISTING_LAYERS=$(aws lambda get-function-configuration \
+            --function-name "$FN" \
+            --region "${REGION}" \
+            --query 'Layers[*].Arn' \
+            --output text)
+
+          if echo "$EXISTING_LAYERS" | grep -q "ServiceWorkbenchLambdaLayer"; then
+            echo "Updating $FN with new layer version..."
+
+            # Remove old layer and add new version
+            UPDATED_LAYERS=$(echo "$EXISTING_LAYERS" | grep -v "ServiceWorkbenchLambdaLayer"; echo "$NEW_LAYER_ARN")
+
+            aws lambda update-function-configuration \
+              --function-name "$FN" \
+              --layers $UPDATED_LAYERS \
+              --region "${REGION}" || {
+                echo "[ERROR] Failed to update layers for $FN"
+                exit 1
+              }
+
+            echo "Successfully updated $FN"
+          else
+            echo "⏭Skipping $FN — does not use ServiceWorkbenchLambdaLayer"
+          fi
+        done
+
+        echo "All targeted Lambdas updated."
 
 
   steps:
@@ -437,11 +519,13 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
       - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-salma:
@@ -514,3 +598,12 @@ pipelines:
           script:
             - *authenticate
             - *zip_and_upload_layers
+    
+    Update-layer-and-lambdas:
+      - step:
+          name: Publish Layer and Update Lambdas
+          oidc: true
+          script:
+            - *authenticate
+            - *zip_and_upload_layers
+            - *update_selected_lambdas_with_layer
