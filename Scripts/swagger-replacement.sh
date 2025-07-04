@@ -31,5 +31,5 @@ echo "Found swagger file at: ${SWAGGER_FILE}"
 sed -i "s/placeholder/${PREFIX}/g" "${SWAGGER_FILE}"
 echo "Swagger file updated successfully"
 
-aws s3 cp "${SWAGGER_FILE}" s3://develop-service-workbench-artifacts/develop/swagger.yaml
+aws s3 cp "${SWAGGER_FILE}" s3://service-workbench-artifacts/develop/swagger.yaml
 echo "Updated swagger file uploaded to S3"
