@@ -62,9 +62,6 @@ Resources:
   # API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - WorkbenchApiRootMethod
-      - WorkspaceMethod
     Properties:
       RestApiId: !Ref WorkbenchApi
       Description: "Initial deployment"
