@@ -608,4 +608,3 @@ pipelines:
             - *authenticate
             - *zip_and_upload_layers
             - *update_selected_lambdas_with_layer
-
