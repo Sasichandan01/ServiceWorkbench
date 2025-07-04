@@ -78,10 +78,6 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
-      Description: "Production stage"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   # DynamoDB Tables
   WorkspacesTable:
