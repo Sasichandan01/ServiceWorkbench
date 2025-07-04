@@ -638,7 +638,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambda Roles
   UserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -734,8 +733,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-
-#DynamoDB Tables
   UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -770,7 +767,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-# DLQ for failed messages
   CleanupDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -780,7 +776,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
     
-# Lambda Function for Cognito Triggers Custom Resource
   CognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
     Properties:
@@ -803,7 +798,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-# Custom Resource Definition
   CognitoTriggersResource:
     Type: Custom::CognitoTriggers
     Properties:
@@ -818,7 +812,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambdas
   PreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -965,7 +958,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Permissions for Lambda to call Cognito
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
