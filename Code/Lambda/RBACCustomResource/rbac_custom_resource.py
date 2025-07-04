@@ -10,7 +10,7 @@ LOGGER.setLevel(logging.INFO)
 
 DYNAMODB_RESOURCE = boto3.resource('dynamodb')
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Custom resource to add roles to the Roles Table.
     """
