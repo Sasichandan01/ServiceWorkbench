@@ -645,6 +645,18 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        
         - PolicyName: SQSPolicies
           PolicyDocument:
             Version: "2012-10-17"
@@ -1032,7 +1044,7 @@ Resources:
   CustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
+      RoleName: !Sub "${pApplicationPrefix}-WorkbenchCustomResourceLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
