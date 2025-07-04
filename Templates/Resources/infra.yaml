@@ -778,6 +778,12 @@ Outputs:
     Export:
       Name: "ServiceWorkbenchLambdaLayer"
 
+  WorkbenchLambdaExecutionRole:
+    Description: Name of the workbench lambda execution role
+    Value: !GetAtt WorkbenchLambdaExecutionRole.Arn
+    Export:
+      Name: "WorkbenchLambdaExecutionRole"
+
   CustomResourceLambdaExecutionRole:
     Description: Name of the custom resource lambda execution role
     Value: !GetAtt CustomResourceLambdaExecutionRole.Arn
