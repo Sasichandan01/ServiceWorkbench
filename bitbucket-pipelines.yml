@@ -403,7 +403,7 @@ definitions:
 
         echo "Publishing new Lambda Layer version..."
         PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
-          --layer-name "service-workbench-shared-layer" \
+          --layer-name "ServiceWorkbenchLambdaLayer" \
           --description "Auto-published by Bitbucket Pipeline" \
           --content S3Bucket="${DEST_BUCKET}",S3Key="layer/${LAYER_NAME}" \
           --compatible-runtimes python3.12 python3.13 \
@@ -433,11 +433,11 @@ definitions:
             --query 'Layers[*].Arn' \
             --output text)
 
-          if echo "$EXISTING_LAYERS" | grep -q "service-workbench-shared-layer"; then
+          if echo "$EXISTING_LAYERS" | grep -q "ServiceWorkbenchLambdaLayer"; then
             echo "Updating $FN with new layer version..."
 
             # Remove old layer and add new version
-            UPDATED_LAYERS=$(echo "$EXISTING_LAYERS" | grep -v "service-workbench-shared-layer"; echo "$NEW_LAYER_ARN")
+            UPDATED_LAYERS=$(echo "$EXISTING_LAYERS" | grep -v "ServiceWorkbenchLambdaLayer"; echo "$NEW_LAYER_ARN")
 
             aws lambda update-function-configuration \
               --function-name "$FN" \
@@ -449,7 +449,7 @@ definitions:
 
             echo "Successfully updated $FN"
           else
-            echo "⏭Skipping $FN — does not use service-workbench-shared-layer"
+            echo "⏭Skipping $FN — does not use ServiceWorkbenchLambdaLayer"
           fi
         done
 
