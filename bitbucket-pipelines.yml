@@ -279,8 +279,8 @@ definitions:
           exit 1
         }
 
-        echo "Uploading to S3: s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip"
-        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip" || {
+        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
           echo "[ERROR] Failed to upload to S3"
           exit 1
         }
@@ -340,7 +340,7 @@ definitions:
           fi
         done
 
-        echo "All zips uploaded to S3 under lambdas/<folder>/ structure."
+        echo "All zips uploaded to S3 under lambda/<folder>/ structure."
   
     - script: &zip_and_upload_layers
         |
