@@ -354,7 +354,7 @@ definitions:
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
 
         mkdir -p "$LAYER_ZIP_DIR"
-        trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
+        # trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
 
         TEMP_LAYER_DIR="/tmp/layer_temp"
         PYTHON_DIR="${TEMP_LAYER_DIR}/python"
@@ -399,7 +399,7 @@ definitions:
 
         # Upload layer zip 
         echo "Uploading layer zip to S3..."
-        aws s3 cp "layer/${LAYER_NAME}" "s3://${DEST_BUCKET}/layer/${LAYER_NAME}"
+        aws s3 cp "layer_zips/${LAYER_NAME}" "s3://${DEST_BUCKET}/layer/${LAYER_NAME}"
 
         echo "Publishing new Lambda Layer version..."
         PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
