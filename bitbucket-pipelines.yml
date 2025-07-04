@@ -397,9 +397,9 @@ definitions:
         LAYER_NAME="layer.zip"
         REGION="us-east-1"
 
-        # Upload layer zip (assume it already exists in layers_zips)
+        # Upload layer zip 
         echo "Uploading layer zip to S3..."
-        aws s3 cp "layers_zips/${LAYER_NAME}" "s3://${DEST_BUCKET}/layer/${LAYER_NAME}"
+        aws s3 cp "layer/${LAYER_NAME}" "s3://${DEST_BUCKET}/layer/${LAYER_NAME}"
 
         echo "Publishing new Lambda Layer version..."
         PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
