@@ -243,7 +243,7 @@ definitions:
           exit 1
         fi
 
-        S3_BUCKET="develop-service-workbench-artifacts"
+        S3_BUCKET="service-workbench-artifacts"
         ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
         BASE_DIR="Code"
 
@@ -279,8 +279,8 @@ definitions:
           exit 1
         }
 
-        echo "Uploading to S3: s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip"
-        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambdas/${LAMBDA_NAME}.zip" || {
+        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
           echo "[ERROR] Failed to upload to S3"
           exit 1
         }
@@ -300,16 +300,16 @@ definitions:
     - script: &zip_and_upload_lambdas
         |
         set -e
-        echo "Zipping and uploading lambda files under Code/Lambdas to S3..."
+        echo "Zipping and uploading lambda files under Code/Lambda to S3..."
 
-        BASE_DIR="Code/Lambdas"
-        DEST_BUCKET="develop-service-workbench-artifacts"
+        BASE_DIR="Code/Lambda"
+        DEST_BUCKET="service-workbench-artifacts"
         # DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
 
-        # Loop over immediate subdirectories of Code/Lambdas
+        # Loop over immediate subdirectories of Code/Lambda
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
@@ -340,17 +340,17 @@ definitions:
           fi
         done
 
-        echo "All zips uploaded to S3 under lambdas/<folder>/ structure."
+        echo "All zips uploaded to S3 under lambda/<folder>/ structure."
   
     - script: &zip_and_upload_layers
         |
         set -e
-        echo "Zipping contents of Code/Layers into a 'python/' folder inside the zip..."
+        echo "Zipping contents of Code/Layer into a 'python/' folder inside the zip..."
 
-        BASE_DIR="Code/Layers"
-        DEST_BUCKET="develop-service-workbench-artifacts"
-        LAYER_ZIP_DIR="layers_zips"
-        ZIP_NAME="layers.zip"
+        BASE_DIR="Code/Layer"
+        DEST_BUCKET="service-workbench-artifacts"
+        LAYER_ZIP_DIR="layer_zips"
+        ZIP_NAME="layer.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
 
         mkdir -p "$LAYER_ZIP_DIR"
@@ -365,8 +365,8 @@ definitions:
         echo "Zipping /tmp/layer_temp/python/ -> $ZIP_PATH"
         (cd /tmp/layer_temp && zip -r "$OLDPWD/$ZIP_PATH" python)
 
-        echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layers/${ZIP_NAME}"
-        aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layers/${ZIP_NAME}" || {
+        echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layer/${ZIP_NAME}"
+        aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layer/${ZIP_NAME}" || {
           echo "[ERROR] Failed to upload $ZIP_PATH"
           exit 1
         }
@@ -416,6 +416,13 @@ definitions:
           - echo "Starting Lambda function update..."
           - *authenticate
           - *update_lambda_code
+
+    - step: &zipping_and_uploading_layers
+        name: Zip and Upload Layers
+        oidc: true
+        script:
+          - echo "Zipping and uploading layer files..."
+          - *zip_and_upload_layers
     
     - step: &zipping_and_uploading_lambdas
         name: Zip and Upload Lambdas
@@ -452,6 +459,8 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy_infra_stack
       - step: *deploy
 
