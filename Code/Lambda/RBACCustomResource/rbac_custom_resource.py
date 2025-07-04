@@ -2,7 +2,7 @@ import logging
 import json
 import boto3
 import botocore
-from RBAC.rbac import add_roles_to_table
+from RBAC.rbac import sync_system_roles
 from CustomResource.custom_resource import send_cfn_response
 
 LOGGER = logging.getLogger()
@@ -23,7 +23,7 @@ def handler(event, context):
         with open('RBAC/role_permission_mapping.json', 'r', encoding='utf-8') as f:
             role_mapping = json.load(f)
         # add roles to the table in a batch writer
-        add_roles_to_table(table, role_mapping)
+        sync_system_roles(table, role_mapping)
         send_cfn_response(event, context, "SUCCESS")
     except botocore.exceptions.ClientError as e:
         LOGGER.exception("AWS ClientError: %s", e)
