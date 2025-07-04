@@ -16,7 +16,7 @@ Parameters:
     Description: Environment name prefix for VPC resources
   pArtifactsBucketName:
     Type: String
-    Default: "develop-service-workbench-artifacts"
+    Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
 
 Resources:
@@ -98,7 +98,7 @@ Resources:
     Properties:
       Name: !Ref ApiName
       BodyS3Location:
-        Bucket: develop-service-workbench-artifacts
+        Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
 
@@ -264,7 +264,7 @@ Resources:
       MemorySize: 128
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+        S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -294,7 +294,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpresignuplambda/WorkbenchPresignup.zip"
+        S3Key: "lambda/workbenchpresignuplambda/WorkbenchPresignup.zip"
       Environment:
         Variables:
           QUEUE_URL: !ImportValue CleanupQueueURL
@@ -313,7 +313,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpreauthlambda/WorkbenchPreAuth.zip"
+        S3Key: "lambda/workbenchpreauthlambda/WorkbenchPreAuth.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !ImportValue UserTableName
@@ -330,7 +330,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
+        S3Key: "lambda/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !ImportValue UserTableName
@@ -347,7 +347,7 @@ Resources:
       Runtime: python3.13
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
+        S3Key: "lambda/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !ImportValue UserTableName
@@ -366,7 +366,7 @@ Resources:
       Role: !ImportValue UserExecutionRole
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchpostauthlambda/WorkbenchPostAuth.zip"
+        S3Key: "lambda/workbenchpostauthlambda/WorkbenchPostAuth.zip"
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !ImportValue ActivityLogsTableName
@@ -383,7 +383,7 @@ Resources:
       Role: !ImportValue UserExecutionRole
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambdas/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
+        S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
       Timeout: 60
       MemorySize: 1024
       Environment:

@@ -9,7 +9,7 @@ Parameters:
   
   pArtifactsBucketName:
     Type: String
-    Default: "develop-service-workbench-artifacts"
+    Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
   
   VPCCidr:
@@ -811,7 +811,7 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        S3Bucket: develop-service-workbench-artifacts
+        S3Bucket: service-workbench-artifacts
         S3Key: layer/layer.zip
         # S3Bucket: "mayank-swb"
         # S3Key: "layers.zip"
