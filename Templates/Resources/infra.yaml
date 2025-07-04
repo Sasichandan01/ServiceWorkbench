@@ -647,8 +647,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
-                  - dynamodb:BatchWriteItem
+                  - dynamodb:UpdateItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
         - Key: Name
