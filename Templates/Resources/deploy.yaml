@@ -22,7 +22,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-workspaces-lambda"
       Handler: index.handler
-      Role: !ImportValue WorkbenchLambdaExecutionRole
+      Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
