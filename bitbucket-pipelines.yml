@@ -385,7 +385,7 @@ definitions:
           exit 1
         }
 
-        echo "✅ Layer zip created and uploaded successfully — only includes 'python/' directory"
+        echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
 
     - script: &update_selected_lambdas_with_layer
         |
@@ -609,4 +609,4 @@ pipelines:
           script:
             - *authenticate
             - *zip_and_upload_layers
-            - *update_all_lambdas_with_layer
+            - *update_selected_lambdas_with_layer
