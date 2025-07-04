@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda, API Gateway, and permissions
+Description: Development cloudFormation template for the Service Workbench V2
 
 Parameters:
   pPrefix:
@@ -16,57 +16,6 @@ Parameters:
     Description: Environment name prefix for VPC resources
 
 Resources:
-
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                  - ec2:AssignPrivateIpAddresses
-                  - ec2:UnassignPrivateIpAddresses
-                Resource: "*"
-
-  SampleLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pPrefix}-sample-lambda"
-      Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.13
-      VpcConfig:
-        SubnetIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
-        SecurityGroupIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
-      Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
 
   WorkspaceLambdaFunction:
     Type: AWS::Lambda::Function
@@ -94,7 +43,7 @@ Resources:
     Properties:
       Name: !Ref ApiName
       BodyS3Location:
-        Bucket: develop-service-workbench-artifacts
+        Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
 
@@ -165,6 +114,87 @@ Resources:
               - Effect: Allow
                 Action: 'es:*'
                 Resource: '*'
+
+  RolesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
+      AttributeDefinitions:
+        - AttributeName: Role
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Role
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResourceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RBACCustomResource"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
+      Runtime: python3.12
+      Timeout: 900
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/rbaccustomresource/rbac_custom_resource.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResource:
+    Type: Custom::RBACCustomResource
+    DependsOn:
+      - RBACCustomResourceLambda
+    Properties:
+      ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
+      RolesTable: !Sub "${pPrefix}-RolesTable"
+      Changesetflag: "2025-07-02"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue RolesLambdaFunctionRole
+      Runtime: python3.12
+      Timeout: 900
+      Environment:
+        Variables:
+          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/roles/roles_lambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RolesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
 Outputs:
   LambdaFunctionName:

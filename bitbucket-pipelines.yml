@@ -71,8 +71,7 @@ definitions:
 
           chmod +x Scripts/swagger-replacement.sh
           ./Scripts/swagger-replacement.sh "${BRANCH_NAME}"
-
-
+          
           aws cloudformation deploy \
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
@@ -193,7 +192,7 @@ definitions:
         |
         set -e
         echo "Deploying UI to S3..."
-        UI_BUCKET_NAME="develop-service-workbench-artifacts"
+        UI_BUCKET_NAME="develop-service-workbench-website"
         echo "Current working directory: $(pwd)"
         echo "Directory tree:"
         find .
@@ -235,6 +234,146 @@ definitions:
 
         echo "UI successfully deployed and CloudFront cache invalidated."
 
+    - script: &update_lambda_code
+        |
+        set -e
+
+        if [ -z "$LAMBDA_NAME" ]; then
+          echo "[ERROR] LAMBDA_NAME is required"
+          exit 1
+        fi
+
+        S3_BUCKET="service-workbench-artifacts"
+        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+        BASE_DIR="Code"
+
+        echo "Listing contents of $BASE_DIR:"
+        ls -alR "$BASE_DIR"
+
+        echo "Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
+        MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
+
+        if [ -z "$MATCHING_FILES" ]; then
+          echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
+          exit 1
+        fi
+
+        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
+        if [ "$NUM_MATCHES" -gt 1 ]; then
+          echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
+          echo "$MATCHING_FILES"
+          exit 1
+        fi
+
+        FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
+
+        echo "Found Lambda file: $FILE_PATH"
+
+        # Copy and rename to a temp location as lambda_function.py
+        TEMP_FILE="/tmp/lambda_function.py"
+        cp "$FILE_PATH" "$TEMP_FILE"
+
+        echo "Creating zip with renamed file as lambda_function.py"
+        zip -j "$ZIP_PATH" "$TEMP_FILE" || {
+          echo "[ERROR] Failed to create zip"
+          exit 1
+        }
+
+        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
+          echo "[ERROR] Failed to upload to S3"
+          exit 1
+        }
+
+        echo "Updating Lambda: $LAMBDA_NAME"
+        aws lambda update-function-code \
+          --function-name "$LAMBDA_NAME" \
+          --zip-file "fileb://${ZIP_PATH}" || {
+            echo "[ERROR] Lambda update failed"
+            exit 1
+          }
+
+        echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
+
+
+
+    - script: &zip_and_upload_lambdas
+        |
+        set -e
+        echo "Zipping and uploading lambda files under Code/Lambda to S3..."
+
+        BASE_DIR="Code/Lambda"
+        DEST_BUCKET="service-workbench-artifacts"
+        # DEST_BUCKET="mayank-swb"
+        LAMBDA_ZIP_DIR="lambda_zips"
+        mkdir -p "$LAMBDA_ZIP_DIR"
+        trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
+
+        # Loop over immediate subdirectories of Code/Lambda
+        for CATEGORY in "$BASE_DIR"/*; do
+          if [ -d "$CATEGORY" ]; then
+            CATEGORY_NAME=$(basename "$CATEGORY")
+            S3_PREFIX="lambdas/${CATEGORY_NAME,,}"  # Lowercase folder name
+
+            # Loop over all Python files inside the folder
+            find "$CATEGORY" -maxdepth 1 -type f -name "*.py" | while read -r py_file; do
+              FILE_NAME=$(basename "$py_file" .py)
+              ZIP_PATH="${LAMBDA_ZIP_DIR}/${FILE_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
+
+              echo "Processing $py_file -> $ZIP_PATH"
+
+              mkdir -p "$TEMP_DIR"
+              cp "$py_file" "$TEMP_DIR/lambda_function.py"
+              (
+                cd "$TEMP_DIR"
+                zip -r "../${FILE_NAME}.zip" lambda_function.py > /dev/null
+              )
+              rm -rf "$TEMP_DIR"
+
+              echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
+              aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
+                echo "[ERROR] Failed to upload ${ZIP_PATH}"
+                exit 1
+              }
+            done
+          fi
+        done
+
+        echo "All zips uploaded to S3 under lambda/<folder>/ structure."
+  
+    - script: &zip_and_upload_layers
+        |
+        set -e
+        echo "Zipping contents of Code/Layer into a 'python/' folder inside the zip..."
+
+        BASE_DIR="Code/Layer"
+        DEST_BUCKET="service-workbench-artifacts"
+        LAYER_ZIP_DIR="layer_zips"
+        ZIP_NAME="layer.zip"
+        ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
+
+        mkdir -p "$LAYER_ZIP_DIR"
+        trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
+
+        # Create temporary structure: /tmp/layer_temp/python/
+        mkdir -p /tmp/layer_temp/python
+
+        echo "Copying contents of $BASE_DIR into /tmp/layer_temp/python/"
+        cp -r "$BASE_DIR"/* /tmp/layer_temp/python/
+
+        echo "Zipping /tmp/layer_temp/python/ -> $ZIP_PATH"
+        (cd /tmp/layer_temp && zip -r "$OLDPWD/$ZIP_PATH" python)
+
+        echo "Uploading $ZIP_PATH to s3://${DEST_BUCKET}/layer/${ZIP_NAME}"
+        aws s3 cp "$ZIP_PATH" "s3://${DEST_BUCKET}/layer/${ZIP_NAME}" || {
+          echo "[ERROR] Failed to upload $ZIP_PATH"
+          exit 1
+        }
+
+        echo "Upload complete. Zip contains top-level folder 'python/'."
+
+
   steps:
     - step: &lint_and_validate
         name: Lint and Validate
@@ -269,12 +408,37 @@ definitions:
           - *authenticate
           - *build_ui
           - *deploy_ui_to_s3
+    
+    - step: &updating_lambda
+        name: Update Lambda Function
+        oidc: true
+        script:
+          - echo "Starting Lambda function update..."
+          - *authenticate
+          - *update_lambda_code
+
+    - step: &zipping_and_uploading_layers
+        name: Zip and Upload Layers
+        oidc: true
+        script:
+          - echo "Zipping and uploading layer files..."
+          - *authenticate
+          - *zip_and_upload_layers
+    
+    - step: &zipping_and_uploading_lambdas
+        name: Zip and Upload Lambdas
+        oidc: true
+        script:
+          - echo "Zipping and uploading lambda files..."
+          - *authenticate
+          - *zip_and_upload_lambdas
 
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
       - step: *deploy
+      - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
@@ -297,6 +461,8 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy_infra_stack
       - step: *deploy
 
@@ -319,12 +485,32 @@ pipelines:
             - *authenticate
             - *build_ui
             - *deploy_ui_to_s3
-    
-    # update-lambda:
-    #   - step:
-    #       name: Update Lambda Function (Manual)
-    #       oidc: true
-    #       script:
-    #         - echo "Running manual Lambda function update on branch: ${BITBUCKET_BRANCH}"
-    #         - *authenticate
-    #         - **lambda_update
+
+    Update-lambda:
+      - variables:
+          - name: LAMBDA_NAME
+            default: "abc"
+            required: true
+            description: "Enter the AWS Lambda function name (e.g., lambda1)"
+      - step:
+          name: Update Lambda Function (Manual)
+          oidc: true
+          script:
+            - *authenticate
+            - *update_lambda_code
+
+    Zip-and-upload-lambdas:
+      - step:
+          name: Zip and Upload Lambdas (Manual)
+          oidc: true
+          script:
+            - *authenticate
+            - *zip_and_upload_lambdas
+
+    Zip-and-upload-layers:
+      - step:
+          name: Zip and Upload Layers (Manual)
+          oidc: true
+          script:
+            - *authenticate
+            - *zip_and_upload_layers
