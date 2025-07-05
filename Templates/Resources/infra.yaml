@@ -4,8 +4,13 @@ Description: Service Workbench V2 Infrastructure with VPC
 Parameters:
   pApplicationPrefix:
     Type: String
-    Default: service-workbench
+    Default: "wb-WorkBench"
     Description: Prefix for the application resources
+  
+  pArtifactsBucketName:
+    Type: String
+    Default: "service-workbench-artifacts"
+    Description: Name of the S3 bucket for artifacts
   
   VPCCidr:
     Type: String
@@ -17,7 +22,13 @@ Parameters:
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
 
+  pDatabaseName:
+    Type: String
+    Default: workbenchdb
+    Description: Database name for Aurora
+
 Resources:
+
   # VPC Resources
   VPC:
     Type: AWS::EC2::VPC
@@ -413,7 +424,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
   # S3 bucket for logs
   LogsBucket:
@@ -434,9 +445,9 @@ Resources:
           - ObjectOwnership: BucketOwnerPreferred
       Tags:
         - Key: Name
-          Value: "ServiceWorkbench"
+          Value: "WorkbenchV2"
 
-  # CloudFront Origin Access Control (OAC)
+# CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -446,7 +457,7 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # CloudFront Distribution
+# CloudFront Distribution
   WebsiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -487,7 +498,7 @@ Resources:
         - Key: Name
           Value: "ServiceWorkbench"
 
-  # S3 Bucket Policy to allow CloudFront OAC access only
+# S3 Bucket Policy to allow CloudFront OAC access only
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -504,7 +515,7 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
-  # Bucket policy to allow CloudFront to write logs
+# Bucket policy to allow CloudFront to write logs
   CloudFrontLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -529,18 +540,14 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
+# Cognito User Pool and Client
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "${pApplicationPrefix}-UserPool"
-
-      # Allow login via email and preferred username
-      # UsernameAttributes:
       AliasAttributes:
         - email
         - preferred_username
-
-      # Only email is required, name is optional
       Schema:
         - Name: email
           AttributeDataType: String
@@ -554,13 +561,13 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
-
       AutoVerifiedAttributes:
         - email
-
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: false
-
+        InviteMessageTemplate:
+          EmailSubject: "Your temporary password for WorkBench"
+          EmailMessage: "Your username is {username} and temporary password is {####}"
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -568,13 +575,11 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
-
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
-
       VerificationMessageTemplate:
         DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailSubject: "Your verification code for Fundwick"
+        EmailSubject: "Your verification code for WorkBench"
         EmailMessage: "Your verification code is {####}"
 
   UserPoolClient:
@@ -597,15 +602,6 @@ Resources:
         - ALLOW_CUSTOM_AUTH
       SupportedIdentityProviders:
         - COGNITO
-      CallbackURLs:
-        - "https://example.com/"
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-        - code
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
       PreventUserExistenceErrors: ENABLED
 
   UserPoolDomain:
@@ -615,6 +611,420 @@ Resources:
       Domain: !Sub "${pApplicationPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
+# IAM Role for the Custom Resource Lambda
+  CustomResourceExecutionRoles:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:UpdateUserPool
+                Resource: !GetAtt UserPool.Arn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  UserExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        
+        - PolicyName: SQSPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SQSPutPolicies
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt CleanupQueue.Arn
+        
+        - PolicyName: DynamoDBPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DynamoDBUserTableAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
+              - Sid: DynamoDBActivityLogsAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
+        
+        - PolicyName: CognitoPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CognitoAccess
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
+        
+        - PolicyName: SESPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SESAccess
+                Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: "*"
+        
+        - PolicyName: SSMPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SSMAccess
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${pApplicationPrefix}-UserTable"
+      AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+  
+  ActivityLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${pApplicationPrefix}-ActivityLogsTable"
+      AttributeDefinitions:
+        - AttributeName: LogId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LogId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  CleanupDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pApplicationPrefix}-CleanupDLQ"
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+    
+  CognitoTriggersCustomResource:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-CognitoTriggersCustomResource"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt CustomResourceExecutionRoles.Arn
+      Timeout: 300
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  CognitoTriggersResource:
+    Type: Custom::CognitoTriggers
+    Properties:
+      ServiceToken: !GetAtt CognitoTriggersCustomResource.Arn
+      UserPoolId: !Ref UserPool
+      PreSignUpLambdaArn: !GetAtt PreSignUpFunction.Arn
+      PreAuthLambdaArn: !GetAtt PreAuthFunction.Arn
+      PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
+      PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
+      PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreSignUpFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-PreSignUp"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpresignuplambda/WorkbenchPresignup.zip"
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref CleanupQueue
+      Layers:
+        - !Ref ServiceWorkbenchLambdaLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreAuthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-PreAuth"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpreauthlambda/WorkbenchPreAuth.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreTokenGenerationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-PreTokenGen"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PostConfirmationFunction:
+    Type: AWS::Lambda::Function
+    Properties: 
+      FunctionName: !Sub "${pApplicationPrefix}-PostConfirm"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+          DOMAIN: "ServiceWorkbench v2.0"
+          SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PostAuthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpostauthlambda/WorkbenchPostAuth.zip"
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  UserPoolCleanUp:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
+      Timeout: 60
+      MemorySize: 1024
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref CleanupQueue
+          USER_POOL_ID: !Ref UserPool
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreAuthPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreAuthFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreTokenPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreTokenGenerationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PostConfirmPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostConfirmationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+  
+  PostAuthPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostAuthFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+# Event Source Mapping for Cleanup Queue
+  CleanupQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt CleanupQueue.Arn
+      FunctionName: !GetAtt UserPoolCleanUp.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+# Main SQS queue with redrive policy
+  CleanupQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pApplicationPrefix}-CleanupQueue"
+      VisibilityTimeout: 65
+      ReceiveMessageWaitTimeSeconds: 20
+      DelaySeconds: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CleanupDLQ.Arn
+        maxReceiveCount: 5  # Message is sent to DLQ after 5 failed receives
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   ServiceWorkbenchLambdaLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -623,6 +1033,8 @@ Resources:
       Content:
         S3Bucket: service-workbench-artifacts
         S3Key: layer/layer.zip
+        # S3Bucket: "mayank-swb"
+        # S3Key: "layers.zip"
       CompatibleRuntimes:
         - python3.12
 
@@ -647,6 +1059,8 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - dynamodb:PutItem
+                  - dynamodb:BatchWriteItem
                   - dynamodb:UpdateItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
@@ -703,6 +1117,224 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+
+  OpenSearchDB:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Sub "${pApplicationPrefix}-opensearchdb"
+      EngineVersion: 'OpenSearch_2.17'
+      ClusterConfig:
+        InstanceCount: 2
+        InstanceType: t3.small.search
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig: 
+          AvailabilityZoneCount: 2
+        WarmEnabled: false
+        MultiAZWithStandbyEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+        Iops: 3000
+        Throughput: 125
+      EncryptionAtRestOptions:
+        Enabled: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"             
+            Action: "es:*"
+            Resource: "*"
+      AdvancedOptions:
+        indices.fielddata.cache.size: "20"
+        rest.action.multi.allow_explicit_index: "true"
+        indices.query.bool.max_clause_count: "1024"
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: !GetAtt RAGCustomResourceLambdaRole.Arn
+      OffPeakWindowOptions:
+        Enabled: true
+        OffPeakWindow: 
+          WindowStartTime: 
+            Hours: 0
+            Minutes: 0
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      IPAddressType: dualstack
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RAGCustomResourceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: VectorStoreAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "es:ESHttp*"
+                  - "es:DescribeDomain"
+                  - "es:ListDomainNames"
+                  - "rds-data:ExecuteStatement"
+                  - "rds-data:BatchExecuteStatement"
+                  - "rds:DescribeDBClusters"
+                  - "secretsmanager:GetSecretValue"
+                  - "bedrock:InvokeModel"
+                  - "bedrock:Retrieve"
+                  - "bedrock:RetrieveAndGenerate"
+                  - "bedrock:CreateKnowledgeBase"
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RAGCustomResourcePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ClusterAccessPolicy
+      Roles:
+        - !Ref RAGCustomResourceLambdaRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - es:ESHttpGet
+              - es:ESHttpPost
+              - es:ESHttpPut
+              - es:ESHttpDelete
+              - es:ESHttpHead
+            Resource:
+              - !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${OpenSearchDB}/*"
+          - Effect: Allow
+            Action:
+              - rds-data:ExecuteStatement
+              - rds-data:BatchExecuteStatement
+              - rds-data:BeginTransaction
+              - rds-data:CommitTransaction
+              - rds-data:RollbackTransaction
+            Resource:
+              - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+
+  RAGCustomResourceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      FunctionName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambda"
+      Timeout: 900
+      Role: !GetAtt RAGCustomResourceLambdaRole.Arn
+      Environment:
+        Variables:
+          REGION: !Ref AWS::Region
+      Code: 
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/ragcustomresourcelambda/rag_custom_resource_lambda.zip
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Layers:
+        - !Ref ServiceWorkbenchLambdaLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Private Subnets for Aurora DB"
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 7
+      DatabaseName: !Ref pDatabaseName
+      DBClusterIdentifier: !Sub "${pApplicationPrefix}-auroradbcluster"
+      DBClusterParameterGroupName: default.aurora-postgresql15
+      DeletionProtection: false
+      EnableIAMDatabaseAuthentication: true
+      EnableHttpEndpoint: true
+      Engine: aurora-postgresql
+      EngineMode: provisioned
+      EngineVersion: 15.4
+      MasterUsername: postgres
+      ManageMasterUserPassword: true
+      DBSubnetGroupName: !Ref AuroraSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      NetworkType: IPV4
+      StorageType: aurora
+      PerformanceInsightsEnabled: true
+      PerformanceInsightsRetentionPeriod: 7
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 2
+      Port: 5432
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${pApplicationPrefix}-auroradbclusterinstance"
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      EnablePerformanceInsights: true
+      PubliclyAccessible: false
+      PerformanceInsightsRetentionPeriod: 7
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  OpenSearchClusterCustomResource:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: !GetAtt RAGCustomResourceLambda.Arn
+      changesetflag: '20'
+      OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
+      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+      DatabaseName: !Ref pDatabaseName
+      SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
 
 Outputs:
   VPCId:
@@ -811,5 +1443,47 @@ Outputs:
   RolesLambdaFunctionRole:
     Description: Name of the roles lambda function role
     Value: !GetAtt RolesLambdaFunctionRole.Arn
-    Export:
+    Export: 
       Name: "RolesLambdaFunctionRole"
+
+  CustomResourceExecutionRoles:
+    Description: Name of the custom resource execution roles
+    Value: !GetAtt CustomResourceExecutionRoles.Arn
+    Export:
+      Name: "CustomResourceExecutionRoles"
+
+  OpenSearchDBEndpoint:
+    Value: !GetAtt OpenSearchDB.DomainEndpoint
+    Description: The endpoint of the OpenSearch cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-OpenSearchEndpoint"
+
+  OpenSearchDBArn:
+    Value: !GetAtt OpenSearchDB.Arn
+    Description: The ARN of the OpenSearch cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-OpenSearchDBArn"
+
+  RAGCustomResourceLambdaRole:
+    Value: !GetAtt RAGCustomResourceLambdaRole.Arn
+    Description: The ARN of the custom resource lambda role
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CustomResourceLambdaRoleARN"
+
+  AuroraDBClusterARN:
+    Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+    Description: The ARN of the Aurora DB cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBClusterARN"
+
+  AuroraDBClusterSecret:
+    Value: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+    Description: The secret ARN for the Aurora DB cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBSecretARN"
+
+  AuroraDBName:
+    Value: !Ref pDatabaseName
+    Description: The name of the database
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBName"
