@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1

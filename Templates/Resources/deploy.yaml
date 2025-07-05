@@ -4,8 +4,12 @@ Description: Development cloudFormation template for the Service Workbench V2
 Parameters:
   pPrefix:
     Type: String
-    Default: 'dev'
-    Description: 'Prefix for resource naming (dev, staging, prod)'
+    Description: Prefix for Lambda function naming
+    Default: dev
+  pTableName:
+    Type: String
+    Description: Table name for Aurora DB
+    Default: wb_bhargav
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -21,6 +25,10 @@ Parameters:
   DeploymentTrigger:
     Type: String
     Description: time
+  pRAGPrefix:
+    Type: String
+    Description: rag-prefix
+    Default: develop
 
 Resources:
 
@@ -247,6 +255,53 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
+  VectorKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-KnowledgeBase"
+      Description: "Stores vectorized data in OpenSearch"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      StorageConfiguration:
+        Type: OPENSEARCH_MANAGED_CLUSTER
+        OpensearchManagedClusterConfiguration:
+          DomainArn: !ImportValue "develop-OpenSearchDBArn"
+          DomainEndpoint: !Join
+            - ""
+            - - "https://"
+              - !ImportValue "develop-OpenSearchEndpoint"
+          FieldMapping: 
+            VectorField: "bedrock-knowledge-base-default-vector"  
+            TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
+            MetadataField: "AMAZON_BEDROCK_METADATA"  
+          VectorIndexName: !Sub "${pPrefix}-vector-index"
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+
+  AuroraKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-AuroraKB"
+      Description: "Knowledge base using Aurora PostgreSQL"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      KnowledgeBaseConfiguration:
+        Type: "VECTOR"
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+      StorageConfiguration:
+        Type: "RDS"
+        RdsConfiguration:
+          ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
+          CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
+          DatabaseName: !ImportValue "develop-AuroraDBName"
+          TableName: !Sub "${pRAGPrefix}_aurora_table" 
+          FieldMapping:
+            VectorField: "embedding"
+            TextField: "content"
+            MetadataField: "metadata"
+            PrimaryKeyField: "id" 
 
 Outputs:
 
