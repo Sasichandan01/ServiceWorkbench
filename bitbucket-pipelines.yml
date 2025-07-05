@@ -431,7 +431,7 @@ definitions:
           --output text)
         
         # Filter only functions that start with "develop" or "wb"
-        TARGET_FUNCTIONS=$(echo "$ALL_FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
+        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
 
         # for FN in "${TARGET_FUNCTIONS[@]}"; do
         # for FN in $FUNCTION_NAMES; do
