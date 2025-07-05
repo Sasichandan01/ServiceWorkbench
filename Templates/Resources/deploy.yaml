@@ -18,12 +18,6 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
-<<<<<<< HEAD
-  DeploymentTrigger:
-    Type: String
-    Description: time
-
-=======
   pArtifactsBucketName:
     Type: String
     Default: "service-workbench-artifacts"
@@ -35,7 +29,6 @@ Parameters:
     Type: String
     Description: rag-prefix
     Default: develop
->>>>>>> develop
 
 Resources:
 
