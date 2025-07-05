@@ -1121,7 +1121,7 @@ Resources:
   OpenSearchDB:
     Type: AWS::OpenSearchService::Domain
     Properties:
-      DomainName: !Sub "${pApplicationPrefix}-OpensearchDB"
+      DomainName: !Sub "${pApplicationPrefix}-opensearchdb"
       EngineVersion: 'OpenSearch_2.17'
       ClusterConfig:
         InstanceCount: 2
