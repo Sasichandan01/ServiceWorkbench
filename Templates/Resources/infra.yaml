@@ -1466,7 +1466,7 @@ Outputs:
       Name: !Sub "${pApplicationPrefix}-CustomResourceLambdaRoleARN"
 
   AuroraDBClusterARN:
-    Value: !GetAtt AuroraDBCluster.Arn
+    Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
     Description: The ARN of the Aurora DB cluster
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBClusterARN"
