@@ -5,7 +5,7 @@ Parameters:
   pPrefix:
     Type: String
     Description: Prefix for Lambda function naming
-    Default: dev
+    Default: develop
   pTableName:
     Type: String
     Description: Table name for Aurora DB
@@ -296,7 +296,7 @@ Resources:
           ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
           CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
           DatabaseName: !ImportValue "develop-AuroraDBName"
-          TableName: !Sub "${pRAGPrefix}_aurora_table" 
+          TableName: !Sub "${pRAGPrefix}_auroratable" 
           FieldMapping:
             VectorField: "embedding"
             TextField: "content"
