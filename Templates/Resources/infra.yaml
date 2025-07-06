@@ -1179,6 +1179,7 @@ Resources:
             Principal:
               Service:
                 - lambda.amazonaws.com
+                - bedrock.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: VectorStoreAccess
@@ -1325,7 +1326,7 @@ Resources:
     Type: "AWS::CloudFormation::CustomResource"
     Properties:
       ServiceToken: !GetAtt RAGCustomResourceLambda.Arn
-      changesetflag: '20'
+      changesetflag: '25'
       OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
       ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
       DatabaseName: !Ref pDatabaseName
