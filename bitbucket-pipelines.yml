@@ -530,24 +530,26 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-abhishek:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-salma:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *deploy
-
-    wb-init:
-      - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-*:
