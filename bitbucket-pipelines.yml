@@ -532,7 +532,6 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
