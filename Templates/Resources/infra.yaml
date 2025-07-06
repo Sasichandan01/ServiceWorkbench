@@ -1179,6 +1179,7 @@ Resources:
             Principal:
               Service:
                 - lambda.amazonaws.com
+                - bedrock.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: VectorStoreAccess
