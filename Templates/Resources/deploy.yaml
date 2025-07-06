@@ -274,7 +274,7 @@ Resources:
             VectorField: "bedrock-knowledge-base-default-vector"  
             TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
             MetadataField: "AMAZON_BEDROCK_METADATA"  
-          VectorIndexName: !Sub "${pPrefix}-vector-index"
+          VectorIndexName: !Sub "${pPrefix}_vector_index"
       KnowledgeBaseConfiguration:
         Type: VECTOR
         VectorKnowledgeBaseConfiguration:
