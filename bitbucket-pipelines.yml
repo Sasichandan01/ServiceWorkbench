@@ -420,11 +420,22 @@ definitions:
         echo "New Layer Version ARN: $NEW_LAYER_ARN"
 
         # List of Lambda functions to update
-        TARGET_FUNCTIONS=(
-          "wb-abhishek-RolesLambdaFunction"
-        )
+        # TARGET_FUNCTIONS=(
+        #   "wb-abhishek-RolesLambdaFunction"
+        # )
 
-        for FN in "${TARGET_FUNCTIONS[@]}"; do
+        echo "🔍 Listing all Lambda functions..."
+        FUNCTION_NAMES=$(aws lambda list-functions \
+          --region "${REGION}" \
+          --query 'Functions[*].FunctionName' \
+          --output text)
+        
+        # Filter only functions that start with "develop" or "wb"
+        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
+
+        # for FN in "${TARGET_FUNCTIONS[@]}"; do
+        # for FN in $FUNCTION_NAMES; do
+        for FN in $TARGET_FUNCTIONS; do
           echo "Checking $FN"
 
           EXISTING_LAYERS=$(aws lambda get-function-configuration \
