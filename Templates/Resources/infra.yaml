@@ -22,6 +22,11 @@ Parameters:
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
 
+  pDatabaseName:
+    Type: String
+    Default: workbenchdb
+    Description: Database name for Aurora
+
 Resources:
 
   # VPC Resources
@@ -633,7 +638,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambda Roles
   UserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -674,20 +678,16 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: DynamoDBUserTableAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
               - Sid: DynamoDBActivityLogsAccess
                 Effect: Allow
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/workbench-*"
         
         - PolicyName: CognitoPolicies
           PolicyDocument:
@@ -729,12 +729,10 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-
-#DynamoDB Tables
   UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-UserTable"
+      TableName: !Sub "Workbench-${pApplicationPrefix}-UserTable"
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -751,7 +749,7 @@ Resources:
   ActivityLogsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-ActivityLogsTable"
+      TableName: !Sub "Workbench-${pApplicationPrefix}-ActivityLogsTable"
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
@@ -765,7 +763,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-# DLQ for failed messages
   CleanupDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -775,7 +772,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
     
-# Lambda Function for Cognito Triggers Custom Resource
   CognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
     Properties:
@@ -798,7 +794,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-# Custom Resource Definition
   CognitoTriggersResource:
     Type: Custom::CognitoTriggers
     Properties:
@@ -813,7 +808,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambdas
   PreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -904,6 +898,7 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+          ROLE_TABLE_NAME: !Sub "Workbench-${pApplicationPrefix}-RolesTable"
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
       Tags:
@@ -960,7 +955,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Permissions for Lambda to call Cognito
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1119,6 +1113,225 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  OpenSearchDB:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Sub "${pApplicationPrefix}-opensearchdb"
+      EngineVersion: 'OpenSearch_2.17'
+      ClusterConfig:
+        InstanceCount: 2
+        InstanceType: t3.small.search
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig: 
+          AvailabilityZoneCount: 2
+        WarmEnabled: false
+        MultiAZWithStandbyEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+        Iops: 3000
+        Throughput: 125
+      EncryptionAtRestOptions:
+        Enabled: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"             
+            Action: "es:*"
+            Resource: "*"
+      AdvancedOptions:
+        indices.fielddata.cache.size: "20"
+        rest.action.multi.allow_explicit_index: "true"
+        indices.query.bool.max_clause_count: "1024"
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: !GetAtt RAGCustomResourceLambdaRole.Arn
+      OffPeakWindowOptions:
+        Enabled: true
+        OffPeakWindow: 
+          WindowStartTime: 
+            Hours: 0
+            Minutes: 0
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      IPAddressType: dualstack
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RAGCustomResourceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - bedrock.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: VectorStoreAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "es:ESHttp*"
+                  - "es:DescribeDomain"
+                  - "es:ListDomainNames"
+                  - "rds-data:ExecuteStatement"
+                  - "rds-data:BatchExecuteStatement"
+                  - "rds:DescribeDBClusters"
+                  - "secretsmanager:GetSecretValue"
+                  - "bedrock:InvokeModel"
+                  - "bedrock:Retrieve"
+                  - "bedrock:RetrieveAndGenerate"
+                  - "bedrock:CreateKnowledgeBase"
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RAGCustomResourcePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ClusterAccessPolicy
+      Roles:
+        - !Ref RAGCustomResourceLambdaRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - es:ESHttpGet
+              - es:ESHttpPost
+              - es:ESHttpPut
+              - es:ESHttpDelete
+              - es:ESHttpHead
+            Resource:
+              - !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${OpenSearchDB}/*"
+          - Effect: Allow
+            Action:
+              - rds-data:ExecuteStatement
+              - rds-data:BatchExecuteStatement
+              - rds-data:BeginTransaction
+              - rds-data:CommitTransaction
+              - rds-data:RollbackTransaction
+            Resource:
+              - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+
+  RAGCustomResourceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      FunctionName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambda"
+      Timeout: 900
+      Role: !GetAtt RAGCustomResourceLambdaRole.Arn
+      Environment:
+        Variables:
+          REGION: !Ref AWS::Region
+      Code: 
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/ragcustomresourcelambda/rag_custom_resource_lambda.zip
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Layers:
+        - !Ref ServiceWorkbenchLambdaLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Private Subnets for Aurora DB"
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 7
+      DatabaseName: !Ref pDatabaseName
+      DBClusterIdentifier: !Sub "${pApplicationPrefix}-auroradbcluster"
+      DBClusterParameterGroupName: default.aurora-postgresql15
+      DeletionProtection: false
+      EnableIAMDatabaseAuthentication: true
+      EnableHttpEndpoint: true
+      Engine: aurora-postgresql
+      EngineMode: provisioned
+      EngineVersion: 15.4
+      MasterUsername: postgres
+      ManageMasterUserPassword: true
+      DBSubnetGroupName: !Ref AuroraSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      NetworkType: IPV4
+      StorageType: aurora
+      PerformanceInsightsEnabled: true
+      PerformanceInsightsRetentionPeriod: 7
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 2
+      Port: 5432
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  AuroraDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${pApplicationPrefix}-auroradbclusterinstance"
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      EnablePerformanceInsights: true
+      PubliclyAccessible: false
+      PerformanceInsightsRetentionPeriod: 7
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  OpenSearchClusterCustomResource:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: !GetAtt RAGCustomResourceLambda.Arn
+      changesetflag: '25'
+      OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
+      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+      DatabaseName: !Ref pDatabaseName
+      SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+
 Outputs:
   VPCId:
     Description: VPC ID
@@ -1226,7 +1439,7 @@ Outputs:
   RolesLambdaFunctionRole:
     Description: Name of the roles lambda function role
     Value: !GetAtt RolesLambdaFunctionRole.Arn
-    Export:
+    Export: 
       Name: "RolesLambdaFunctionRole"
 
   CustomResourceExecutionRoles:
@@ -1234,3 +1447,39 @@ Outputs:
     Value: !GetAtt CustomResourceExecutionRoles.Arn
     Export:
       Name: "CustomResourceExecutionRoles"
+
+  OpenSearchDBEndpoint:
+    Value: !GetAtt OpenSearchDB.DomainEndpoint
+    Description: The endpoint of the OpenSearch cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-OpenSearchEndpoint"
+
+  OpenSearchDBArn:
+    Value: !GetAtt OpenSearchDB.Arn
+    Description: The ARN of the OpenSearch cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-OpenSearchDBArn"
+
+  RAGCustomResourceLambdaRole:
+    Value: !GetAtt RAGCustomResourceLambdaRole.Arn
+    Description: The ARN of the custom resource lambda role
+    Export:
+      Name: !Sub "${pApplicationPrefix}-CustomResourceLambdaRoleARN"
+
+  AuroraDBClusterARN:
+    Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+    Description: The ARN of the Aurora DB cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBClusterARN"
+
+  AuroraDBClusterSecret:
+    Value: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+    Description: The secret ARN for the Aurora DB cluster
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBSecretARN"
+
+  AuroraDBName:
+    Value: !Ref pDatabaseName
+    Description: The name of the database
+    Export:
+      Name: !Sub "${pApplicationPrefix}-AuroraDBName"
