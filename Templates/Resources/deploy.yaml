@@ -296,7 +296,7 @@ Resources:
           ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
           CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
           DatabaseName: !ImportValue "develop-AuroraDBName"
-          TableName: !Sub "${pRAGPrefix}_auroratable" 
+          TableName: !Sub "${pRAGPrefix}_aurora_table" 
           FieldMapping:
             VectorField: "embedding"
             TextField: "content"
