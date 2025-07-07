@@ -5,5 +5,17 @@
     "/users/{user_id}": {
         "GET": ["users.view"],
         "PUT": ["users.manage"]
+    },
+    "/roles": {
+        "GET": ["roles.view"],
+        "POST":{
+            "action": ["roles.manage"],
+            "switch-role": ["roles.view"]
+        }
+    },
+    "/roles/{role_name}": {
+        "GET": ["roles.view"],
+        "PUT": ["roles.manage"],
+        "DELETE": ["roles.manage"]
     }
 }
