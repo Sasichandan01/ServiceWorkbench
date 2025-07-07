@@ -1,0 +1,9 @@
+{
+    "/users": {
+        "GET": ["users.view"]
+    },
+    "/users/{user_id}": {
+        "GET": ["users.view"],
+        "PUT": ["users.manage"]
+    }
+}
