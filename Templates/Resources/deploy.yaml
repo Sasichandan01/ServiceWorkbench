@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Description: rag-prefix
     Default: develop
+  SwaggerHash:
+    Type: String
+    Description: Hash or version to force API Gateway update when swagger.yaml changes
+    Default: "v1"
 
 Resources:
 
@@ -36,7 +40,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-workspaces-lambda"
-      Handler: index.handler
+      Handler: lambda_function.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
@@ -60,11 +64,12 @@ Resources:
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Ref ApiName
+      Name: !Sub "${pPrefix}-${ApiName}"
       BodyS3Location:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
+      Description: "123"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -100,9 +105,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: WorkspaceId
           AttributeType: S
+        - AttributeName: WorkspaceName
+          AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
-          KeyType: HASH
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CreatedBy-index
+          KeySchema:
+            - AttributeName: CreatedBy
+              KeyType: HASH
+            - AttributeName: WorkspaceName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -169,8 +187,10 @@ Resources:
         - AttributeName: ExecutionId
           AttributeType: S
       KeySchema:
-        - AttributeName: ExecutionId
+        - AttributeName: SolutionId
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
