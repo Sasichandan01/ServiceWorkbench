@@ -112,7 +112,7 @@ def sync_system_roles(
     LOGGER.info("Syncing %d roles to table", len(roles_mapping))
 
     for role_name, permissions in roles_mapping.items():
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         try:
             LOGGER.info("Upserting role %r with permissions %r", role_name, permissions)
             table.update_item(
