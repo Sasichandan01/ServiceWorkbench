@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Description: rag-prefix
     Default: develop
+  SwaggerHash:
+    Type: String
+    Description: Hash or version to force API Gateway update when swagger.yaml changes
+    Default: "v1"
 
 Resources:
 
@@ -60,11 +64,12 @@ Resources:
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Ref ApiName
+      Name: !Sub "${pPrefix}-${ApiName}"
       BodyS3Location:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
+      Description: "123"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
