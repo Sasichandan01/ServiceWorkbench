@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import boto3
-from RBAC.rbac import sync_system_roles
+from RBAC.rbac import sync_system_roles, is_user_action_valid
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -23,6 +23,11 @@ def lambda_handler(event, context):
         LOGGER.info("Event: %s", event)
         resource = event.get('resource')
         method = event.get('httpMethod')
+        if not is_user_action_valid(event.get('user_id'), event.get('role'), resource, method, table):
+            return {
+                "statusCode": 403,
+                "body": json.dumps({"Error": "User not authorized to perform this action"})
+            }
         query_params = event.get('queryStringParameters', {})
         action = query_params.get('action')
         if resource == '/roles' and method == 'POST' and action == 'sync-role':
