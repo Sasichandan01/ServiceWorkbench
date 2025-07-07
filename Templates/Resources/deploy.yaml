@@ -304,10 +304,13 @@ Resources:
             PrimaryKeyField: "id" 
 
 Outputs:
+<<<<<<< HEAD
 
   WorkspaceLambdaFunctionName:
     Description: Name of the Workspace Lambda function
     Value: !Ref WorkspaceLambdaFunction
+=======
+>>>>>>> wb-abhishek
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"
