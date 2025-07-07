@@ -7,3 +7,4 @@ rules:
   comments-indentation: disable
   empty-lines:
     max: 99
+  document-start: disable

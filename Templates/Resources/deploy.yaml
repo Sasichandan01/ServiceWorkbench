@@ -1,48 +1,334 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sample CloudFormation template with Lambda and pPrefix parameter
+Description: Development cloudFormation template for the Service Workbench V2
 
 Parameters:
   pPrefix:
     Type: String
     Description: Prefix for Lambda function naming
+    Default: develop
+  pTableName:
+    Type: String
+    Description: Table name for Aurora DB
+    Default: wb_bhargav
+  ApiName:
+    Type: String
+    Default: WorkbenchAPI
+    Description: Name of the API Gateway API
+  VPCPrefix:
+    Type: String
+    Default: WorkbenchVPC
+    Description: Environment name prefix for VPC resources
+  pArtifactsBucketName:
+    Type: String
+    Default: "service-workbench-artifacts"
+    Description: Name of the S3 bucket for artifacts
+  DeploymentTrigger:
+    Type: String
+    Description: time
+  pRAGPrefix:
+    Type: String
+    Description: rag-prefix
+    Default: develop
+  SwaggerHash:
+    Type: String
+    Description: Hash or version to force API Gateway update when swagger.yaml changes
+    Default: "v1"
 
 Resources:
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
 
-  SampleLambdaFunction:
+  WorkspaceLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-sample-lambda"
-      Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: !Sub "${pPrefix}-workspaces-lambda"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         ZipFile: |
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  # API Gateway
+  WorkbenchApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${pPrefix}-${ApiName}"
+      BodyS3Location:
+        Bucket: service-workbench-artifacts
+        Key: develop/swagger.yaml
+      FailOnWarnings: true
+      Description: "123"
+
+  WorkspaceLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WorkspaceLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
+
+  # API Gateway Deployment
+  WorkbenchApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: WorkspaceLambdaInvokePermission
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
+
+  WorkbenchApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref WorkbenchApi
+      DeploymentId: !Ref WorkbenchApiDeployment
+      StageName: prod
+      Variables:
+        redeployHash: !Sub "${DeploymentTrigger}"
+
+  # DynamoDB Tables
+  WorkspacesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-WorkspacesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+        - AttributeName: WorkspaceName
+          AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CreatedBy-index
+          KeySchema:
+            - AttributeName: CreatedBy
+              KeyType: HASH
+            - AttributeName: WorkspaceName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+        - AttributeName: SolutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: HASH
+        - AttributeName: SolutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  DatasourcesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-DatasourcesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: DatasourceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: DatasourceId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ResourceAccessTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-ResourceAccessTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: AccessKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+        - AttributeName: AccessKey
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionExecutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: SolutionId
+          KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
+      AttributeDefinitions:
+        - AttributeName: Role
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Role
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResourceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RBACCustomResource"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
+      Runtime: python3.12
+      Timeout: 900
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/rbaccustomresource/rbac_custom_resource.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RBACCustomResource:
+    Type: Custom::RBACCustomResource
+    DependsOn:
+      - RBACCustomResourceLambda
+    Properties:
+      ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
+      RolesTable: !Sub "Workbench-${pPrefix}-RolesTable"
+      Changesetflag: "2025-07-02"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue RolesLambdaFunctionRole
+      Runtime: python3.12
+      Timeout: 900
+      Environment:
+        Variables:
+          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/roles/roles_lambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RolesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
+  VectorKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-KnowledgeBase"
+      Description: "Stores vectorized data in OpenSearch"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      StorageConfiguration:
+        Type: OPENSEARCH_MANAGED_CLUSTER
+        OpensearchManagedClusterConfiguration:
+          DomainArn: !ImportValue "develop-OpenSearchDBArn"
+          DomainEndpoint: !Join
+            - ""
+            - - "https://"
+              - !ImportValue "develop-OpenSearchEndpoint"
+          FieldMapping: 
+            VectorField: "bedrock-knowledge-base-default-vector"  
+            TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
+            MetadataField: "AMAZON_BEDROCK_METADATA"  
+          VectorIndexName: !Sub "${pPrefix}_vector_index"
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+
+  AuroraKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-AuroraKB"
+      Description: "Knowledge base using Aurora PostgreSQL"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      KnowledgeBaseConfiguration:
+        Type: "VECTOR"
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+      StorageConfiguration:
+        Type: "RDS"
+        RdsConfiguration:
+          ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
+          CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
+          DatabaseName: !ImportValue "develop-AuroraDBName"
+          TableName: !Sub "${pRAGPrefix}_aurora_table" 
+          FieldMapping:
+            VectorField: "embedding"
+            TextField: "content"
+            MetadataField: "metadata"
+            PrimaryKeyField: "id" 
 
 Outputs:
-  LambdaFunctionName:
-    Description: Name of the Lambda function
-    Value: !Ref SampleLambdaFunction
+
+  WorkspaceLambdaFunctionName:
+    Description: Name of the Workspace Lambda function
+    Value: !Ref WorkspaceLambdaFunction
+
+  ApiUrl:
+    Description: "Invoke URL for the deployed API"
+    Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
