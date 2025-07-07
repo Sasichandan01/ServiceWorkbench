@@ -192,7 +192,7 @@ definitions:
         |
         set -e
         echo "Deploying UI to S3..."
-        UI_BUCKET_NAME="service-workbench-artifacts"
+        UI_BUCKET_NAME="develop-service-workbench-website"
         echo "Current working directory: $(pwd)"
         echo "Directory tree:"
         find .
