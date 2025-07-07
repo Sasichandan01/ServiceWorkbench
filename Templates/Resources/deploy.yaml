@@ -80,7 +80,7 @@ Resources:
     DependsOn: WorkspaceLambdaInvokePermission
     Properties:
       RestApiId: !Ref WorkbenchApi
-      Description: "Deployment triggered on template update"
+      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
