@@ -1483,3 +1483,4 @@ Outputs:
     Description: The name of the database
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
+  
