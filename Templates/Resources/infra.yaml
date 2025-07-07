@@ -687,7 +687,7 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:Query
                   - dynamodb:UpdateItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/workbench-*"
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
         
         - PolicyName: CognitoPolicies
           PolicyDocument:
@@ -786,7 +786,7 @@ Resources:
           - !Ref LambdaSecurityGroup
       Role: !GetAtt CustomResourceExecutionRoles.Arn
       Timeout: 300
-      MemorySize: 128
+      MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
@@ -815,6 +815,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -840,6 +842,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -863,6 +867,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -886,6 +892,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -901,6 +909,8 @@ Resources:
           ROLE_TABLE_NAME: !Sub "Workbench-${pApplicationPrefix}-RolesTable"
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -911,6 +921,8 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -934,6 +946,8 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -944,8 +958,6 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
-      Timeout: 60
-      MemorySize: 1024
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
