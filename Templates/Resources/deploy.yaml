@@ -110,9 +110,9 @@ Resources:
         - AttributeName: CreatedBy
           AttributeType: S
       KeySchema:
-        - AttributeName: WorkspaceId
-          KeyType: HASH
         - AttributeName: CreatedBy
+          KeyType: HASH
+        - AttributeName: WorkspaceId
           KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: WorkspaceName-index
