@@ -105,9 +105,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: WorkspaceId
           AttributeType: S
+        - AttributeName: WorkspaceName
+          AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: WorkspaceName-index
+          KeySchema:
+            - AttributeName: WorkspaceName
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
