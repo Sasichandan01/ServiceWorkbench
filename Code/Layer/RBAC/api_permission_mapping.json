@@ -8,14 +8,11 @@
     },
     "/roles": {
         "GET": ["roles.view"],
-        "POST":{
-            "action": ["roles.manage"],
-            "switch-role": ["roles.view"]
-        }
+        "POST": ["roles.manage"]
     },
     "/roles/{role_name}": {
         "GET": ["roles.view"],
         "PUT": ["roles.manage"],
-        "DELETE": ["roles.manage"]
+        "DELETE": ["roles.fullaccess"]
     }
 }
