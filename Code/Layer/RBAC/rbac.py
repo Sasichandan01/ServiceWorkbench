@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 # set up logging
 LOGGER = logging.getLogger()
@@ -77,7 +77,7 @@ def sync_system_roles(table,roles_mapping=None):
 
         # update the roles if they already exist or add them if they don't exist
         for role, permissions in roles_mapping.items():
-            now = datetime.now().isoformat()
+            now = datetime.now(timezone.utc)
             try:
                 LOGGER.info("Updating role %s with permissions %s", role, permissions)
                 table.update_item(
