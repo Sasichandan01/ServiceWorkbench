@@ -678,20 +678,16 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: DynamoDBUserTableAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserTable}"
               - Sid: DynamoDBActivityLogsAccess
                 Effect: Allow
                 Action:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ActivityLogsTable}"
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/workbench-*"
         
         - PolicyName: CognitoPolicies
           PolicyDocument:
@@ -736,7 +732,7 @@ Resources:
   UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-UserTable"
+      TableName: !Sub "Workbench-${pApplicationPrefix}-UserTable"
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -753,7 +749,7 @@ Resources:
   ActivityLogsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${pApplicationPrefix}-ActivityLogsTable"
+      TableName: !Sub "Workbench-${pApplicationPrefix}-ActivityLogsTable"
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
@@ -902,6 +898,7 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+          ROLE_TABLE_NAME: !Sub "Workbench-${pApplicationPrefix}-RolesTable"
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
       Tags:
@@ -1059,8 +1056,6 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
-                  - dynamodb:BatchWriteItem
                   - dynamodb:UpdateItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       Tags:
@@ -1184,6 +1179,7 @@ Resources:
             Principal:
               Service:
                 - lambda.amazonaws.com
+                - bedrock.amazonaws.com
             Action: sts:AssumeRole
       Policies:
         - PolicyName: VectorStoreAccess
@@ -1330,7 +1326,7 @@ Resources:
     Type: "AWS::CloudFormation::CustomResource"
     Properties:
       ServiceToken: !GetAtt RAGCustomResourceLambda.Arn
-      changesetflag: '20'
+      changesetflag: '25'
       OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
       ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
       DatabaseName: !Ref pDatabaseName

@@ -51,13 +51,13 @@ def get_user_role():
 
         LOGGER.info("Fetched role item: %s", role_item)
         LOGGER.info("Role item type: %s", type(role_item))
-        if role_item and isinstance(role_item.get('Users'), list):
-            if len(role_item['Users']) == 0:
+        if role_item :
+            if 'Users' not in role_item:
                 return "ITAdmin"
             else:
                 return "Default"
         else:
-            LOGGER.error("No valid ITAdmin role item found, defaulting role to Default.")
+            LOGGER.info("No valid ITAdmin role item found, defaulting role to Default.")
             raise Exception("ITAdmin role not found or invalid.")
     except Exception as e:
         LOGGER.error("Error fetching role from Roles table: %s", str(e))
@@ -93,6 +93,27 @@ def delete_item(table_name, key):
         LOGGER.info("delete_item - Deleted item from %s with key %s", table_name, key)
     except Exception as e:
         LOGGER.error("delete_item - Failed to delete item from %s: %s", table_name, str(e))
+
+def add_user_to_role(role, user_id):
+    table = dynamodb.Table(ROLE_TABLE_NAME)
+    try:
+        table.update_item(
+            Key={"Role": role},
+            UpdateExpression="SET #u = list_append(if_not_exists(#u, :empty), :user)",
+            ExpressionAttributeNames={
+                "#u": "Users" 
+            },
+            ExpressionAttributeValues={
+                ":user": [user_id],
+                ":empty": []
+            },
+            ReturnValues="UPDATED_NEW"
+        )
+        LOGGER.info("Successfully added user %s to role %s", user_id, role)
+    except Exception as e:
+        LOGGER.error("Failed to update role %s with user %s: %s", role, user_id, str(e))
+        raise
+
 
 def lambda_handler(event, context):
     """Handles post-confirmation trigger from AWS Cognito.
@@ -132,9 +153,13 @@ def lambda_handler(event, context):
             'Email': email,
             'CreationTime': str(datetime.utcnow()),
             "ProfileImage": "",
-            'Role': role
+            'Role': role,
+            'LastUpdatedBy': user_id,
+            'LastUpdatedTime': str(datetime.utcnow())
         }
         put_item(USER_TABLE_NAME, dynamo_items)
+
+        add_user_to_role(role, user_id)
 
         LOGGER.info("engagements.cognito, added user %s ", username)
         subject = f"Welcome to {DOMAIN}"
@@ -169,5 +194,5 @@ def lambda_handler(event, context):
         #         LOGGER.info("engagements.dynamodb, deleted dynamodb entry for user %s", user_id)
         #     except Exception as ddb_err:
         #         LOGGER.error(f"Failed to delete user from DYNAMODB: {ddb_err}")
-    
+        
         raise e
