@@ -187,8 +187,10 @@ Resources:
         - AttributeName: ExecutionId
           AttributeType: S
       KeySchema:
-        - AttributeName: ExecutionId
+        - AttributeName: SolutionId
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
