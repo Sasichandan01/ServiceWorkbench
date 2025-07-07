@@ -1,4 +1,3 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Development cloudFormation template for the Service Workbench V2
 
@@ -6,6 +5,11 @@ Parameters:
   pPrefix:
     Type: String
     Description: Prefix for Lambda function naming
+    Default: develop
+  pTableName:
+    Type: String
+    Description: Table name for Aurora DB
+    Default: wb_bhargav
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -14,6 +18,17 @@ Parameters:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
+  pArtifactsBucketName:
+    Type: String
+    Default: "service-workbench-artifacts"
+    Description: Name of the S3 bucket for artifacts
+  DeploymentTrigger:
+    Type: String
+    Description: time
+  pRAGPrefix:
+    Type: String
+    Description: rag-prefix
+    Default: develop
 
 Resources:
 
@@ -37,7 +52,11 @@ Resources:
         ZipFile: |
           def handler(event, context):
               return {"statusCode": 200, "body": "Hello from Lambda!"}
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
+  # API Gateway
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -53,13 +72,15 @@ Resources:
       FunctionName: !Ref WorkspaceLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
+  # API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
+    DependsOn: WorkspaceLambdaInvokePermission
     Properties:
       RestApiId: !Ref WorkbenchApi
-      StageName: test
+      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
@@ -67,7 +88,92 @@ Resources:
       RestApiId: !Ref WorkbenchApi
       DeploymentId: !Ref WorkbenchApiDeployment
       StageName: prod
-      Description: test stage
+      Variables:
+        redeployHash: !Sub "${DeploymentTrigger}"
+
+  # DynamoDB Tables
+  WorkspacesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-WorkspacesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: WorkspaceId
+          AttributeType: S
+        - AttributeName: SolutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: WorkspaceId
+          KeyType: HASH
+        - AttributeName: SolutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  DatasourcesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-DatasourcesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: DatasourceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: DatasourceId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ResourceAccessTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-ResourceAccessTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: AccessKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+        - AttributeName: AccessKey
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  SolutionExecutionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ExecutionId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   RolesTable:
     Type: AWS::DynamoDB::Table
@@ -150,7 +256,58 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
+  VectorKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-KnowledgeBase"
+      Description: "Stores vectorized data in OpenSearch"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      StorageConfiguration:
+        Type: OPENSEARCH_MANAGED_CLUSTER
+        OpensearchManagedClusterConfiguration:
+          DomainArn: !ImportValue "develop-OpenSearchDBArn"
+          DomainEndpoint: !Join
+            - ""
+            - - "https://"
+              - !ImportValue "develop-OpenSearchEndpoint"
+          FieldMapping: 
+            VectorField: "bedrock-knowledge-base-default-vector"  
+            TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
+            MetadataField: "AMAZON_BEDROCK_METADATA"  
+          VectorIndexName: !Sub "${pPrefix}_vector_index"
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+
+  AuroraKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "${pPrefix}-AuroraKB"
+      Description: "Knowledge base using Aurora PostgreSQL"
+      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      KnowledgeBaseConfiguration:
+        Type: "VECTOR"
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+      StorageConfiguration:
+        Type: "RDS"
+        RdsConfiguration:
+          ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
+          CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
+          DatabaseName: !ImportValue "develop-AuroraDBName"
+          TableName: !Sub "${pRAGPrefix}_aurora_table" 
+          FieldMapping:
+            VectorField: "embedding"
+            TextField: "content"
+            MetadataField: "metadata"
+            PrimaryKeyField: "id" 
+
 Outputs:
+
+  WorkspaceLambdaFunctionName:
+    Description: Name of the Workspace Lambda function
+    Value: !Ref WorkspaceLambdaFunction
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"

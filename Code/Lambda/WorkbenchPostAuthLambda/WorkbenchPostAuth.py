@@ -25,7 +25,7 @@ def lambda_handler(event, context):
             'LogId': str(uuid.uuid4()),
             'UserId': user_id,
             'Action': 'LOGIN',
-            'email': email,
+            'Email': email,
             'EventTime': datetime.utcnow().isoformat(),
             'ResourceName': 'CognitoPostAuth',
             'ResourceType': 'Cognito'
