@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -420,11 +420,22 @@ definitions:
         echo "New Layer Version ARN: $NEW_LAYER_ARN"
 
         # List of Lambda functions to update
-        TARGET_FUNCTIONS=(
-          "wb-abhishek-RolesLambdaFunction"
-        )
+        # TARGET_FUNCTIONS=(
+        #   "wb-abhishek-RolesLambdaFunction"
+        # )
 
-        for FN in "${TARGET_FUNCTIONS[@]}"; do
+        echo "🔍 Listing all Lambda functions..."
+        FUNCTION_NAMES=$(aws lambda list-functions \
+          --region "${REGION}" \
+          --query 'Functions[*].FunctionName' \
+          --output text)
+        
+        # Filter only functions that start with "develop" or "wb"
+        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
+
+        # for FN in "${TARGET_FUNCTIONS[@]}"; do
+        # for FN in $FUNCTION_NAMES; do
+        for FN in $TARGET_FUNCTIONS; do
           echo "Checking $FN"
 
           EXISTING_LAYERS=$(aws lambda get-function-configuration \
@@ -519,25 +530,26 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *zipping_and_uploading_lambdas
 
     wb-abhishek:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-salma:
       - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *deploy
-
-    wb-init:
-      - step: *lint_and_validate
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_and_uploading_lambdas
       - step: *deploy
 
     wb-*:
