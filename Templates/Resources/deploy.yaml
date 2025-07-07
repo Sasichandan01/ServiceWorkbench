@@ -107,14 +107,20 @@ Resources:
           AttributeType: S
         - AttributeName: WorkspaceName
           AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
           KeyType: HASH
+        - AttributeName: CreatedBy
+          KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: WorkspaceName-index
           KeySchema:
             - AttributeName: WorkspaceName
               KeyType: HASH
+            - AttributeName: CreatedBy
+              KeyType: RANGE
           Projection:
             ProjectionType: ALL
       Tags:
