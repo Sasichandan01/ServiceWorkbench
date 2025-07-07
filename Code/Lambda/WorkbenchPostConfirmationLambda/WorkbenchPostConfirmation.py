@@ -3,6 +3,7 @@ from datetime import datetime
 import boto3
 import os 
 import logging
+import uuid
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -15,6 +16,8 @@ USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 ROLE_TABLE_NAME = os.environ['ROLE_TABLE_NAME']
 DOMAIN = os.environ['DOMAIN']
 SOURCE_EMAIL = os.environ['SOURCE_EMAIL']
+ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+
 
 def send_email(subject, body, recipient):
     """
@@ -158,10 +161,22 @@ def lambda_handler(event, context):
             'LastUpdatedTime': str(datetime.utcnow())
         }
         put_item(USER_TABLE_NAME, dynamo_items)
+        LOGGER.info("engagements.cognito, added user %s ", username)
+
+        log_item = {
+            'LogId': str(uuid.uuid4()),
+            'UserId': user_id,
+            'Action': 'ACCOUNT CREATED - FIRST LOGIN',
+            'Email': email,
+            'EventTime': datetime.utcnow().isoformat(),
+            'ResourceName': 'CognitoPostAuth',
+            'ResourceType': 'Cognito'
+        }
+        LOGGER.info(f"Logging login for user {user_id}")
+        ACTIVITY_LOGS_TABLE.put_item(Item=log_item)
 
         add_user_to_role(role, user_id)
 
-        LOGGER.info("engagements.cognito, added user %s ", username)
         subject = f"Welcome to {DOMAIN}"
         body = f"Hi {username},\n\nWelcome to {DOMAIN}.\n\nRegards,\nTeam {DOMAIN}"
         send_email(subject, body, email)
