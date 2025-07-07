@@ -15,7 +15,7 @@ if not ROLES_TABLE:
 DYNAMODB_RESOURCE = boto3.resource('dynamodb')
 table = DYNAMODB_RESOURCE.Table(ROLES_TABLE)
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Lambda function to get the roles from the table.
     """
