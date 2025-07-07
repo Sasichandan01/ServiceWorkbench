@@ -81,7 +81,6 @@ Resources:
     Properties:
       RestApiId: !Ref WorkbenchApi
       Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
-      
 
   WorkbenchApiStage:
     Type: AWS::ApiGateway::Stage
