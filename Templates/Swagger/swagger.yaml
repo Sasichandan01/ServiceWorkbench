@@ -957,16 +957,6 @@ components:
       required:
         - message
 
-    Empty:
-      title: "Empty Schema"
-      type: "object"
-
-    MessageResponse:
-      type: "object"
-      properties:
-        Message:
-          type: "string"
-
     SolutionsResponse:
       type: "object"
       properties:
@@ -1124,18 +1114,6 @@ components:
           type: "string"
         ExecutionId:
           type: "string"
-
-    Pagination:
-      type: "object"
-      properties:
-        Count:
-          type: "integer"
-        TotalCount:
-          type: "integer"
-        NextAvailable:
-          type: "boolean"
-        Page:
-          type: "integer"
 
 x-amazon-apigateway-request-validators:
   Validate body:
