@@ -1,79 +1,70 @@
-import json
-import boto3
 import os
-import requests
 import logging
+import jwt
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
-SQS = boto3.client('sqs')
-QUEUE_URL = os.environ['QUEUE_URL']
-USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-
-DYNAMODB = boto3.resource('dynamodb')
-USER_TABLE = DYNAMODB.Table(USER_TABLE_NAME)
-
-def is_temp_email_disify(email):
+def generate_policy(principal_id, effect, resource, context=None):
+    """function to generate an IAM policy document to control access to the API Gateway endpoint
+        Args: 
+            principal_id (str) : The user id of the user
+            effect (str) : The effect of the policy it can be Allow or Deny
+            resource (str) : The arn of the api gateway method
+            context (dict) : Key value pair of the user attributes
+        Returns:
+            dict : A dictionary containing the principal id, policy document and context
     """
-    Checks whether an email address is a temporary/disposable address using the Disify API.
-    """
-    try:
-        LOGGER.info(f"Checking if {email} is disposable")
-        response = requests.get(f"https://www.disify.com/api/email/{email}")
-        result = response.json()
-        return result.get("disposable", False)
-    except Exception as e:
-        LOGGER.error(f"Disify API error: {str(e)}")
-        return False
-
-def is_email_already_registered(email):
-    """
-    Checks if the given email is already present in the DynamoDB user table using the EmailIndex GSI.
-    """
-    try:
-        LOGGER.info(f"Checking if {email} is already registered")
-        response = USER_TABLE.query(
-            IndexName="EmailIndex",
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('Email').eq(email)
-        )
-        if response.get("Items"):
-            LOGGER.info(f"Email {email} is already registered.")
-            return True
-        return False
-    except Exception as e:
-        LOGGER.error(f"Error checking email existence in table: {str(e)}")
-        return False
+    return {
+        "principalId": principal_id,
+        "policyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Action": "execute-api:Invoke",
+                "Effect": effect,
+                "Resource": resource
+            }]
+        },
+        "context": context or {}
+    }
 
 def lambda_handler(event, context):
-    """
-    AWS Lambda function triggered by Amazon Cognito during the Pre Sign-up or Post Confirmation phase.
+    """This function is the entry point for the lambda function
+        Args:
+            event (dict) : A dictionary containing the event data
+            context (LambdaContext): The context in which the Lambda function is run.
+        Returns:
+            dict : A dictionary containing the Status code and Message
     """
     try:
-        LOGGER.info(f"Event: {json.dumps(event)}")
-        email = event['request']['userAttributes'].get('email', '')
+        LOGGER.info(f"Event received: {event}")
+        # headers = event.get("headers", {})
+        auth_header = event.get("authorizationToken", "")
+        LOGGER.info(f"Authorization header: {auth_header}")
+        method_arn = event.get("methodArn", "*")
 
-        if is_temp_email_disify(email):
-            LOGGER.error(f"Email {email} is disposable.")
-            raise Exception("Temporary or disposable emails are not allowed.")
+        if not auth_header.startswith("Bearer "):
+            LOGGER.warning("Missing or invalid Authorization header")
+            return generate_policy("unauthorized", "Deny", method_arn)
 
-        if is_email_already_registered(email):
-            LOGGER.error(f"Email {email} already exists in the system.")
-            raise Exception("This email is already registered.")
+        access_token = auth_header.split(" ")[1]
 
-        # Send email to SQS for async post-processing
-        message_body = { "email": email }
+        # Decode JWT locally without verifying signature (for testing purposes)
+        decoded_token = jwt.decode(access_token, options={"verify_signature": False})
 
-        LOGGER.info(f"Sending message to SQS: {json.dumps(message_body)}")
+        user_id = decoded_token.get("cognito:username", "unknown")
+        email = decoded_token.get("email", "")
+        role = decoded_token.get("custom:role", "Default")
 
-        SQS.send_message(
-            QueueUrl=QUEUE_URL,
-            DelaySeconds=900,
-            MessageBody=json.dumps(message_body)
-        )
+        LOGGER.info(f"Decoded token: {decoded_token}")
+        LOGGER.info(f"Authenticated user: {user_id}, role: {role}")
+
+        return generate_policy(user_id, "Allow", method_arn, {
+            "role": role,
+            "user_id": user_id,
+            "email": email
+        })
 
     except Exception as e:
-        LOGGER.error(f"Error: {str(e)}")
-        raise Exception(str(e))  
-
-    return event
+        LOGGER.exception(f"Unhandled exception: {e}")
+        return generate_policy("unauthorized", "Deny", event.get("methodArn", "*"))
