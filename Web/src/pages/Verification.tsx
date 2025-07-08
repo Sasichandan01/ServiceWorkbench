@@ -5,12 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Cloud, Clock, Mail } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { confirmSignUp } from "@/lib/auth";
+import { confirmSignUp, resendConfirmationCode } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const Verification = () => {
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
@@ -65,25 +66,25 @@ const Verification = () => {
   const handleResendCode = async () => {
     if (!canResend) return;
     
-    setIsLoading(true);
+    setIsResending(true);
     try {
-      // Note: AWS Cognito doesn't have a direct resend method for signup confirmation
-      // In a real implementation, you might need to call signUp again or use a different method
+      await resendConfirmationCode(username);
       toast({
         title: "Code Resent",
         description: "A new verification code has been sent to your email."
       });
       setTimeLeft(60);
       setCanResend(false);
+      setCode(""); // Clear the current code
     } catch (error: any) {
       console.error("Resend error:", error);
       toast({
         title: "Error",
-        description: "Failed to resend code. Please try again.",
+        description: error.message || "Failed to resend code. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
+      setIsResending(false);
     }
   };
 
@@ -196,10 +197,10 @@ const Verification = () => {
                 ) : (
                   <button
                     onClick={handleResendCode}
-                    disabled={isLoading}
-                    className="text-blue-600 hover:underline font-medium text-sm"
+                    disabled={isResending}
+                    className="text-blue-600 hover:underline font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Resend verification code
+                    {isResending ? "Resending..." : "Resend verification code"}
                   </button>
                 )}
               </div>
