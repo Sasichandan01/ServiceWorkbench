@@ -61,6 +61,7 @@ Resources:
           Value: "WorkbenchV2"
 
   # API Gateway
+  
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -79,7 +80,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-  # API Gateway Deployment
+# API Gateway Deployment
   WorkbenchApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn: WorkspaceLambdaInvokePermission
@@ -96,6 +97,20 @@ Resources:
       Variables:
         redeployHash: !Sub "${DeploymentTrigger}"
 
+### Lambda Authorizer
+  WorkbenchLambdaAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: WorhbenchAuthorizer
+      Type: TOKEN
+      IdentitySource: method.request.header.Authorization
+      AuthorizerResultTtlInSeconds: 0
+      RestApiId: !Ref WorkbenchApi
+      AuthorizerUri: 
+        Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
+
   # DynamoDB Tables
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -111,7 +126,11 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
+<<<<<<< HEAD
           KeyType: RANGE
+=======
+          KeyType: HASH
+>>>>>>> develop
       GlobalSecondaryIndexes:
         - IndexName: CreatedBy-index
           KeySchema:
@@ -184,10 +203,13 @@ Resources:
       TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: SolutionId
+          AttributeType: S
         - AttributeName: ExecutionId
           AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
+<<<<<<< HEAD
           KeyType: HASH
         - AttributeName: ExecutionId
           KeyType: RANGE
@@ -222,7 +244,11 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: LogId
+=======
+>>>>>>> develop
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -281,7 +307,7 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+          ROLES_TABLE: !Sub "Workbench-${pPrefix}-RolesTable"
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:

@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import boto3
-from RBAC.rbac import sync_system_roles
+from RBAC.rbac import sync_system_roles, is_user_action_valid
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -15,7 +15,7 @@ if not ROLES_TABLE:
 DYNAMODB_RESOURCE = boto3.resource('dynamodb')
 table = DYNAMODB_RESOURCE.Table(ROLES_TABLE)
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Lambda function to get the roles from the table.
     """
@@ -23,10 +23,17 @@ def handler(event, context):
         LOGGER.info("Event: %s", event)
         resource = event.get('resource')
         method = event.get('httpMethod')
-        query_params = event.get('queryStringParameters', {})
-        action = query_params.get('action')
         if resource == '/roles' and method == 'POST' and action == 'sync-role':
-            sync_system_roles(table)
+            query_params = event.get('queryStringParameters', {})
+            action = query_params.get('action')
+            try:
+                sync_system_roles(table)
+            except Exception as e:
+                LOGGER.exception("Error in sync_system_roles: %s", e)
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({"Error": f"Internal server error: {e}"})
+                }
             return {
                 "statusCode": 200,
                 "body": json.dumps({"Message": "Role added successfully"})
