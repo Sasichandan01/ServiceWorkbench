@@ -1,4 +1,4 @@
 {
-    "ITAdmin": ["users.fullaccess"],
+    "ITAdmin": ["users.fullaccess", "roles.fullaccess"],
     "Default": ["users.view"]
 }
