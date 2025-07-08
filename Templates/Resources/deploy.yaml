@@ -195,6 +195,23 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  TemplatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-TemplatesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Version
+          AttributeType: S
+      KeySchema:
+        - AttributeName: SolutionId
+          KeyType: HASH
+        - AttributeName: Version
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   RolesTable:
     Type: AWS::DynamoDB::Table
     Properties:
