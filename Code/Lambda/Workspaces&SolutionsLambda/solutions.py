@@ -19,7 +19,6 @@ TEMPLATES_TABLE = DYNAMO_DB.Table(TEMPLATES_TABLE_NAME)
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(ACTIVITY_LOGS_TABLE_NAME)
 
 def list_solutions(workspace_id, params):
-    print("inside listing call...")
 
     filter_by = params.get('filterBy', '').strip().lower()
     sort_by = params.get('sortBy', 'SolutionName')
