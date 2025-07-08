@@ -33,8 +33,8 @@ def paginate_list(
     name: str,
     data: Any,
     valid_keys: list,
-    offset: int = 0,
-    limit: int = 1000,
+    offset: int = 1,
+    limit: int = 10,
     sort_by: Optional[str] = None,
     sort_order: str = "asc"
 ) -> Dict[str, Any]:
@@ -85,7 +85,7 @@ def paginate_list(
 
     # Pagination
     total_items = len(data_to_page)
-    paginated = data_to_page[offset : offset + limit]
+    paginated = data_to_page[(offset-1)*limit : offset*limit]
 
     # Build response body
     body = {
