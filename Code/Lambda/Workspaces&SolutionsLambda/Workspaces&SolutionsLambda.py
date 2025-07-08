@@ -1,5 +1,7 @@
 from executions import get_executions,run_solution,get_execution
 from workspaces import create_workspace,update_workspace,get_workspace,get_workspaces,delete_workspace
+from solutions import get_solution, update_solution, delete_solution, list_solutions, create_solution
+import json
 
 def lambda_handler(event, context):
     try:
@@ -8,6 +10,11 @@ def lambda_handler(event, context):
         resource = event.get('resource')
         path = event.get('path')
         httpMethod = event.get('httpMethod')
+
+        path_params = event.get('pathParameters') or {}
+        query_params = event.get('queryStringParameters') or {}
+        workspace_id = path_params.get('workspace_id',None)
+        solution_id = path_params.get('solution_id',None)
 
         if httpMethod == 'POST' and path == '/workspaces':
             return create_workspace(event, context)
