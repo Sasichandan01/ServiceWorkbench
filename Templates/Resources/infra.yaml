@@ -1002,7 +1002,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Permissions for Lambda functions to be invoked by Cognito triggers
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
