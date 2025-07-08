@@ -43,8 +43,8 @@ def list_solutions(workspace_id, params):
 
     if sort_by == 'SolutionName':
         items = sorted(items, key=lambda x: x.get(sort_by, ''))
-    else:
-        items = sorted(items, key=lambda x: x.get(sort_by, ''),reverse=descending)
+    # else:
+    #     items = sorted(items, key=lambda x: x.get(sort_by, ''),reverse="decending")
 
     # items = sorted(items, key=lambda x: x.get(sort_by, ''))
 
@@ -253,7 +253,7 @@ def delete_solution(workspace_id, solution_id):
     activity_log={
         "LogId":log_id,
         "ResourceType":"Solutions",
-        "ResourceName":body.get("SolutionName"),
+        "ResourceName":solution_name,
         "ResourceId":solution_id,
         "UserId":"user",
         "EventTime":str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
