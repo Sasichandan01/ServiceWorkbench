@@ -1551,4 +1551,4 @@ Outputs:
     Value: !GetAtt LambdaAuthorizerFunction.Arn
     Description: The ARN of the Lambda authorizer function
     Export:
-      Name: !Sub "LambdaAuthorizerFunctionARN"
+      Name: "LambdaAuthorizerFunctionARN"

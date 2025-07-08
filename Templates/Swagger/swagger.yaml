@@ -42,7 +42,7 @@ paths:
                 $ref: "#/components/schemas/WorkspacesResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -68,7 +68,7 @@ paths:
                 $ref: "#/components/schemas/CreateWorkspaceResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -128,7 +128,7 @@ paths:
                 $ref: "#/components/schemas/WorkspaceDetails"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -169,7 +169,7 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -197,7 +197,7 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -287,7 +287,7 @@ paths:
                 $ref: "#/components/schemas/SolutionsResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -321,7 +321,7 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -399,7 +399,7 @@ paths:
                 $ref: "#/components/schemas/SolutionDetails"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -439,7 +439,7 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -473,7 +473,7 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -562,7 +562,7 @@ paths:
                 $ref: "#/components/schemas/ExecutionHistoryResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -602,7 +602,7 @@ paths:
                 $ref: "#/components/schemas/RunSolutionResponse"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -685,7 +685,7 @@ paths:
                 $ref: "#/components/schemas/ExecutionDetails"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces&solutions-lambda/invocations
         responses:
           default:
             statusCode: "200"

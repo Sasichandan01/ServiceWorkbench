@@ -12,11 +12,13 @@ SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
 WORKSPACES_TABLE_NAME = os.environ.get('WORKSPACES_TABLE')
 TEMPLATES_TABLE_NAME = os.environ.get('TEMPLATES_TABLE')
 ACTIVITY_LOGS_TABLE_NAME = os.environ.get('ACTIVITY_LOGS_TABLE')
+DATASOURCES_TABLE_NAME = os.environ.get('DATASOURCES_TABLE')
 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 WORKSPACES_TABLE = DYNAMO_DB.Table(WORKSPACES_TABLE_NAME)
 TEMPLATES_TABLE = DYNAMO_DB.Table(TEMPLATES_TABLE_NAME)
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(ACTIVITY_LOGS_TABLE_NAME)
+DATASOURCES_TABLE = DYNAMO_DB.Table(DATASOURCES_TABLE_NAME)
 
 def list_solutions(workspace_id, params):
 
@@ -117,25 +119,14 @@ def get_solution(workspace_id, solution_id, params):
             "body": json.dumps({"Message": "Workspace not found"})
         }
 
-    version = params.get('version')
+    key = {
+        "WorkspaceId": workspace_id, 
+        "SolutionId": solution_id
+    }
 
-    if version:
-        key={
-            "SolutionId":solution_id,
-            "Version":version
-        }
-        response=TEMPLATES_TABLE.get_item(Key=key)
-        item = response.get('Item')
+    response = SOLUTIONS_TABLE.get_item(Key=key)
 
-    else :
-        key = {
-            "WorkspaceId": workspace_id, 
-            "SolutionId": solution_id
-        }
-
-        response = SOLUTIONS_TABLE.get_item(Key=key)
-
-        item = response.get('Item')
+    item = response.get('Item')
 
     if not item:
         return {
@@ -175,6 +166,17 @@ def update_solution(workspace_id, solution_id, body):
     expr_attr_values = {}
 
     for field in ["SolutionName", "Description", "Tags", "Datasources"]:
+        if field == "Datasources":
+            datasources = body[field]
+            if not isinstance(datasources, list):
+                return {"statusCode": 400, "body": json.dumps({"Message": "Datasources must be a list"})}
+            invalid = []
+            for ds in datasources:
+                ds_resp = DATASOURCES_TABLE.get_item(Key={"DatasourceId": ds})
+                if 'Item' not in ds_resp:
+                    invalid.append(ds)
+            if invalid:
+                return {"statusCode": 400, "body": json.dumps({"Message": f"Invalid datasources: {invalid}"})}
         if field in body:
             update_expr.append(f"{field} = :{field}")
             expr_attr_values[f":{field}"] = body[field]
