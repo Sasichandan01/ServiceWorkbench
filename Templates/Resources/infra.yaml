@@ -736,6 +736,8 @@ Resources:
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
@@ -839,6 +841,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
+          USER_TABLE_NAME: !Ref UserTable
       Layers:
         - !Ref ServiceWorkbenchLambdaLayer
       Tags:
@@ -976,7 +979,30 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+  
+  LambdaAuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-LambdaAuthorizer"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
+#Permissions for Lambda functions to be invoked by Cognito triggers
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1095,6 +1121,16 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1505,4 +1541,15 @@ Outputs:
     Description: The name of the database
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
-      
+
+  UserExecutionRole:
+    Value: !GetAtt UserExecutionRole.Arn
+    Description: The ARN of the user execution role
+    Export:
+      Name: "UserExecutionRoleARN"
+
+  LambdaAuthorizerFunction:
+    Value: !GetAtt LambdaAuthorizerFunction.Arn
+    Description: The ARN of the Lambda authorizer function
+    Export:
+      Name: !Sub "LambdaAuthorizerFunctionARN"
