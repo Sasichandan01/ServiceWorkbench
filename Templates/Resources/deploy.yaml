@@ -111,7 +111,6 @@ Resources:
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
           - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
-  # DynamoDB Tables
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -126,11 +125,7 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
-<<<<<<< HEAD
-          KeyType: RANGE
-=======
           KeyType: HASH
->>>>>>> develop
       GlobalSecondaryIndexes:
         - IndexName: CreatedBy-index
           KeySchema:
@@ -209,7 +204,6 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
-<<<<<<< HEAD
           KeyType: HASH
         - AttributeName: ExecutionId
           KeyType: RANGE
@@ -244,8 +238,6 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: LogId
-=======
->>>>>>> develop
           KeyType: HASH
         - AttributeName: ExecutionId
           KeyType: RANGE
