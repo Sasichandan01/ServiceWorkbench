@@ -301,46 +301,51 @@ definitions:
         |
         set -e
         echo "Zipping and uploading lambda files under Code/Lambda to S3..."
-
         BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
-        # DEST_BUCKET="mayank-swb"
         LAMBDA_ZIP_DIR="lambda_zips"
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
-
-        # Loop over immediate subdirectories of Code/Lambda
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-            S3_PREFIX="lambda/${CATEGORY_NAME,,}"  # Lowercase folder name
-
-            # Loop over all Python files inside the folder
-            find "$CATEGORY" -maxdepth 1 -type f -name "*.py" | while read -r py_file; do
-              FILE_NAME=$(basename "$py_file" .py)
-              ZIP_PATH="${LAMBDA_ZIP_DIR}/${FILE_NAME}.zip"
-              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
-
-              echo "Processing $py_file -> $ZIP_PATH"
-
-              mkdir -p "$TEMP_DIR"
-              cp "$py_file" "$TEMP_DIR/lambda_function.py"
-              (
-                cd "$TEMP_DIR"
-                zip -r "../${FILE_NAME}.zip" lambda_function.py > /dev/null
-              )
-              rm -rf "$TEMP_DIR"
-
-              echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
-              aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
-                echo "[ERROR] Failed to upload ${ZIP_PATH}"
-                exit 1
-              }
+            S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+            # Get all .py files in the category
+            mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
+            if [ ${#PY_FILES[@]} -eq 0 ]; then
+              echo "No Python files found in $CATEGORY"
+              continue
+            fi
+            if [ ${#PY_FILES[@]} -eq 1 ]; then
+              FILE_PATH="${PY_FILES[0]}"
+              FILE_NAME=$(basename "$FILE_PATH" .py)
+              ZIP_NAME="${FILE_NAME}.zip"
+            else
+              ZIP_NAME="${CATEGORY_NAME}.zip"
+            fi
+            ZIP_PATH="${LAMBDA_ZIP_DIR}/${ZIP_NAME}"
+            TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
+            mkdir -p "$TEMP_DIR"
+            echo "Zipping files for $CATEGORY_NAME -> $ZIP_PATH"
+            # Copy and rename files appropriately
+            for FILE in "${PY_FILES[@]}"; do
+              BASE=$(basename "$FILE")
+              cp "$FILE" "$TEMP_DIR/$BASE"
             done
+            (
+              cd "$TEMP_DIR"
+              zip -r "../${ZIP_NAME}" . > /dev/null
+            )
+            rm -rf "$TEMP_DIR"
+            echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
+            aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}" || {
+              echo "[ERROR] Failed to upload ${ZIP_PATH}"
+              exit 1
+            }
           fi
         done
-
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
+
   
     - script: &zip_and_upload_layers
         |
