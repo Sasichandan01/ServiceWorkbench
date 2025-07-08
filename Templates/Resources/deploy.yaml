@@ -217,6 +217,8 @@ Resources:
       TableName: !Sub 'Workbench-${pPrefix}-TemplatesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: SolutionId
+          AttributeType: S
         - AttributeName: Version
           AttributeType: S
       KeySchema:
@@ -234,6 +236,8 @@ Resources:
       TableName: !Sub 'Workbench-${pPrefix}-ActivityLogsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
         - AttributeName: LogId
           AttributeType: S
       KeySchema:
