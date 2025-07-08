@@ -249,7 +249,7 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+          ROLES_TABLE: !Sub "Workbench-${pPrefix}-RolesTable"
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
