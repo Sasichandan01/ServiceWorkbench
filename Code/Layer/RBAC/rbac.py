@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Tuple, Optional
 
 # set up logging
 LOGGER = logging.getLogger(__name__)
@@ -12,7 +12,6 @@ LEVEL_RANK = {"view": 1, "manage": 2, "fullaccess": 3}
 
 # Caches for JSON mappings
 API_MAPPING: Optional[Dict[str, Any]] = None
-
 
 def load_api_mapping(
     path: str = "/opt/python/RBAC/api_permission_mapping.json",
@@ -34,7 +33,7 @@ def load_api_mapping(
 
 def is_user_action_valid(
     user_id: str, role: str, resource: str, method: str, table: Any
-) -> bool:
+) -> Tuple[bool, str]:
     """
     Check whether the given user (by ID) and role has sufficient access
     to perform `method` on `resource`. Returns True if allowed, False otherwise.
@@ -74,8 +73,9 @@ def is_user_action_valid(
             req_rank = LEVEL_RANK.get(req_level, 0)
         except ValueError:
             LOGGER.warning("Malformed API-perm entry: %r", perm)
-            continue
+            return False, f"Malformed API-perm entry: {perm}"
 
+        match_found = False
         for rp in role_perms:
             rp = rp.strip().lower()
             try:
@@ -84,10 +84,15 @@ def is_user_action_valid(
                 LOGGER.warning("Malformed role-perm entry: %r", rp)
                 continue
 
-            if perm_key == key and LEVEL_RANK.get(perm_level, 0) >= req_rank:
-                return True
+            if perm_key == key:
+                match_found = True
+                if LEVEL_RANK.get(perm_level, 0) < req_rank:
+                    return False, f"Insufficient level for {key}: need {req_level}"
+                break
+        if not match_found:
+            return False, f"Missing permission: {key}"
 
-    return False
+    return True, "All permissions satisfied"
 
 
 def sync_system_roles(
