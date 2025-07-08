@@ -1,6 +1,5 @@
-
-import { useState } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -23,10 +23,22 @@ import {
   RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { signOut } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { getUserInfo, getInitials, UserInfo } from "@/lib/tokenUtils";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Get user info from stored tokens
+    const info = getUserInfo();
+    setUserInfo(info);
+  }, []);
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -37,9 +49,32 @@ const Layout = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    console.log("Logging out...");
-    // Add logout logic here
+  const handleLogout = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken) {
+        await signOut(accessToken);
+      } else {
+        // If no token, just clear localStorage and redirect
+        localStorage.clear();
+      }
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out."
+      });
+      
+      navigate("/login");
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Logout Error",
+        description: "There was an issue logging out, but you've been signed out locally.",
+        variant: "destructive"
+      });
+      // Still navigate to login even if logout API fails
+      navigate("/login");
+    }
   };
 
   const handleSwitchRole = () => {
@@ -137,10 +172,23 @@ const Layout = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer">
-                      <AvatarFallback>JD</AvatarFallback>
+                      <AvatarFallback className="bg-blue-600 text-white font-medium">
+                        {userInfo?.name ? getInitials(userInfo.name) : 'U'}
+                      </AvatarFallback>
                     </Avatar>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {userInfo?.name || 'User'}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {userInfo?.email || ''}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSwitchRole}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Switch Role

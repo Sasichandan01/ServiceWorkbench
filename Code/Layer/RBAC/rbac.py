@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Tuple, Optional
 
 # set up logging
 LOGGER = logging.getLogger(__name__)
@@ -12,7 +12,6 @@ LEVEL_RANK = {"view": 1, "manage": 2, "fullaccess": 3}
 
 # Caches for JSON mappings
 API_MAPPING: Optional[Dict[str, Any]] = None
-
 
 def load_api_mapping(
     path: str = "/opt/python/RBAC/api_permission_mapping.json",
@@ -34,7 +33,7 @@ def load_api_mapping(
 
 def is_user_action_valid(
     user_id: str, role: str, resource: str, method: str, table: Any
-) -> bool:
+) -> Tuple[bool, str]:
     """
     Check whether the given user (by ID) and role has sufficient access
     to perform `method` on `resource`. Returns True if allowed, False otherwise.
@@ -44,30 +43,32 @@ def is_user_action_valid(
         response = table.get_item(Key={"Role": role})
     except AttributeError:
         LOGGER.exception("DynamoDB get_item failed for role %s", role)
-        return False
+        return False, "DynamoDB get_item failed for role"
 
     if "Item" not in response:
         LOGGER.warning("Role %r not found in table", role)
-        return False
+        return False, "Role not found in table"
 
     item = response["Item"]
     users = item.get("Users", [])
     if user_id not in users:
         LOGGER.info("User %r not in role %r", user_id, role)
-        return False
+        return False, "User not in role"
 
     role_perms = item.get("Permissions", [])
 
     # 2. Load API permission mapping
     api_mapping = load_api_mapping()
-    api_perms = api_mapping.get(resource, {}).get(method.upper(), [])
+    api_perms = api_mapping.get(resource, {}).get(method, [])
     if not api_perms:
         LOGGER.info(
             "No API permissions found for resource=%r method=%r", resource, method
         )
-        return False
+        return False, "No API permissions found for resource"
 
     # 3. Check permissions
+    missing_perms = []
+    insufficient_perms = []
     for perm in api_perms:
         try:
             key, req_level = perm.split(".", 1)
@@ -76,6 +77,7 @@ def is_user_action_valid(
             LOGGER.warning("Malformed API-perm entry: %r", perm)
             continue
 
+        match_found = False
         for rp in role_perms:
             rp = rp.strip().lower()
             try:
@@ -84,10 +86,24 @@ def is_user_action_valid(
                 LOGGER.warning("Malformed role-perm entry: %r", rp)
                 continue
 
-            if perm_key == key and LEVEL_RANK.get(perm_level, 0) >= req_rank:
-                return True
+            if perm_key == key:
+                match_found = True
+                if LEVEL_RANK.get(perm_level, 0) < req_rank:
+                    insufficient_perms.append(f"{key} (need {req_level})")
+                break
+        if not match_found:
+            missing_perms.append(key)
 
-    return False
+    errors = []
+    if missing_perms:
+        errors.append(f"Missing permissions: {', '.join(missing_perms)}")
+    if insufficient_perms:
+        errors.append(f"Insufficient level for: {', '.join(insufficient_perms)}")
+
+    if errors:
+        return False, " ".join(errors)
+
+    return True, "All permissions satisfied"
 
 
 def sync_system_roles(
@@ -112,7 +128,7 @@ def sync_system_roles(
     LOGGER.info("Syncing %d roles to table", len(roles_mapping))
 
     for role_name, permissions in roles_mapping.items():
-        now = datetime.now(timezone.utc).isoformat()
+        now = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         try:
             LOGGER.info("Upserting role %r with permissions %r", role_name, permissions)
             table.update_item(
