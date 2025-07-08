@@ -841,6 +841,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
+          USER_TABLE_NAME: !Ref UserTable
       Layers:
         - !Ref ServiceWorkbenchLambdaLayer
       Tags:
@@ -975,6 +976,28 @@ Resources:
           QUEUE_URL: !Ref CleanupQueue
           USER_POOL_ID: !Ref UserPool
           USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+  
+  LambdaAuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-LambdaAuthorizer"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1524,3 +1547,9 @@ Outputs:
     Description: The ARN of the user execution role
     Export:
       Name: "UserExecutionRoleARN"
+
+  LambdaAuthorizerFunction:
+    Value: !GetAtt LambdaAuthorizerFunction.Arn
+    Description: The ARN of the Lambda authorizer function
+    Export:
+      Name: !Sub "LambdaAuthorizerFunctionARN"
