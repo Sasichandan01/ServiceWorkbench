@@ -59,8 +59,34 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+  
+  LambdaAuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-LambdaAuthorizer"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
+      # VpcConfig:
+      #   SubnetIds:
+      #     - Fn::ImportValue:
+      #         Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+      #     - Fn::ImportValue:
+      #         Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+      #   SecurityGroupIds:
+      #     - Fn::ImportValue:
+      #         Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Role: !ImportValue "UserExecutionRoleARN"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   # API Gateway
+  
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -95,6 +121,18 @@ Resources:
       StageName: prod
       Variables:
         redeployHash: !Sub "${DeploymentTrigger}"
+
+### Lambda Authorizer
+  WorkbenchLambdaAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: WorhbenchAuthorizer
+      Type: TOKEN
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref WorkbenchApi
+      AuthorizerUri: 
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaAuthorizerFunction.Arn}/invocations
+
 
   # DynamoDB Tables
   WorkspacesTable:

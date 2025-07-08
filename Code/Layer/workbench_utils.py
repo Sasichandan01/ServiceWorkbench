@@ -14,7 +14,7 @@ SES_CLIENT = boto3.client('ses')
 VALID_USERS_SORT_KEYS = ['Email', 'UserId', 'CreationTime', 'LastUpdatedTime', 'Role', 'Username', 'LastUpdatedBy']
 
 
-def paginate_list(name, data, valid_keys, offset=0, limit=1000, sort_by=None, sort_order='asc'):
+def paginate_list(name, data, valid_keys, offset=0, limit=50, sort_by=None, sort_order='asc'):
     """
     Generic pagination and sorting utility for list of dictionaries.
     Args:

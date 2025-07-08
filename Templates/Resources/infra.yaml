@@ -736,6 +736,8 @@ Resources:
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
@@ -977,6 +979,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+#Permissions for Lambda functions to be invoked by Cognito triggers
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1515,4 +1518,9 @@ Outputs:
     Description: The name of the database
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
-      
+
+  UserExecutionRole:
+    Value: !GetAtt UserExecutionRole.Arn
+    Description: The ARN of the user execution role
+    Export:
+      Name: "UserExecutionRoleARN"
