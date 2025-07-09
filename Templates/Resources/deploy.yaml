@@ -54,7 +54,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: !Sub Workbench-${pPrefix}-ActivityLogsTable
+          ACTIVITY_LOGS_TABLE: !Sub Workbench-develop-ActivityLogsTable
           SOLUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionsTable
           TEMPLATES_TABLE: !Sub Workbench-${pPrefix}-TemplatesTable
           WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
