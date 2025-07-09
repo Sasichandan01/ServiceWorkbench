@@ -54,12 +54,12 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: Workbench-${pPrefix}-ActivityLogsTable
-          SOLUTIONS_TABLE: Workbench-${pPrefix}-SolutionsTable
-          TEMPLATES_TABLE: Workbench-${pPrefix}-TemplatesTable
-          WORKSPACES_TABLE: Workbench-${pPrefix}-WorkspacesTable
-          EXECUTIONS_TABLE: Workbench-${pPrefix}-SolutionExecutionsTable
-          DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
+          ACTIVITY_LOGS_TABLE: !Sub Workbench-${pPrefix}-ActivityLogsTable
+          SOLUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionsTable
+          TEMPLATES_TABLE: !Sub Workbench-${pPrefix}-TemplatesTable
+          WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
+          EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
+          DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
