@@ -794,7 +794,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-CognitoTriggersCustomResource"
       Handler: lambda_function.lambda_handler
-      Runtime: python3.13
+      Runtime: python3.12
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -831,7 +831,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PreSignUp"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -859,7 +859,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PreAuth"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -884,7 +884,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PreTokenGen"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -909,7 +909,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PostConfirm"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -938,7 +938,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
       Handler: lambda_function.lambda_handler
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -963,7 +963,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 60
       MemorySize: 1024
       VpcConfig:
@@ -990,7 +990,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pApplicationPrefix}-LambdaAuthorizer"
       Handler: lambda_function.lambda_handler
-      Runtime: python3.13
+      Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
@@ -1563,3 +1563,9 @@ Outputs:
     Description: The ARN of the Lambda authorizer function
     Export:
       Name: !Sub "LambdaAuthorizerFunctionARN"
+
+  UserTable:
+    Value: !Ref UserTable
+    Description: The name of the user table
+    Export:
+      Name: "UsersTableName"
