@@ -1,11 +1,10 @@
-def handler(event, context):
-    return {"statusCode": 200, "body": "Hello from Lambda!"}
 import os
 import uuid
 import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
+from Layer.Utils.utils import log_activity
 
 DYNAMO_DB = boto3.resource('dynamodb')
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
@@ -93,17 +92,14 @@ def create_solution(workspace_id, body):
     
     SOLUTIONS_TABLE.put_item(Item=item)
 
-    log_id=str(uuid.uuid4())
-    activity_log={
-        "LogId":log_id,
-        "ResourceType":"Solutions",
-        "ResourceName":body.get("SolutionName"),
-        "ResourceId":solution_id,
-        "UserId":"user",
-        "EventTime":str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Message":"Created new solution"
-    }
-    ACTIVITY_LOGS_TABLE.put_item(Item=activity_log)
+    log_activity(
+        ACTIVITY_LOGS_TABLE,
+        resource_type="Solutions",
+        resource_name=body.get("SolutionName"),
+        resource_id=solution_id,
+        user_id="user",
+        message="Created new solution"
+    )
 
     return {
         "statusCode": 201,
@@ -200,17 +196,14 @@ def update_solution(workspace_id, solution_id, body):
     if body.get("SolutionName"):
         solution_name = body.get("SolutionName")
 
-    log_id=str(uuid.uuid4())
-    activity_log={
-        "LogId":log_id,
-        "ResourceType":"Solutions",
-        "ResourceName":body.get("SolutionName"),
-        "ResourceId":solution_id,
-        "UserId":"user",
-        "EventTime":str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Message":"Updated Solution"
-    }
-    ACTIVITY_LOGS_TABLE.put_item(Item=activity_log)
+    log_activity(
+        ACTIVITY_LOGS_TABLE,
+        resource_type="Solutions",
+        resource_name=body.get("SolutionName"),
+        resource_id=solution_id,
+        user_id="user",
+        message="Updated Solution"
+    )
 
     return {
         "statusCode": 200,
@@ -251,17 +244,14 @@ def delete_solution(workspace_id, solution_id):
 
     SOLUTIONS_TABLE.delete_item(Key=key)
 
-    log_id=str(uuid.uuid4())
-    activity_log={
-        "LogId":log_id,
-        "ResourceType":"Solutions",
-        "ResourceName":solution_name,
-        "ResourceId":solution_id,
-        "UserId":"user",
-        "EventTime":str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Message":"Solution deleted"
-    }
-    ACTIVITY_LOGS_TABLE.put_item(Item=activity_log)
+    log_activity(
+        ACTIVITY_LOGS_TABLE,
+        resource_type="Solutions",
+        resource_name=solution_name,
+        resource_id=solution_id,
+        user_id="user",
+        message="Solution deleted"
+    )
 
     return {
         "statusCode": 200,

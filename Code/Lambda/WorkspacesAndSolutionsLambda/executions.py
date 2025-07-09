@@ -4,29 +4,14 @@ import os
 import uuid
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
+from Layer.Utils.utils import log_activity
+
 
 dynamodb = boto3.resource('dynamodb')
 executions_table = dynamodb.Table(os.environ['SOLUTION_EXECUTIONS_TABLE'])
 workspaces_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 
-def put_log_items(action, resource_type, resource_name, user_id):
-    """Log activity to the activity logs table."""
-    try:
-        timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
-        logs_item = {
-            'LogId': str(uuid.uuid4()),
-            'Action': action,
-            'EventTime': timestamp,
-            'ResourceType': resource_type,
-            'ResourceName': resource_name,
-            'UserId': user_id,
-        }
-        activity_logs_table.put_item(Item=logs_item)
-        return True
-    except ClientError as e:
-        print(f"Error logging activity: {e}")
-        return False
 
 def validate_path_parameters(params, required_keys):
     """Validate that required path parameters exist and are not empty."""
@@ -91,9 +76,14 @@ def run_solution(event, context):
 
         executions_table.put_item(Item=execution)
         
-        
-        if not put_log_items('RUN_SOLUTION', 'Solution', solution_id, 'system'):
-            print("Failed to log activity but execution was created")
+        log_activity(
+            activity_logs_table,
+            resource_type="Solution",
+            resource_name=solution_id,
+            resource_id=solution_id,
+            user_id="system",
+            message="RUN_SOLUTION"
+        )
 
         return {
             'statusCode': 201,

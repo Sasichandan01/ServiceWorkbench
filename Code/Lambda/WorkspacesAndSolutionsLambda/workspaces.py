@@ -5,27 +5,13 @@ import uuid
 from datetime import datetime,timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
+import sys
+# sys.path.append('/opt/python/lib/python3.9/site-packages')
+from utils import log_activity
 
 dynamodb = boto3.resource('dynamodb')
-workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])
-activity_logs_table=dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
-
-def put_log_items(action,resource_type,resource_name,user_id):
-    try:
-        timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
-        logs_item={
-            'LogId': str(uuid.uuid4()),
-            'Action': action,
-            'EventTime': timestamp,
-            'ResourceType': resource_type,
-            'ResourceName': resource_name,
-            'UserId': user_id,
-        }
-        activity_logs_table.put_item(Item=logs_item)
-        return True
-    except Exception as e:
-        print(e)
-        return False    
+workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])  
+activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
 
 def create_workspace(event,context):
     try:
@@ -71,8 +57,8 @@ def create_workspace(event,context):
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        if put_log_items('CREATE_WORKSPACE', 'Workspace', workspace_id, ''):
-            return {"statusCode": 200, "body": "Workspace created successfully"}
+        log_activity('CREATE_WORKSPACE', 'Workspace', workspace_id, '')
+        return {"statusCode": 200, "body": "Workspace created successfully"}
         
     except Exception as e:
         print(e)
@@ -96,8 +82,8 @@ def update_workspace(event, context):
                     return {"statusCode": 400, "body": "Workspace is already active"}
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':'',':time':timestamp})
-                    if put_log_items('UPDATE_WORKSPACE', 'Workspace', workspace_id, ''):
-                        return {"statusCode": 200, "body": "Workspace enabled successfully"}
+                    log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
+                    return {"statusCode": 200, "body": "Workspace enabled successfully"}
                     
                 else:
                     return {"statusCode": 400, "body": "Workspace status is invalid"}
@@ -106,8 +92,8 @@ def update_workspace(event, context):
                     return {"statusCode": 400, "body": "Workspace is already inactive"}
                 elif workspace_response.get('WorkspaceStatus') == 'Active':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':'', ':time':timestamp})
-                    if put_log_items('UPDATE_WORKSPACE', 'Workspace', workspace_id, ''):
-                        return {"statusCode": 200, "body": "Workspace enabled successfully"}
+                    log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
+                    return {"statusCode": 200, "body": "Workspace enabled successfully"}
                 else:
                     return {"statusCode": 400, "body": "Workspace status is invalid"}
 
@@ -154,8 +140,7 @@ def update_workspace(event, context):
                 ExpressionAttributeValues=expressionAttributeValues,
                 ReturnValues='UPDATED_NEW'
             )
-            if put_log_items('UPDATE_WORKSPACE', 'Workspace', workspace_id, ''):
-                return {"statusCode": 200, "body": "Workspace updated successfully"}
+            log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
             return {"statusCode": 200, "body": "Workspace updated successfully"}
     except Exception as e:
         print(e)
@@ -175,8 +160,8 @@ def delete_workspace(event,context):
         
         if workspace_response.get('WorkspaceStatus') == 'Inactive':
             workspace_table.delete_item(Key={'WorkspaceId': workspace_id})
-            if put_log_items('DELETE_WORKSPACE', 'Workspace', workspace_id, ''):
-                return {"statusCode": 200, "body": "Workspace deleted successfully"}
+            log_activity('DELETE_WORKSPACE', 'Workspace', workspace_id, '')
+            return {"statusCode": 200, "body": "Workspace deleted successfully"}
 
         return {"statusCode": 400, "body": "Workspace status is invalid"}
     except Exception as e:

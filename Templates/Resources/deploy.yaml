@@ -62,7 +62,7 @@ Resources:
           DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
       Code:
         S3Bucket: service-workbench-artifacts
-        S3Key: lambda/workspaces&solutionslambda/Workspaces&SolutionsLambda.zip
+        S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
