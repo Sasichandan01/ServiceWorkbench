@@ -102,8 +102,8 @@ Resources:
     Type: AWS::ApiGateway::Authorizer
     Properties:
       Name: WorhbenchAuthorizer
-      Type: TOKEN
-      IdentitySource: method.request.header.Authorization
+      Type: REQUEST
+      IdentitySource: method.request.header.authorizationToken
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
       AuthorizerUri: 
