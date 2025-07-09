@@ -227,3 +227,4 @@ def get_workspaces(event, context):
     except Exception as e:
         print(e)
         return {"statusCode": 500, "body": f"Internal Server Error, {e}"}
+ 
