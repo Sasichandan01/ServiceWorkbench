@@ -356,7 +356,7 @@ Resources:
       FunctionName: !ImportValue LambdaAuthorizerFunctionName
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !ImportValue LambdaAuthorizerFunctionARN
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*
 
 Outputs:
 
