@@ -350,6 +350,14 @@ Resources:
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
 
+  WorkbenchLambdaAuthorizerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue LambdaAuthorizerFunctionARN
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
 Outputs:
 
   WorkspaceLambdaFunctionName:
