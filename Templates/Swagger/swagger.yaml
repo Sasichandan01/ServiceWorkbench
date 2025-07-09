@@ -793,7 +793,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RolesResponse"
-        
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -804,15 +803,16 @@ paths:
         passthroughBehavior: "when_no_match"
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
+
     post:
       summary: "Add role"
       description: "Add a role"
       parameters:
-      - name: "action"
-        in: "query"
-        required: false
-        schema:
-          type: "string"
+        - name: "action"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
       responses:
         "200":
           description: "200 response"
@@ -862,8 +862,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      x-amazon-apigateway-request-validator: "Validate query string parameters and\
-        \ headers"
+      x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -874,6 +873,7 @@ paths:
         passthroughBehavior: "when_no_match"
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
+
     options:
       responses:
         "200":
@@ -904,14 +904,15 @@ paths:
         requestTemplates:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
+
   /roles/{role_name}:
     get:
       parameters:
-      - name: "role_name"
-        in: "path"
-        required: true
-        schema:
-          type: "string"
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
       responses:
         "200":
           description: "200 response"
@@ -971,13 +972,14 @@ paths:
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
         type: "aws_proxy"
+
     put:
       parameters:
-      - name: "role_name"
-        in: "path"
-        required: true
-        schema:
-          type: "string"
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
       requestBody:
         content:
           application/json:
@@ -1043,13 +1045,14 @@ paths:
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
         type: "aws_proxy"
+
     delete:
       parameters:
-      - name: "role_name"
-        in: "path"
-        required: true
-        schema:
-          type: "string"
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
       responses:
         "200":
           description: "200 response"
@@ -1109,6 +1112,7 @@ paths:
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
         type: "aws_proxy"
+
     options:
       parameters:
         - name: "role_name"
@@ -1145,6 +1149,7 @@ paths:
         requestTemplates:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
+
 components:
   schemas:
     Empty:
