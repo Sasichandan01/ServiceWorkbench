@@ -40,6 +40,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspacesResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -66,6 +68,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateWorkspaceResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -95,6 +99,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -126,6 +132,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspaceDetails"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -167,6 +175,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -195,6 +205,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -230,6 +242,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -285,6 +299,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SolutionsResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -319,6 +335,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -354,6 +372,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -397,6 +417,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SolutionDetails"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -437,6 +459,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -471,6 +495,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -511,6 +537,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -560,6 +588,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionHistoryResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -600,6 +630,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunSolutionResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -640,6 +672,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -683,6 +717,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionDetails"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
@@ -728,6 +764,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -799,6 +837,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
       x-amazon-apigateway-integration:
         httpMethod: "POST"
@@ -829,6 +869,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+      - ServiceWorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -1114,6 +1156,17 @@ components:
           type: "string"
         ExecutionId:
           type: "string"
+
+  securitySchemes:
+    WorhbenchAuthorizer:
+      type: "apiKey"
+      name: "Authorization"
+      in: "header"
+      x-amazon-apigateway-authtype: "custom"
+      x-amazon-apigateway-authorizer:
+        type: "token"
+        authorizerUri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:develop-LambdaAuthorizer/invocations"
+        authorizerResultTtlInSeconds: 0
 
 x-amazon-apigateway-request-validators:
   Validate body:
