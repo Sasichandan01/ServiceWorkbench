@@ -1584,18 +1584,7 @@ components:
         authorizerResultTtlInSeconds: 0
         identitySource: "method.request.header.Authorization"
         type: "request"
-
-  securitySchemes:
-    WorkbenchAuthorizer:
-      type: "apiKey"
-      name: "Authorization"
-      in: "header"
-      x-amazon-apigateway-authtype: "custom"
-      x-amazon-apigateway-authorizer:
-        type: "token"
-        authorizerUri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:develop-LambdaAuthorizer/invocations"
-        authorizerResultTtlInSeconds: 0
-
+        
 x-amazon-apigateway-request-validators:
   Validate body:
     validateRequestParameters: false
