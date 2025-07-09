@@ -3,11 +3,12 @@ import json
 from decimal import Decimal
 from typing import Dict, Any, Optional
 import uuid
+import boto3
 from datetime import datetime, timezone
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
-
+dynamodb = boto3.resource('dynamodb')
 def decimal_default(obj):
     """
     Convert Decimal objects to float for JSON serialization.
