@@ -36,36 +36,36 @@ Parameters:
 
 Resources:
 
-WorkspacesAndSolutionsLambdaFunction:
-  Type: AWS::Lambda::Function
-  Properties:
-    FunctionName: !Sub "${pPrefix}-workspaces&solutions-lambda"
-    Handler: lambda_function.lambda_handler
-    Role: !ImportValue WorkspaceLambdaExecutionRole
-    Runtime: python3.13
-    VpcConfig:
-      SubnetIds:
-        - Fn::ImportValue:
-            Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-        - Fn::ImportValue:
-            Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
-      SecurityGroupIds:
-        - Fn::ImportValue:
-            Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
-    Environment:
-      Variables:
-        ACTIVITY_LOGS_TABLE: Workbench-${pPrefix}-ActivityLogsTable
-        SOLUTIONS_TABLE: Workbench-${pPrefix}-SolutionsTable
-        TEMPLATES_TABLE: Workbench-${pPrefix}-TemplatesTable
-        WORKSPACES_TABLE: Workbench-${pPrefix}-WorkspacesTable
-        EXECUTIONS_TABLE: Workbench-${pPrefix}-SolutionExecutionsTable
-        DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
-    Code:
-      S3Bucket: service-workbench-artifacts
-      S3Key: lambda/Workspaces&SolutionsLambda/Workspaces&SolutionsLambda.zip
-    Tags:
-      - Key: Name
-        Value: "WorkbenchV2"
+  WorkspacesAndSolutionsLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-workspaces&solutions-lambda"
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue WorkspaceLambdaExecutionRole
+      Runtime: python3.13
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: Workbench-${pPrefix}-ActivityLogsTable
+          SOLUTIONS_TABLE: Workbench-${pPrefix}-SolutionsTable
+          TEMPLATES_TABLE: Workbench-${pPrefix}-TemplatesTable
+          WORKSPACES_TABLE: Workbench-${pPrefix}-WorkspacesTable
+          EXECUTIONS_TABLE: Workbench-${pPrefix}-SolutionExecutionsTable
+          DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
+      Code:
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/Workspaces&SolutionsLambda/Workspaces&SolutionsLambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   # API Gateway
   
@@ -114,7 +114,7 @@ WorkspacesAndSolutionsLambdaFunction:
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
       AuthorizerUri: !Sub 
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
         - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
   WorkspacesTable:
