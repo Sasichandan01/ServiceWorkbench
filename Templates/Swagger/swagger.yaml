@@ -794,7 +794,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RolesResponse"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -865,7 +865,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-request-validator: "None"
       x-amazon-apigateway-integration:
         type: "aws_proxy"
@@ -897,7 +897,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Empty"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "mock"
         responses:
@@ -969,7 +969,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
@@ -1044,7 +1044,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
@@ -1113,7 +1113,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
-      - WorkbenchAuthorizer: []
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
