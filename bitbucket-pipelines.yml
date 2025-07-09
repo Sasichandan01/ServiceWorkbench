@@ -308,42 +308,55 @@ definitions:
         |
         set -e
         echo "Zipping and uploading lambda files under Code/Lambda to S3..."
+
         BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
         LAMBDA_ZIP_DIR="lambda_zips"
+
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
+
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
             S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+
             # Get all .py files in the category
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
+
             if [ ${#PY_FILES[@]} -eq 0 ]; then
               echo "No Python files found in $CATEGORY"
               continue
             fi
+
             if [ ${#PY_FILES[@]} -eq 1 ]; then
               FILE_PATH="${PY_FILES[0]}"
               FILE_NAME=$(basename "$FILE_PATH" .py)
               ZIP_NAME="${FILE_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
+
+              echo "Processing single file $FILE_PATH -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              cp "$FILE_PATH" "$TEMP_DIR/lambda_function.py"
             else
               ZIP_NAME="${CATEGORY_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
+
+              echo "Processing multiple files in $CATEGORY_NAME -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              for FILE in "${PY_FILES[@]}"; do
+                cp "$FILE" "$TEMP_DIR/"
+              done
             fi
+
             ZIP_PATH="${LAMBDA_ZIP_DIR}/${ZIP_NAME}"
-            TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
-            mkdir -p "$TEMP_DIR"
-            echo "Zipping files for $CATEGORY_NAME -> $ZIP_PATH"
-            # Copy and rename files appropriately
-            for FILE in "${PY_FILES[@]}"; do
-              BASE=$(basename "$FILE")
-              cp "$FILE" "$TEMP_DIR/$BASE"
-            done
+
             (
               cd "$TEMP_DIR"
               zip -r "../${ZIP_NAME}" . > /dev/null
             )
             rm -rf "$TEMP_DIR"
+
             echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
             aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}" || {
               echo "[ERROR] Failed to upload ${ZIP_PATH}"
@@ -351,7 +364,9 @@ definitions:
             }
           fi
         done
+
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
+
 
         # |
         # set -e
