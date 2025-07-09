@@ -124,4 +124,5 @@ def log_activity(table, resource_type, resource_name, resource_id, user_id, mess
         "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         "Message": message
     }
-    table.put_item(Item=activity_log)
+    ddb_table=dynamodb.Table(table)
+    ddb_table.put_item(Item=activity_log)
