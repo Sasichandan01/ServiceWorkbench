@@ -353,10 +353,10 @@ Resources:
   WorkbenchLambdaAuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !ImportValue LambdaAuthorizerFunctionARN
+      FunctionName: !ImportValue LambdaAuthorizerFunctionName
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !ImportValue LambdaAuthorizerFunctionARN
 
 Outputs:
 
