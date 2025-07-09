@@ -72,6 +72,8 @@ def paginate_list(
         return return_response(400, {"error": "Limit cannot exceed 50."})
     if sort_order not in ("asc", "desc"):
         return return_response(400, {"error": "sort_order must be 'asc' or 'desc'."})
+    if offset <= 0:
+        return return_response(400, {"error": "Offset must be greater than 0."})
 
     # Sorting
     data_to_page = data
