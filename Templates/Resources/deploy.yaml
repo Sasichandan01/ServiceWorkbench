@@ -63,6 +63,8 @@ Resources:
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
