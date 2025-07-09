@@ -235,25 +235,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-  
-  ActivityLogsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-ActivityLogsTable'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: ExecutionId
-          AttributeType: S
-        - AttributeName: LogId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: LogId
-          KeyType: HASH
-        - AttributeName: ExecutionId
-          KeyType: RANGE
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   RolesTable:
     Type: AWS::DynamoDB::Table
