@@ -103,7 +103,7 @@ def paginate_list(
     }
     return return_response(200, body)
 
-def log_activity(table, resource_type, resource_name, resource_id, user_id, message):
+def log_activity(table, resource_type, resource_name, user_id, action):
     """
     Log an activity to the DynamoDB activity logs table.
     Args:
@@ -119,10 +119,9 @@ def log_activity(table, resource_type, resource_name, resource_id, user_id, mess
         "LogId": log_id,
         "ResourceType": resource_type,
         "ResourceName": resource_name,
-        "ResourceId": resource_id,
         "UserId": user_id,
         "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Message": message
+        "Action": action
     }
     table.put_item(Item=activity_log)
     return return_response(200, "Log Activity added successfully")
