@@ -3,11 +3,11 @@ import json
 import os
 import uuid
 from datetime import datetime,timezone
-from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
+from Layer.Utils.utils import log_activity,return_response,paginate_list
 import sys
+
 # sys.path.append('/opt/python/lib/python3.9/site-packages')
-from utils import log_activity
 
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])  
@@ -201,9 +201,15 @@ def get_workspaces(event, context):
             if not isinstance(offset, int):
                 return {"statusCode": 400, "body": "Invalid offset parameter"}
             
+        if filter_by:
+            response=workspace_table.scan(
+                FilterExpression= Attr('WorkspaceName').contains(filter_by),
+                ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy'
+                )
+        else:
+            response=workspace_table.scan(ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy')
 
-        response=workspace_table.scan(ProjectionExpression='WorkspaceId, WorkspaceName, Description, Tags, WorkspaceType, WorkspaceStatus')
-        paginate_list(response,offset,limit,'Workspace_Name',sort_by)
+        paginate_list('Workspaces',response,offset,limit,'Workspace_Name',sort_by)
         items=response.get('Items')
         return {"statusCode": 200, "body": json.dumps(items)}
     except Exception as e:

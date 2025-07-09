@@ -14,5 +14,10 @@
         "GET": ["roles.view"],
         "PUT": ["roles.manage"],
         "DELETE": ["roles.fullaccess"]
+    },
+    "/workspaces": {
+        "GET": ["workspaces.view"],
+        "PUT": ["Workspaces.manage"],
+        "DELETE": ["Workspaces.fullaccess"]
     }
 }
