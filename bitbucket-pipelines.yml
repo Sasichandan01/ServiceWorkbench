@@ -152,11 +152,18 @@ definitions:
           --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
           --output text)
 
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name "develop-deployment" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+          --output text)
+
         echo "Creating .env file with Cognito values..."
         cat > .env <<EOF
         VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
         VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
         VITE_COGNITO_REGION="${REGION_VALUE}"
+        VITE_API_URL="${API_URL}"
         EOF
 
         if ! command -v npm &> /dev/null; then
