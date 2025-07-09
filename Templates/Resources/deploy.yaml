@@ -68,7 +68,6 @@ Resources:
           Value: "WorkbenchV2"
 
   # API Gateway
-  
   WorkbenchApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -77,7 +76,7 @@ Resources:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
-      Description: "12345"
+      Description: "12666345"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -103,19 +102,6 @@ Resources:
       StageName: prod
       Variables:
         redeployHash: !Sub "${DeploymentTrigger}"
-
-### Lambda Authorizer
-  WorkbenchLambdaAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: WorkbenchAuthorizer
-      Type: REQUEST
-      IdentitySource: method.request.header.Authorization
-      AuthorizerResultTtlInSeconds: 0
-      RestApiId: !Ref WorkbenchApi
-      AuthorizerUri: !Sub 
-        - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
-        - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -231,25 +217,6 @@ Resources:
         - AttributeName: SolutionId
           KeyType: HASH
         - AttributeName: Version
-          KeyType: RANGE
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-  
-  ActivityLogsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-ActivityLogsTable'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: ExecutionId
-          AttributeType: S
-        - AttributeName: LogId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: LogId
-          KeyType: HASH
-        - AttributeName: ExecutionId
           KeyType: RANGE
       Tags:
         - Key: Name
@@ -382,6 +349,14 @@ Resources:
             TextField: "content"
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
+
+  WorkbenchLambdaAuthorizerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue LambdaAuthorizerFunctionARN
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
 
 Outputs:
 
