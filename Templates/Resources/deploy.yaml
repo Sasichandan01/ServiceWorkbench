@@ -40,7 +40,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
-      Handler: lambda_function.lambda_handler
+      Handler: WorkspacesAndSolutionsLambda.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
