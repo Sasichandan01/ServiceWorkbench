@@ -60,6 +60,7 @@ Resources:
           WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
           EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
           DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
+          RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
