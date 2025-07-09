@@ -37,3 +37,5 @@ def lambda_handler(event, context):
     except Exception as e:
         LOGGER.exception("Error in handler: %s", e)
         send_cfn_response(event, context, "FAILED", reason=str(e))
+    
+    

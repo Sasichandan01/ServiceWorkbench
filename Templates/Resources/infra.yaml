@@ -561,6 +561,10 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
+        - Name: Role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
       AutoVerifiedAttributes:
         - email
       AdminCreateUserConfig:
@@ -700,6 +704,7 @@ Resources:
                   - cognito-idp:AdminDeleteUser
                   - cognito-idp:AdminGetUser
                   - cognito-idp:ListUsers
+                  - cognito-idp:AdminUpdateUserAttributes
                 Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
         
         - PolicyName: SESPolicies
@@ -959,7 +964,7 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
-      Timeout: 300
+      Timeout: 60
       MemorySize: 1024
       VpcConfig:
         SubnetIds:
@@ -998,6 +1003,11 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          USERS_TABLE: !Ref UserTable
+          CLIENT_ID: !Ref UserPoolClient
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1551,4 +1561,4 @@ Outputs:
     Value: !GetAtt LambdaAuthorizerFunction.Arn
     Description: The ARN of the Lambda authorizer function
     Export:
-      Name: !Sub "LambdaAuthorizerFunctionARN"
+      Name: "LambdaAuthorizerFunctionARN"

@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
+
 dynamodb = boto3.resource('dynamodb')
 executions_table = dynamodb.Table(os.environ['SOLUTION_EXECUTIONS_TABLE'])
 workspaces_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])

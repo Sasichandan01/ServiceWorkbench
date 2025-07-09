@@ -136,12 +136,25 @@ def lambda_handler(event, context):
     """
     LOGGER.info(event)
     user_id = None
+    role = "Default"  # Default role if not set
         
     try:
         role = get_user_role()
 
+        # Set custom attribute 'custom:Role' in Cognito
+        cognito.admin_update_user_attributes(
+            UserPoolId=event['userPoolId'],
+            Username=event['userName'],
+            UserAttributes=[
+                {
+                    'Name': 'custom:Role',
+                    'Value': role
+                }
+            ]
+        )
+        LOGGER.info("Set custom:Role = %s for user %s in Cognito", role, event['userName'])
+
         # attributes we get from cognito
-        LOGGER.info("PostConfirmation_ConfirmSignUp")
         userAttributes = event['request']['userAttributes']
         email = userAttributes.get('email', '')
         username = userAttributes.get('name', '')
