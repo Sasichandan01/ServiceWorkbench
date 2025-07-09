@@ -114,7 +114,7 @@ WorkspacesAndSolutionsLambdaFunction:
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
       AuthorizerUri: !Sub 
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
         - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
   WorkspacesTable:
