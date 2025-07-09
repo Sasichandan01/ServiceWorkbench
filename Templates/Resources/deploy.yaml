@@ -103,7 +103,7 @@ Resources:
     Properties:
       Name: WorhbenchAuthorizer
       Type: REQUEST
-      IdentitySource: method.request.header.authorizationToken
+      IdentitySource: method.request.header.Authorization
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
       AuthorizerUri: 
