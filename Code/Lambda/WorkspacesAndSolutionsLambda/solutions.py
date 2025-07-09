@@ -4,7 +4,7 @@ import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
-from Layer.Utils.utils import log_activity
+from Utils.utils import log_activity, paginate_list
 
 DYNAMO_DB = boto3.resource('dynamodb')
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
@@ -12,12 +12,14 @@ WORKSPACES_TABLE_NAME = os.environ.get('WORKSPACES_TABLE')
 TEMPLATES_TABLE_NAME = os.environ.get('TEMPLATES_TABLE')
 ACTIVITY_LOGS_TABLE_NAME = os.environ.get('ACTIVITY_LOGS_TABLE')
 DATASOURCES_TABLE_NAME = os.environ.get('DATASOURCES_TABLE')
+SOLUTION_EXECUTIONS_TABLE_NAME = os.environ.get('EXECUTIONS_TABLE')
 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 WORKSPACES_TABLE = DYNAMO_DB.Table(WORKSPACES_TABLE_NAME)
 TEMPLATES_TABLE = DYNAMO_DB.Table(TEMPLATES_TABLE_NAME)
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(ACTIVITY_LOGS_TABLE_NAME)
 DATASOURCES_TABLE = DYNAMO_DB.Table(DATASOURCES_TABLE_NAME)
+SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table(SOLUTION_EXECUTIONS_TABLE_NAME)
 
 def list_solutions(workspace_id, params):
 
