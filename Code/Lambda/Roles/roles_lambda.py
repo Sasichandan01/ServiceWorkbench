@@ -85,9 +85,10 @@ def lambda_handler(event, context):
                     return return_response(400, {"Error": "Invalid JSON in request body"})
                 role_name = data.get("Role")
                 permissions = data.get("Permissions")
-                if not role_name or not permissions:
+                description = data.get("Description")
+                if not role_name or not permissions or not description:
                     return return_response(
-                        400, {"Error": "Role and Permissions required"}
+                        400, {"Error": "Role, Permissions and Description required"}
                     )
                 # Check existence
                 try:
@@ -103,6 +104,7 @@ def lambda_handler(event, context):
                         Item={
                             "Role": role_name,
                             "Permissions": permissions,
+                            "Description": description,
                             "CreatedBy": user_id,
                             "CreationTime": now,
                             "LastUpdatedBy": user_id,
@@ -134,17 +136,20 @@ def lambda_handler(event, context):
                     LOGGER.exception("JSON decode error: %s", e)
                     return return_response(400, {"Error": "Invalid JSON in request body"})
                 permissions = data.get("Permissions")
-                if not permissions:
-                    return return_response(400, {"Error": "Permissions required"})
+                description = data.get("Description")
+                if not permissions or not description:
+                    return return_response(400, {"Error": "Permissions and description are required"})
                 try:
                     table.update_item(
                         Key={"Role": role_name},
-                        UpdateExpression="SET #P = :p, LastUpdatedBy = :u, LastUpdationTime = :t",
+                        UpdateExpression="SET #P = :p, #D = :d, LastUpdatedBy = :u, LastUpdationTime = :t",
                         ExpressionAttributeNames={
-                            "#P": "Permissions"
+                            "#P": "Permissions",
+                            "#D": "Description"
                         },
                         ExpressionAttributeValues={
                             ":p": permissions,
+                            ":d": description,
                             ":u": user_id,
                             ":t": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                         },
