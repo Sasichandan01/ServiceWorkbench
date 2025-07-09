@@ -742,17 +742,80 @@ paths:
         type: "mock"
 
   /roles:
-    post:
-      summary: "Add a new role"
+    get:
+      summary: "Get all roles"
+      description: "Get all roles"
       parameters:
-        - name: "action"
+        - name: "limit"
           in: "query"
-          required: true
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Page number"
+        - name: "sortBy"
+          in: "query"
+          required: false
           schema:
             type: "string"
+          description: "Sort by"
+        - name: "sortOrder"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort order"
+        - name: "filterBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Filter by"
       responses:
         "200":
-          description: "Role added successfully"
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesResponse"
+        
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    post:
+      summary: "Add role"
+      description: "Add a role"
+      parameters:
+      - name: "action"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
           headers:
             Access-Control-Allow-Origin:
               schema:
@@ -768,7 +831,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
         "404":
-          description: "Invalid action"
+          description: "404 response"
           headers:
             Access-Control-Allow-Origin:
               schema:
@@ -784,7 +847,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
-          description: "Internal server error"
+          description: "500 response"
           headers:
             Access-Control-Allow-Origin:
               schema:
@@ -799,18 +862,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
+      x-amazon-apigateway-request-validator: "Validate query string parameters and\
+        \ headers"
       x-amazon-apigateway-integration:
+        type: "aws_proxy"
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-RolesLambdaFunction/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
         passthroughBehavior: "when_no_match"
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
-        type: "aws_proxy"
-
     options:
       responses:
         "200":
@@ -830,6 +893,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Empty"
       x-amazon-apigateway-integration:
+        type: "mock"
         responses:
           default:
             statusCode: "200"
@@ -840,8 +904,247 @@ paths:
         requestTemplates:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
+  /roles/{role_name}:
+    get:
+      parameters:
+      - name: "role_name"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesDetailsResponse"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    put:
+      parameters:
+      - name: "role_name"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolesUpdateBody"
+        required: true
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    delete:
+      parameters:
+      - name: "role_name"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    options:
+      parameters:
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
         type: "mock"
-
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
 components:
   schemas:
     Empty:
@@ -1114,6 +1417,107 @@ components:
           type: "string"
         ExecutionId:
           type: "string"
+    
+    RolesResponse:
+      title: "RolesResponse"
+      required:
+        - "Pagination"
+        - "Roles"
+      type: "object"
+      properties:
+        Roles:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Role"
+        Pagination:
+          $ref: "#/components/schemas/RolesPagination"
+    Role:
+      type: "object"
+      required:
+        - "CreatedBy"
+        - "CreationTime"
+        - "LastUpdatedBy"
+        - "LastUpdationTime"
+        - "Role"
+      properties:
+        Role:
+          type: "string"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+          format: "date-time"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+          format: "date-time"
+    RolesPagination:
+      type: "object"
+      required:
+        - "Count"
+        - "NextAvailable"
+        - "Page"
+        - "TotalCount"
+      properties:
+        Count:
+          type: "integer"
+        TotalCount:
+          type: "integer"
+        NextAvailable:
+          type: "boolean"
+        Page:
+          type: "integer"
+    RolesDetailsResponse:
+      title: "RoleObject"
+      required:
+        - "CreatedBy"
+        - "CreationTime"
+        - "LastUpdatedBy"
+        - "LastUpdationTime"
+        - "Permissions"
+        - "Role"
+      type: "object"
+      properties:
+        Role:
+          type: "string"
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+          format: "date-time"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+          format: "date-time"
+    RolesBody:
+      title: "RoleRequest"
+      required:
+        - "Permissions"
+        - "Role"
+      type: "object"
+      properties:
+        Role:
+          type: "string"
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
+    RolesUpdateBody:
+      title: "PermissionsOnly"
+      required:
+        - "Permissions"
+      type: "object"
+      properties:
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
 
 x-amazon-apigateway-request-validators:
   Validate body:
