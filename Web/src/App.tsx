@@ -16,6 +16,7 @@ import AIGenerator from "./pages/AIGenerator";
 import DataSources from "./pages/DataSources";
 import DataSourceDetails from "./pages/DataSourceDetails";
 import Profile from "./pages/Profile";
+import AdminDashboard from "./pages/AdminDashboard";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/data-sources/:id" element={<DataSourceDetails />} />
             <Route path="/cost-analytics" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/admin" element={<AdminDashboard />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
