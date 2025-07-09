@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,8 @@ import {
   Search,
   Bell,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Shield
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut } from "@/lib/auth";
@@ -44,7 +46,6 @@ const Layout = () => {
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Workspaces", href: "/workspaces", icon: Cloud },
     { name: "Data Sources", href: "/data-sources", icon: Database },
-    { name: "Profile", href: "/profile", icon: User },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -189,6 +190,18 @@ const Layout = () => {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile" className="w-full">
+                        <User className="w-4 h-4 mr-2" />
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin" className="w-full">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Admin Dashboard
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSwitchRole}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Switch Role

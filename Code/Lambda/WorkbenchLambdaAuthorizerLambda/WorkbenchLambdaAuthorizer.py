@@ -55,8 +55,8 @@ def lambda_handler(event, context):
     try:
         LOGGER.info(f"Event received: {event}")
 
-        # headers = event.get("headers", {})
-        auth_header = event.get("authorizationToken", "")
+        headers = event.get("headers", {})
+        auth_header = headers.get("Authorization", "")
         method_arn = event.get("methodArn", "*")
 
         if not method_arn:

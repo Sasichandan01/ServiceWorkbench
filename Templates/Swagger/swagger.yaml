@@ -793,6 +793,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RolesResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -862,7 +864,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-request-validator: "None"
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -892,6 +896,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "mock"
         responses:
@@ -962,6 +968,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
@@ -1035,6 +1043,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
@@ -1102,6 +1112,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
@@ -1523,6 +1535,17 @@ components:
           type: "array"
           items:
             type: "string"
+  securitySchemes:
+    WorkbenchAuthorizer:
+      type: "apiKey"
+      name: "Authorization"
+      in: "header"
+      x-amazon-apigateway-authtype: "custom"
+      x-amazon-apigateway-authorizer:
+        authorizerUri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:develop-LambdaAuthorizer/invocations"
+        authorizerResultTtlInSeconds: 0
+        identitySource: "method.request.header.Authorization"
+        type: "request"
 
 x-amazon-apigateway-request-validators:
   Validate body:
