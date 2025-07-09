@@ -1559,7 +1559,13 @@ Outputs:
     Export:
       Name: "UserExecutionRoleARN"
 
-  LambdaAuthorizerFunction:
+  LambdaAuthorizerFunctionName:
+    Value: !Ref LambdaAuthorizerFunction 
+    Description: The name of the Lambda authorizer function
+    Export:
+      Name: "LambdaAuthorizerFunctionName"
+
+  LambdaAuthorizerFunctionARN:
     Value: !GetAtt LambdaAuthorizerFunction.Arn
     Description: The ARN of the Lambda authorizer function
     Export:
