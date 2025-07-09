@@ -40,9 +40,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspacesResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -66,9 +68,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateWorkspaceResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -95,6 +99,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -126,9 +132,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspaceDetails"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -167,9 +175,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -195,9 +205,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -230,6 +242,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -285,9 +299,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SolutionsResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -319,9 +335,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -354,6 +372,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -397,9 +417,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SolutionDetails"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -437,9 +459,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -471,9 +495,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -511,6 +537,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -560,9 +588,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionHistoryResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -600,9 +630,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunSolutionResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -640,6 +672,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -683,9 +717,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionDetails"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -728,6 +764,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         responses:
           default:
@@ -866,7 +904,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
         - WorkbenchAuthorizer: []
-      x-amazon-apigateway-request-validator: "None"
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -1546,7 +1583,7 @@ components:
         authorizerResultTtlInSeconds: 0
         identitySource: "method.request.header.Authorization"
         type: "request"
-
+        
 x-amazon-apigateway-request-validators:
   Validate body:
     validateRequestParameters: false
