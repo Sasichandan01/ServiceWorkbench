@@ -4,7 +4,7 @@ import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
-from Layer.Utils.utils import log_activity
+from Utils.utils import log_activity
 
 DYNAMO_DB = boto3.resource('dynamodb')
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
