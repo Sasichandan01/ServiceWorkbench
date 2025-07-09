@@ -113,10 +113,9 @@ WorkspacesAndSolutionsLambdaFunction:
       IdentitySource: method.request.header.Authorization
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
-      AuthorizerUri: 
-        Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
+      AuthorizerUri: !Sub 
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+        - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
