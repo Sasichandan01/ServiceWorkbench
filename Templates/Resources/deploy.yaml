@@ -36,10 +36,10 @@ Parameters:
 
 Resources:
 
-  WorkspaceLambdaFunction:
+  WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-workspaces-lambda"
+      FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: lambda_function.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
@@ -52,10 +52,17 @@ Resources:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: Workbench-${pPrefix}-ActivityLogsTable
+          SOLUTIONS_TABLE: Workbench-${pPrefix}-SolutionsTable
+          TEMPLATES_TABLE: Workbench-${pPrefix}-TemplatesTable
+          WORKSPACES_TABLE: Workbench-${pPrefix}-WorkspacesTable
+          EXECUTIONS_TABLE: Workbench-${pPrefix}-SolutionExecutionsTable
+          DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
       Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -70,12 +77,12 @@ Resources:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
-      Description: "123"
+      Description: "12345"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref WorkspaceLambdaFunction
+      FunctionName: !Ref WorkspacesAndSolutionsLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
@@ -101,17 +108,15 @@ Resources:
   WorkbenchLambdaAuthorizer:
     Type: AWS::ApiGateway::Authorizer
     Properties:
-      Name: WorhbenchAuthorizer
-      Type: TOKEN
+      Name: WorkbenchAuthorizer
+      Type: REQUEST
       IdentitySource: method.request.header.Authorization
       AuthorizerResultTtlInSeconds: 0
       RestApiId: !Ref WorkbenchApi
-      AuthorizerUri: 
-        Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
+      AuthorizerUri: !Sub 
+        - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+        - LambdaArn: !ImportValue LambdaAuthorizerFunctionARN
 
-  # DynamoDB Tables
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -207,6 +212,25 @@ Resources:
         - AttributeName: SolutionId
           KeyType: HASH
         - AttributeName: ExecutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  TemplatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-TemplatesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: SolutionId
+          AttributeType: S
+        - AttributeName: Version
+          AttributeType: S
+      KeySchema:
+        - AttributeName: SolutionId
+          KeyType: HASH
+        - AttributeName: Version
           KeyType: RANGE
       Tags:
         - Key: Name
@@ -344,7 +368,7 @@ Outputs:
 
   WorkspaceLambdaFunctionName:
     Description: Name of the Workspace Lambda function
-    Value: !Ref WorkspaceLambdaFunction
+    Value: !Ref WorkspacesAndSolutionsLambdaFunction
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"
