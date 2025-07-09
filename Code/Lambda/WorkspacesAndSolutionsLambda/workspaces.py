@@ -35,6 +35,7 @@ def create_workspace(event,context):
         if not all(key in body for key in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']):
             return {"statusCode": 400, "body": "Bad Request"}
         
+        
         for item in body:
             if item not in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']:
                 return {"statusCode": 400, "body": "Bad Request"}
