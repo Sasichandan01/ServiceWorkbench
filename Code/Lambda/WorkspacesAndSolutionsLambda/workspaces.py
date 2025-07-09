@@ -12,6 +12,7 @@ import sys
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])  
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
+resource_access_table = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
 
 def create_workspace(event,context):
     try:
@@ -185,6 +186,12 @@ def get_workspace(event,context):
 
 def get_workspaces(event, context):
     try:
+        
+        requestContext= event.get('requestContext')
+        authorizer= requestContext.get('authorizer')
+        user_id= requestContext.get('user_id')
+        role= requestContext.get('role')
+        email= requestContext.get('email')
         queryParams=event.get('queryStringParameters')
         if queryParams and queryParams.get('sort_by'):
             sort_by = queryParams.get('sort_by')
@@ -200,6 +207,11 @@ def get_workspaces(event, context):
             offset = queryParams.get('offset')
             if not isinstance(offset, int):
                 return {"statusCode": 400, "body": "Invalid offset parameter"}
+            
+        resource_access_response= resource_access_table.scan(
+            FilterExpression= Attr('Id').contains(user_id) & Attr('WorkspaceName').contains(filter_by),
+            ProjectionExpression='AccessKey'
+        )
             
         if filter_by:
             response=workspace_table.scan(
