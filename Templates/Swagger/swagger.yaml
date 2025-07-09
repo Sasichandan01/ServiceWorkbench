@@ -904,7 +904,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
       security:
         - WorkbenchAuthorizer: []
-      x-amazon-apigateway-request-validator: "None"
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
