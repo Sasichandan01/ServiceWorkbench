@@ -39,7 +39,7 @@ Resources:
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-workspaces&solutions-lambda"
+      FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: lambda_function.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
@@ -62,7 +62,7 @@ Resources:
           DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
       Code:
         S3Bucket: service-workbench-artifacts
-        S3Key: lambda/Workspaces&SolutionsLambda/Workspaces&SolutionsLambda.zip
+        S3Key: lambda/WorkspacesAndSolutionsLambda/WorkspacesAndSolutionsLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
