@@ -77,7 +77,7 @@ Resources:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
       FailOnWarnings: true
-      Description: "12345"
+      Description: "12666345"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
