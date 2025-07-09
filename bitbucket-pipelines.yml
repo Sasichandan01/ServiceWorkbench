@@ -152,11 +152,18 @@ definitions:
           --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
           --output text)
 
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name "develop-deployment" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+          --output text)
+
         echo "Creating .env file with Cognito values..."
         cat > .env <<EOF
         VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
         VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
         VITE_COGNITO_REGION="${REGION_VALUE}"
+        VITE_API_URL="${API_URL}"
         EOF
 
         if ! command -v npm &> /dev/null; then
@@ -305,6 +312,7 @@ definitions:
         BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
         LAMBDA_ZIP_DIR="lambda_zips"
+
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
 
@@ -325,27 +333,28 @@ definitions:
               FILE_PATH="${PY_FILES[0]}"
               FILE_NAME=$(basename "$FILE_PATH" .py)
               ZIP_NAME="${FILE_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
+
+              echo "Processing single file $FILE_PATH -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              cp "$FILE_PATH" "$TEMP_DIR/lambda_function.py"
             else
               ZIP_NAME="${CATEGORY_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
+
+              echo "Processing multiple files in $CATEGORY_NAME -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              for FILE in "${PY_FILES[@]}"; do
+                cp "$FILE" "$TEMP_DIR/"
+              done
             fi
 
             ZIP_PATH="${LAMBDA_ZIP_DIR}/${ZIP_NAME}"
-            TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
-            mkdir -p "$TEMP_DIR"
-
-            echo "Zipping files for $CATEGORY_NAME -> $ZIP_PATH"
-
-            # Copy and rename files appropriately
-            for FILE in "${PY_FILES[@]}"; do
-              BASE=$(basename "$FILE")
-              cp "$FILE" "$TEMP_DIR/$BASE"
-            done
 
             (
               cd "$TEMP_DIR"
               zip -r "../${ZIP_NAME}" . > /dev/null
             )
-
             rm -rf "$TEMP_DIR"
 
             echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
@@ -357,6 +366,8 @@ definitions:
         done
 
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
+
+
         # |
         # set -e
         # echo "Zipping and uploading lambda files under Code/Lambda to S3..."
