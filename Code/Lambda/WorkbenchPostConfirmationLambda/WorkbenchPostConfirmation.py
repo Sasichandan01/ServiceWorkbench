@@ -22,7 +22,7 @@ ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 def send_email(subject, body, recipient):
     """
     Send an email to a recipient using the configured source email.
-     
+    
     Args:
         subject (str): Email subject
         body (str): Email body content
