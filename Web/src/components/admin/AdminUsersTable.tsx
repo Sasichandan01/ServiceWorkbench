@@ -45,6 +45,7 @@ import {
   Ban,
   CheckCircle
 } from "lucide-react";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import UserProfileDialog from "./UserProfileDialog";
 import UserPermissionsDialog from "./UserPermissionsDialog";
 
@@ -217,7 +218,7 @@ const AdminUsersTable = () => {
                   <TableCell>{user.workspaces}</TableCell>
                   <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
                       <UserProfileDialog user={user} />
                       <UserPermissionsDialog user={user} />
                     </div>

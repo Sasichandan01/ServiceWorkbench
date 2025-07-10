@@ -37,11 +37,14 @@ const Login = () => {
         };
         const result = await signIn(signInData);
         console.log("Sign in successful:", result);
+        
         toast({
           title: "Success",
           description: "Signed in successfully!",
         });
-        navigate("/dashboard");
+        
+        // Force navigation to trigger AuthProvider re-initialization
+        window.location.href = "/dashboard";
       } else {
         // Handle sign up
         const signUpData = {

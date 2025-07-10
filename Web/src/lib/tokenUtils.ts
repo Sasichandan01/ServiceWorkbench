@@ -3,6 +3,7 @@ export interface UserInfo {
   name?: string;
   email?: string;
   sub?: string;
+  role?: string;
 }
 
 export const decodeIdToken = (idToken: string): UserInfo | null => {
@@ -21,7 +22,8 @@ export const decodeIdToken = (idToken: string): UserInfo | null => {
     return {
       name: parsedPayload.name,
       email: parsedPayload.email,
-      sub: parsedPayload.sub
+      sub: parsedPayload.sub,
+      role: parsedPayload['custom:Role'] || parsedPayload['custom:role'] || 'Default'
     };
   } catch (error) {
     console.error('Error decoding ID token:', error);
