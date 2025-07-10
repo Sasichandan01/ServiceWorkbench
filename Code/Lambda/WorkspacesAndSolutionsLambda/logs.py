@@ -392,7 +392,6 @@ def get_execution_logs(event, context):
         s3_bucket = os.environ.get('S3_BUCKET', 'bhargav9938')
         s3_key = f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
 
-        # Check execution status and S3 path in DynamoDB
         table = dynamodb.Table(executions_table)
         execution = table.get_item(Key={'SolutionId': solution_id, 'ExecutionId': execution_id}).get('Item', {})
         logs_status = execution.get('LogsStatus')
@@ -408,16 +407,9 @@ def get_execution_logs(event, context):
                 ExpiresIn=3600
             )
             return return_response(200, pre_signed_url)
-        else:
-            # If not running, trigger log generation asynchronously
-            if logs_status not in ['RUNNING', 'STARTED']:
-                import threading
-                def async_generate():
-                    # Use a new event/context for the async call
-                    generate_event = {'pathParameters': path_parameters}
-                    generate_execution_logs(generate_event, context)
-                threading.Thread(target=async_generate).start()
-            return return_response(202, "Logs are being generated. Please try again later.")
+        
+
+        return return_response(202, "Logs are being generated. Please try again later.")
     except Exception as e:
         print(e)
         return return_response(400, str(e))

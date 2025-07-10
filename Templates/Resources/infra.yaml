@@ -1203,6 +1203,10 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::${WorkspacesBucket}
                   - !Sub arn:aws:s3:::${WorkspacesBucket}/*
+              - Effect: Allow
+                Action: lambda:Invoke
+                Resource: 
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
