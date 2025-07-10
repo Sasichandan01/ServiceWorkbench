@@ -14,6 +14,7 @@ activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
 
 
+
 def create_workspace(event,context):
     try:
         body =json.loads(event.get('body'))
@@ -93,9 +94,7 @@ def update_workspace(event, context):
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':user_id,':time':timestamp})
                     log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
                     return return_response(200, {"Message": "Workspace enabled successfully"})
-                    
-                else:
-                    return return_response(400, {"Error": "Workspace status is invalid"})
+                return return_response(400, {"Error": "Workspace status is invalid"})
             else:
                 if workspace_response.get('WorkspaceStatus') == 'Inactive':
                     return return_response(400, {"Error": "Workspace is already inactive"})
@@ -196,8 +195,35 @@ def get_workspace(event,context):
         role = auth.get("role")
 
         path_params=event.get('pathParameters')
+        limit= path_parameters.get('limit', 10)
+        offset= path_parameters.get('offset', 1)
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
+
+        access_resource_response = resource_access_table.query(
+            KeyConditionExpression=Key('AccessKey').eq(f'Solution#{solution_id}'),
+            ProjectionExpression='Id'
+        ).get('Items')
+        users=[]
+        for item in access_resource_response:
+            user_id,access_type=item.get('Id').split('#')
+            user_response = users_table.get_item(Key={'Id': item.get('Id')},ProjectionExpression="UserId,Username,Email,Roles").get('Item')
+            user_response['Access'] = access_type
+            users.append(user_response)
+        resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
+        body={
+            'WorkspaceId':workspace_response.get('WorkspaceId'),
+            'WorkspaceName':workspace_response.get('WorkspaceName'),
+            'Description':workspace_response.get('Description'),
+            'Tags':workspace_response.get('Tags'),
+            'WorkspaceType':workspace_response.get('WorkspaceType'),
+            'WorkspaceStatus':workspace_response.get('WorkspaceStatus'),
+            'CreatedBy':workspace_response.get('CreatedBy'),
+            'CreatinTime':workspace_response.get('CreationTime'),
+            'LastUpdatedBy':workspace_response.get('LastUpdatedBy'),
+            'LastUpdationTime':workspace_response.get('LastUpdationTime'),
+            'Users':resp.get('body')
+        }
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
         
@@ -265,7 +291,7 @@ def get_workspaces(event, context):
         pagination_response = paginate_list(
             name='Workspaces',
             data=workspace_items,
-            valid_keys=['WorkspaceName', 'WorkspaceType', 'WorkspaceStatus', 'CreatedBy', 'LastUpdationTime'],
+            valid_keys=['WorkspaceName'],
             offset=offset,
             limit=limit,
             sort_by='WorkspaceName',   
