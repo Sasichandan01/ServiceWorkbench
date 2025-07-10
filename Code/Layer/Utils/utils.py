@@ -2,6 +2,8 @@ import logging
 import json
 from decimal import Decimal
 from typing import Dict, Any, Optional
+import uuid
+from datetime import datetime, timezone
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -72,6 +74,8 @@ def paginate_list(
         return return_response(400, {"error": "Limit cannot exceed 50."})
     if sort_order not in ("asc", "desc"):
         return return_response(400, {"error": "sort_order must be 'asc' or 'desc'."})
+    if offset <= 0:
+        return return_response(400, {"error": "Offset must be greater than 0."})
 
     # Sorting
     data_to_page = data
@@ -97,3 +101,26 @@ def paginate_list(
         }
     }
     return return_response(200, body)
+
+def log_activity(table, resource_type, resource_name, resource_id, user_id, message):
+    """
+    Log an activity to the DynamoDB activity logs table.
+    Args:
+        table: DynamoDB Table resource
+        resource_type: Type of the resource (e.g., 'Solutions')
+        resource_name: Name of the resource
+        resource_id: ID of the resource
+        user_id: ID of the user performing the action
+        message: Description of the activity
+    """
+    log_id = str(uuid.uuid4())
+    activity_log = {
+        "LogId": log_id,
+        "ResourceType": resource_type,
+        "ResourceName": resource_name,
+        "ResourceId": resource_id,
+        "UserId": user_id,
+        "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+        "Message": message
+    }
+    table.put_item(Item=activity_log)

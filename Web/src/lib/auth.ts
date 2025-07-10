@@ -125,17 +125,34 @@ export const signOut = async (accessToken: string) => {
 
   try {
     const response = await cognitoClient.send(command);
-    // Clear any stored tokens from localStorage
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('idToken');
+    
+    // Clear all auth-related data from localStorage
+    clearAllAuthData();
+    
     return response;
   } catch (error) {
     console.error("Sign out error:", error);
-    // Even if the API call fails, clear local storage
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('idToken');
+    
+    // Even if the API call fails, clear all local storage
+    clearAllAuthData();
+    
     throw error;
   }
+};
+
+export const clearAllAuthData = () => {
+  // Clear tokens
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('idToken');
+  
+  // Clear any other auth-related data
+  localStorage.removeItem('userInfo');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userPermissions');
+  
+  // Clear session storage as well
+  sessionStorage.clear();
+  
+  console.log("All auth data cleared from browser");
 };

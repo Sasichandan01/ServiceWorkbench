@@ -16,10 +16,14 @@ import {
 import AdminUsersTable from "@/components/admin/AdminUsersTable";
 import AdminRolesManager from "@/components/admin/AdminRolesManager";
 import AdminWorkspacesTable from "@/components/admin/AdminWorkspacesTable";
+import { ProtectedContent } from "@/components/ui/protected-content";
+import { usePermissions } from "@/hooks/usePermissions";
 import AdminSystemOverview from "@/components/admin/AdminSystemOverview";
 import AdminAuditLogs from "@/components/admin/AdminAuditLogs";
 
 const AdminDashboard = () => {
+  const { canView, canManage } = usePermissions();
+  
   const stats = [
     {
       title: "Total Users",
@@ -91,48 +95,58 @@ const AdminDashboard = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="flex w-full justify-start">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
-          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          {canView('users') && <TabsTrigger value="users">Users</TabsTrigger>}
+          {canView('roles') && <TabsTrigger value="roles">Roles</TabsTrigger>}
+          {canView('workspaces') && <TabsTrigger value="workspaces">Workspaces</TabsTrigger>}
+          {canManage('users') && <TabsTrigger value="system">System</TabsTrigger>}
+          {canView('users') && <TabsTrigger value="audit">Audit Logs</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
           <AdminSystemOverview />
         </TabsContent>
 
-        <TabsContent value="users">
-          <AdminUsersTable />
-        </TabsContent>
+        <ProtectedContent resource="users" action="view">
+          <TabsContent value="users">
+            <AdminUsersTable />
+          </TabsContent>
+        </ProtectedContent>
 
-        <TabsContent value="roles">
-          <AdminRolesManager />
-        </TabsContent>
+        <ProtectedContent resource="roles" action="view">
+          <TabsContent value="roles">
+            <AdminRolesManager />
+          </TabsContent>
+        </ProtectedContent>
 
-        <TabsContent value="workspaces">
-          <AdminWorkspacesTable />
-        </TabsContent>
+        <ProtectedContent resource="workspaces" action="view">
+          <TabsContent value="workspaces">
+            <AdminWorkspacesTable />
+          </TabsContent>
+        </ProtectedContent>
 
-        <TabsContent value="system">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Settings</CardTitle>
-              <CardDescription>Configure global system settings and preferences</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-gray-500">
-                System settings panel - Coming soon
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <ProtectedContent resource="users" action="manage">
+          <TabsContent value="system">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Settings</CardTitle>
+                <CardDescription>Configure global system settings and preferences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-gray-500">
+                  System settings panel - Coming soon
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </ProtectedContent>
 
-        <TabsContent value="audit">
-          <AdminAuditLogs />
-        </TabsContent>
+        <ProtectedContent resource="users" action="view">
+          <TabsContent value="audit">
+            <AdminAuditLogs />
+          </TabsContent>
+        </ProtectedContent>
       </Tabs>
     </div>
   );
