@@ -36,7 +36,7 @@ def paginate_list(
     data: Any,
     valid_keys: list,
     offset: int = 1,
-    limit: int = 10,
+    limit: int = 5,
     sort_by: Optional[str] = None,
     sort_order: str = "asc"
 ) -> Dict[str, Any]:

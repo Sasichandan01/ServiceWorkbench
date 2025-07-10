@@ -2,14 +2,20 @@ import os
 import json
 import logging
 import boto3
+import time
+import urllib.request
+from jose import jwk, jwt
+from jose.utils import base64url_decode
 from botocore.exceptions import ClientError
 
 # initialize logging
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
-# initialize clients
-cognito_client = boto3.client("cognito-idp")
+AWS_REGION = 'us-east-1'
+
+# initialize cognito client
+COGNITO_CLIENT = boto3.client("cognito-idp")
 dynamodb = boto3.resource("dynamodb")
 
 try:
@@ -20,6 +26,14 @@ try:
 except KeyError as e:
     LOGGER.error(f"Error in environment variables : {e}")
     raise KeyError(f"Error in environment variables : {e}")
+
+# construct issuer and JWKS endpoint URLs
+COGNITO_ISSUER = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{USER_POOL_ID}"
+JWKS_URL = f"{COGNITO_ISSUER}/.well-known/jwks.json"
+
+# load JWKS keys to verify the signature of JWT tokens
+with urllib.request.urlopen(JWKS_URL) as response:
+    jwks = json.loads(response.read().decode("utf-8"))["keys"]
 
 def generate_policy(principal_id, effect, resource, context=None):
     """function to generate an IAM policy document to control access to the API Gateway endpoint
@@ -44,6 +58,46 @@ def generate_policy(principal_id, effect, resource, context=None):
         "context": context or {}
     }
 
+def verify_jwt_token(token):
+    """This method is used to Verify a JWT token using the Cognito JWKS public keys.
+        Args:
+            token (str): JWT token from Authorization header
+        Returns:
+            dict: Decoded and validated claims
+    """
+    try:
+        headers = jwt.get_unverified_headers(token)
+        kid = headers["kid"]
+        key_index = next((i for i, key in enumerate(jwks) if key["kid"] == kid), None)
+        if key_index is None:
+            raise Exception("Public key not found in JWKS")
+
+        public_key = jwks[key_index]
+        # construct public key
+        key = jwk.construct(public_key)
+        # split token
+        message, encoded_signature = token.rsplit('.', 1)
+        decoded_signature = base64url_decode(encoded_signature.encode("utf-8"))
+
+        if not key.verify(message.encode("utf-8"), decoded_signature):
+            raise Exception("Signature verification failed")
+        claims = jwt.get_unverified_claims(token)
+        LOGGER.info(f"Claims: {claims}")
+        if time.time() > claims["exp"]:
+            raise Exception("Token is expired")
+
+        if claims["iss"] != COGNITO_ISSUER:
+            raise Exception("Invalid issuer")
+
+        if claims.get("client_id") != CLIENT_ID and CLIENT_ID not in claims.get("aud", []):
+            raise Exception("Invalid audience")
+
+        return claims
+    except Exception as e:
+        LOGGER.error(f"JWT verification failed: {e}")
+        raise
+    
+
 def lambda_handler(event, context):
     """This function is the entry point for the lambda function
         Args:
@@ -55,8 +109,8 @@ def lambda_handler(event, context):
     try:
         LOGGER.info(f"Event received: {event}")
 
-        headers = event.get("headers", {})
-        auth_header = headers.get("Authorization", "")
+        headers = {k.lower(): v for k, v in event.get("headers", {}).items()}
+        auth_header = headers.get("authorization", "")
         method_arn = event.get("methodArn", "*")
 
         if not method_arn:
@@ -67,12 +121,10 @@ def lambda_handler(event, context):
             LOGGER.warning("Authorization header is missing or invalid")
             return generate_policy("unauthorized", "Deny", method_arn)
 
-        if auth_header.strip() == "Bearer guest":
-            LOGGER.info("Guest token detected.")
-            return generate_policy("guest", "Allow", method_arn, {"role": "guest"})
-
         access_token = auth_header.split(" ")[1]
-        user = cognito_client.get_user(AccessToken=access_token)
+        claims = verify_jwt_token(access_token)
+
+        user = COGNITO_CLIENT.get_user(AccessToken=access_token)
         user_id = user["Username"]
         attributes = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
         email = attributes.get("email")
@@ -103,4 +155,3 @@ def lambda_handler(event, context):
     except Exception as e:
         LOGGER.exception(f"Unhandled exception: {e}")
         return generate_policy("unauthorized", "Deny", event.get("methodArn", "*"))
- 
