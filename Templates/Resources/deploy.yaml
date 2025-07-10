@@ -195,8 +195,6 @@ Resources:
       AttributeDefinitions:
         - AttributeName: SolutionId
           AttributeType: S
-        - AttributeName: ExecutionId
-          AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
           KeyType: HASH

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime,timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
-from Utils.utils import return_response,paginate_list
+from Utils.utils import log_activity,return_response,paginate_list
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -13,29 +13,6 @@ workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
 resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
 
-
-def log_activity(table, resource_type, resource_name, user_id, action):
-    """
-    Log an activity to the DynamoDB activity logs table.
-    Args:
-        table: DynamoDB Table resource
-        resource_type: Type of the resource (e.g., 'Solutions')
-        resource_name: Name of the resource
-        resource_id: ID of the resource
-        user_id: ID of the user performing the action
-        message: Description of the activity
-    """
-    log_id = str(uuid.uuid4())
-    activity_log = {
-        "LogId": log_id,
-        "ResourceType": resource_type,
-        "ResourceName": resource_name,
-        "UserId": user_id,
-        "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Action": action
-    }
-    table.put_item(Item=activity_log)
-    return return_response(200, "Log Activity added successfully")
 
 def create_workspace(event,context):
     try:
@@ -84,7 +61,8 @@ def create_workspace(event,context):
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'), user_id, 'CREATE_WORKSPACE')
+        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'), user_id, 'CREATE_WORKSPACE')
+        print(resp)
         return return_response(200, {"Message": "Workspace created successfully"})
         
     except Exception as e:
@@ -223,8 +201,6 @@ def get_workspace(event,context):
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
         
-        
-
         return return_response(200, workspace_response)
     except Exception as e:
         print(e)
@@ -232,37 +208,72 @@ def get_workspace(event,context):
 
 def get_workspaces(event, context):
     try:
+
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
-        role = auth.get("role")
 
-        queryParams=event.get('queryStringParameters')
-        if queryParams and queryParams.get('sort_by'):
-            sort_by = queryParams.get('sort_by')
-            if sort_by not in ['asc','desc']:
-                return return_response(400, {"Error": "Invalid sort_by parameter"})
-        if queryParams and queryParams.get('filter_by'):
-            filter_by = queryParams.get('filter_by')
-        if queryParams and queryParams.get('limit'):
-            limit = queryParams.get('limit')
-            if not isinstance(limit, int):
-                return return_response(400, {"Error": "Invalid limit parameter"})
-        if queryParams and queryParams.get('offset'):
-            offset = queryParams.get('offset')
-            if not isinstance(offset, int):
-                return return_response(400, {"Error": "Invalid offset parameter"})
-            
-        resource_access_response= resource_access_table.scan(
-            FilterExpression= Attr('Id').contains(user_id) & Attr('WorkspaceName').contains(filter_by),
+        queryParams = event.get('queryStringParameters') or {}
+
+        filter_by = queryParams.get('filterBy')
+        sort_order = queryParams.get('sortBy')
+        limit = queryParams.get('limit',10)
+        offset = queryParams.get('offset',1)
+
+        if sort_order and sort_order not in ['asc', 'desc']:
+            return return_response(400, {"Error": "Invalid sort_by parameter. Must be 'asc' or 'desc'."})
+
+        if limit is not None:
+            try:
+                limit = int(limit)
+            except ValueError:
+                return return_response(400, {"Error": "Invalid limit parameter. Must be an integer."})
+
+        if offset is not None:
+            try:
+                offset = int(offset)
+            except ValueError:
+                return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
+
+
+        filter_expression = Attr('Id').contains(user_id)
+        if filter_by:
+            filter_expression &= Attr('WorkspaceName').contains(filter_by)
+
+        resource_access_response = resource_access_table.scan(
+            FilterExpression=filter_expression,
             ProjectionExpression='AccessKey'
         )
-            
-        response=workspace_table.scan(ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy')
+        workspace_items = []
+        workspace_response= workspace_table.scan(
+            FilterExpression=Attr('CreatedBy').eq(user_id),
+            ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+        ).get('Items')
+        workspace_items.extend(workspace_response)
+        workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]
 
-        paginate_list('Workspaces',response,offset,limit,'Workspace_Name',sort_by)
-        items=response.get('Items')
-        return return_response(200, items)
+        
+        for workspace_id in workspace_ids:
+            response = workspace_table.get_item(
+                Key={'WorkspaceId': workspace_id},
+                ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+            )
+            item = response.get('Item')
+            if item:
+                workspace_items.append(item)
+
+
+        pagination_response = paginate_list(
+            name='Workspaces',
+            data=workspace_items,
+            valid_keys=['WorkspaceName', 'WorkspaceType', 'WorkspaceStatus', 'CreatedBy', 'LastUpdationTime'],
+            offset=offset,
+            limit=limit,
+            sort_by='WorkspaceName',   
+            sort_order=sort_order or 'asc'
+        )
+        return pagination_response
+
+
     except Exception as e:
         print(e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
- 

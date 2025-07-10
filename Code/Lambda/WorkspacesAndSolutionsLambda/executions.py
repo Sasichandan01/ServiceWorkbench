@@ -4,7 +4,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
-from Utils.utils import log_activity
+from Utils.utils import log_activity, return_response
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -30,9 +30,13 @@ def get_executions(event, context):
         path_parameters = event.get('pathParameters', {})
         is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id'])
         if not is_valid:
-            return {'statusCode': 400, 'body': json.dumps({'message': message})}
+            return return_response(400, {"Error": message})
 
         solution_id = path_parameters['solution_id']
+        
+        # Get user context
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
         
         # Query executions
         response = executions_table.query(
@@ -40,19 +44,16 @@ def get_executions(event, context):
             ProjectionExpression="ExecutionId, SolutionId, ExecutionStatus, StartTime, EndTime"
         )
         
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'executions': response.get('Items', []),
-                'count': response.get('Count', 0)
-            })
-        }
+        # Log activity
+        log_activity(activity_logs_table, 'Solution', solution_id, user_id, 'GET_EXECUTIONS')
+        
+        return return_response(200, {
+            'executions': response.get('Items', []),
+            'count': response.get('Count', 0)
+        })
     except ClientError as e:
         print(f"Error retrieving executions: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'message': 'Internal server error retrieving executions'})
-        }
+        return return_response(500, {"Error": 'Internal server error retrieving executions'})
 
 def run_solution(event, context):
     """Initiate a solution execution."""
@@ -60,7 +61,7 @@ def run_solution(event, context):
         path_parameters = event.get('pathParameters', {})
         is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id'])
         if not is_valid:
-            return {'statusCode': 400, 'body': json.dumps({'message': message})}
+            return return_response(400, {"Error": message})
 
         solution_id = path_parameters['solution_id']
         execution_id = str(uuid.uuid4())
@@ -71,33 +72,21 @@ def run_solution(event, context):
             'SolutionId': solution_id,
             'ExecutionStatus': 'STARTED',
             'StartTime': timestamp.isoformat(),
-            'ExecutedBy': 'system',  
+            'ExecutedBy': user_id,  
         }
 
         executions_table.put_item(Item=execution)
         
-        log_activity(
-            activity_logs_table,
-            resource_type="Solution",
-            resource_name=solution_id,
-            resource_id=solution_id,
-            user_id="system",
-            message="RUN_SOLUTION"
-        )
+        # Log activity
+        log_activity(activity_logs_table, 'Solution', solution_id, user_id, 'RUN_SOLUTION')
 
-        return {
-            'statusCode': 201,
-            'body': json.dumps({
-                'execution': execution,
-                'message': 'Execution started successfully'
-            })
-        }
+        return return_response(201, {
+            'execution': execution,
+            'message': 'Execution started successfully'
+        })
     except ClientError as e:
         print(f"Error starting execution: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'message': 'Internal server error starting execution'})
-        }
+        return return_response(500, {"Error": 'Internal server error starting execution'})
 
 def get_execution(event, context):
     """Retrieve details of a specific execution."""
@@ -106,27 +95,25 @@ def get_execution(event, context):
         path_parameters = event.get('pathParameters', {})
         is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id', 'execution_id'])
         if not is_valid:
-            return {'statusCode': 400, 'body': json.dumps({'message': message})}
+            return return_response(400, {"Error": message})
 
         execution_id = path_parameters['execution_id']
+        
+        # Get user context
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
         
         response = executions_table.get_item(
             Key={'ExecutionId': execution_id}
         )
         
         if 'Item' not in response:
-            return {
-                'statusCode': 404,
-                'body': json.dumps({'message': 'Execution not found'})
-            }
+            return return_response(404, {"Error": 'Execution not found'})
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps(response['Item'])
-        }
+        # Log activity
+        log_activity(activity_logs_table, 'Execution', execution_id, user_id, 'GET_EXECUTION')
+
+        return return_response(200, response['Item'])
     except ClientError as e:
         print(f"Error retrieving execution: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'message': 'Internal server error retrieving execution'})
-        }
+        return return_response(500, {"Error": 'Internal server error retrieving execution'})

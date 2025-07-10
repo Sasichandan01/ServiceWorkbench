@@ -252,6 +252,7 @@ def delete_solution(workspace_id, solution_id):
         user_id="user",
         message="Solution deleted"
     )
+
     return {
         "statusCode": 200,
         "body": json.dumps({"Message": "Solution deleted"})
