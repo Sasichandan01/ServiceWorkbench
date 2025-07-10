@@ -1577,4 +1577,3 @@ Outputs:
     Description: The name of the user table
     Export:
       Name: "UsersTableName"
-

@@ -4,6 +4,7 @@ import os
 import logging
 from boto3.dynamodb.conditions import Key
 from Utils.utils import paginate_list
+from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
@@ -89,64 +90,6 @@ def lambda_handler(event, context):
         LOGGER.error("Error processing request: %s", e, exc_info=True)
         return response(500, {"message": "Internal server error"})
 
-
-# def get_all_users(query_params):
-#     """
-#     Retrieve all users with pagination support.
-
-#     Args:
-#         params (dict): Query string parameters including limit and offset.
-
-#     Returns:
-#         dict: HTTP response with users data.
-#     """
-#     LOGGER.info("Getting all Users")
-#     limit = int(query_params.get("limit", 10))
-#     offset = int(query_params.get("offset", 0))
-
-#     scan_kwargs = {'Limit': limit}
-#     users_data = []
-#     scanned_count = 0
-#     total_users = 0
-#     start_key = None
-#     done = False
-
-#     while not done:
-#         if start_key:
-#             scan_kwargs['ExclusiveStartKey'] = start_key
-
-#         res = user_table.scan(**scan_kwargs)
-#         items = res.get("Items", [])
-#         start_key = res.get("LastEvaluatedKey")
-
-#         for item in items:
-#             if scanned_count >= offset and len(users_data) < limit:
-#                 users_data.append({
-#                     "UserId": item.get("UserId"),
-#                     "Username": item.get("Username"),
-#                     "Email": item.get("Email"),
-#                     "Roles": item.get("Role", [])
-#                 })
-
-#             scanned_count += 1
-#             if len(users_data) >= limit:
-#                 break
-
-#         if not start_key or len(users_data) >= limit:
-#             done = True
-
-#     return response(200, {
-#         "Users": users_data,
-#         "TotalUsers": scanned_count,
-#         "TotalWokspaces": "N/A",
-#         "Pagination": {
-#             "Count": len(users_data),
-#             "TotalCount": scanned_count,
-#             "NextAvailable": bool(start_key),
-#             "Page": (offset // limit) + 1
-#         }
-#     })
-
 def get_all_users(query_params):
     """
     Retrieve all users with pagination support and sorting.
@@ -158,17 +101,45 @@ def get_all_users(query_params):
         dict: HTTP response with users data.
     """
     LOGGER.info("Getting all Users")
-    limit = int(query_params.get("limit", 10))
+    limit = int(query_params.get("limit", 5))
     sort_by = query_params.get("sort_by", "Username")
     sort_order = query_params.get("sort_order", "asc")
     offset = int(query_params.get("offset", 1))
 
-    response = user_table.scan()
-    items = response.get("Items", [])
+    scan_response = user_table.scan()
+    items = scan_response.get("Items", [])
+
+    # Simplified response structure
     Name = "Users"
-    result = paginate_list(Name, items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
-    LOGGER.info("result: %s", result)
-    return result
+    simplified_items = [
+        {
+            "UserId": item.get("UserId"),
+            "Username": item.get("Username"),
+            "Email": item.get("Email"),
+            "Roles": item.get("Role", []),
+            "ProfileImageURL": item.get("ProfileImage")
+        } for item in items
+    ]
+    paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
+    LOGGER.info("Paginated result: %s", paginated_result)
+
+    # Correctly parse the 'body' and extract values from there
+    body_dict = json.loads(paginated_result.get("body", "{}"))
+    pagination = body_dict.get("Pagination", {})
+
+    formatted_response = {
+        "Users": body_dict.get("Users", []),
+        "TotalUsers": int(pagination.get("TotalCount", 0)),
+        "TotalWokspaces": 0,
+        "Pagination": {
+            "Count": pagination.get("Count", 0),
+            "TotalCount": pagination.get("TotalCount", 0),
+            "NextAvailable": pagination.get("NextAvailable", False)
+        }
+    }
+
+    LOGGER.info("result: %s", formatted_response)
+    return response(200, formatted_response)
 
 
 def get_user_profile(user_id):
@@ -188,13 +159,7 @@ def get_user_profile(user_id):
     if not item:
         return response(404, {"message": "User not found"})
 
-    return response(200, {
-        "UserId": item.get("UserId"),
-        "Username": item.get("Username"),
-        "Email": item.get("Email"),
-        "Roles": item.get("Role", []),
-        "ProfileImage": item.get("ProfileImage", "")
-    })
+    return response(200, item)
 
 
 def update_user_details(user_id, body):
@@ -213,10 +178,15 @@ def update_user_details(user_id, body):
     if not username:
         return response(400, {"message": "Username is required"})
 
+    last_updated_time = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+
     user_table.update_item(
         Key={"UserId": user_id},
-        UpdateExpression="SET Username = :username",
-        ExpressionAttributeValues={":username": username}
+        UpdateExpression="SET Username = :username, LastUpdatedTime = :time",
+        ExpressionAttributeValues={
+            ":username": username,
+            ":time": last_updated_time
+        }
     )
 
     return response(200, {"message": "User details updated"})

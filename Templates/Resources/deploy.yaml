@@ -23,6 +23,10 @@ Parameters:
     Type: String
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
+  pProfileImageBucketName:
+    Type: String
+    Default: "develop-profile-images"
+    Description: Name of the S3 bucket for profile images
   DeploymentTrigger:
     Type: String
     Description: time
@@ -71,6 +75,18 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+  
+  # S3 Bucket for artifacts
+  ProfileImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref pProfileImageBucketName
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   # API Gateway
   WorkbenchApi:
@@ -83,7 +99,7 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
-      AlwaysDeploy: True
+      AlwaysDeploy: true
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -265,7 +281,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambdas
+# Lambdas
   RolesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -330,6 +346,14 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref RolesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+     
+  UsersLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UsersLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
