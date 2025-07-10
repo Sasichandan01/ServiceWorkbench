@@ -4,11 +4,10 @@ import os
 import uuid
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
-from Layer.Utils.utils import log_activity
-
+from Utils.utils import log_activity, paginate_list
 
 dynamodb = boto3.resource('dynamodb')
-executions_table = dynamodb.Table(os.environ['SOLUTION_EXECUTIONS_TABLE'])
+executions_table = dynamodb.Table(os.environ['EXECUTIONS_TABLE'])
 workspaces_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 

@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 import sys
 # sys.path.append('/opt/python/lib/python3.9/site-packages')
-from utils import log_activity
+from Utils.utils import log_activity, paginate_list
 
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])  
