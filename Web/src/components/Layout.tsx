@@ -25,9 +25,15 @@ import {
   Shield
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { signOut } from "@/lib/auth";
+import { signOut, clearAllAuthData } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getUserInfo, getInitials, UserInfo } from "@/lib/tokenUtils";
+import { ProtectedContent } from "@/components/ui/protected-content";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useAppSelector } from "@/hooks/useAppSelector";
+import { useAppDispatch } from "@/hooks/useAppDispatch";
+import { setAuth } from "@/store/slices/authSlice";
+import { clearPermissions } from "@/store/slices/permissionsSlice";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -35,6 +41,9 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { canView } = usePermissions();
+  const { loading: authLoading } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     // Get user info from stored tokens
@@ -43,9 +52,9 @@ const Layout = () => {
   }, []);
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Workspaces", href: "/workspaces", icon: Cloud },
-    { name: "Data Sources", href: "/data-sources", icon: Database },
+    { name: "Dashboard", href: "/dashboard", icon: Home, resource: null },
+    { name: "Workspaces", href: "/workspaces", icon: Cloud, resource: "workspaces" },
+    { name: "Data Sources", href: "/data-sources", icon: Database, resource: "datasources" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -53,11 +62,16 @@ const Layout = () => {
   const handleLogout = async () => {
     try {
       const accessToken = localStorage.getItem('accessToken');
+      
+      // Clear Redux state first
+      dispatch(setAuth({ user: null, isAuthenticated: false }));
+      dispatch(clearPermissions());
+      
       if (accessToken) {
         await signOut(accessToken);
       } else {
-        // If no token, just clear localStorage and redirect
-        localStorage.clear();
+        // If no token, just clear all auth data
+        clearAllAuthData();
       }
       
       toast({
@@ -68,12 +82,17 @@ const Layout = () => {
       navigate("/login");
     } catch (error: any) {
       console.error("Logout error:", error);
+      
+      // Ensure cleanup happens even if API fails
+      clearAllAuthData();
+      dispatch(setAuth({ user: null, isAuthenticated: false }));
+      dispatch(clearPermissions());
+      
       toast({
-        title: "Logout Error",
-        description: "There was an issue logging out, but you've been signed out locally.",
-        variant: "destructive"
+        title: "Logged Out", 
+        description: "You have been signed out locally.",
       });
-      // Still navigate to login even if logout API fails
+      
       navigate("/login");
     }
   };
@@ -84,6 +103,11 @@ const Layout = () => {
   };
 
   const NavLink = ({ item }: { item: typeof navigation[0] }) => {
+    // Check if user has permission to view this resource
+    if (item.resource && !canView(item.resource)) {
+      return null;
+    }
+
     const linkContent = (
       <Link
         to={item.href}
@@ -113,6 +137,18 @@ const Layout = () => {
 
     return linkContent;
   };
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -196,12 +232,14 @@ const Layout = () => {
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin" className="w-full">
-                        <Shield className="w-4 h-4 mr-2" />
-                        Admin Dashboard
-                      </Link>
-                    </DropdownMenuItem>
+                    <ProtectedContent resource="users" action="manage" hideIfNoAccess>
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="w-full">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Admin Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    </ProtectedContent>
                     <DropdownMenuItem onClick={handleSwitchRole}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Switch Role

@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Development cloudFormation template for the Service Workbench V2
+Transform: 'AWS::Serverless-2016-10-31'
 
 Parameters:
   pPrefix:
@@ -40,7 +41,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
-      Handler: lambda_function.lambda_handler
+      Handler: WorkspacesAndSolutionsLambda.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
@@ -54,29 +55,35 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: Workbench-${pPrefix}-ActivityLogsTable
-          SOLUTIONS_TABLE: Workbench-${pPrefix}-SolutionsTable
-          TEMPLATES_TABLE: Workbench-${pPrefix}-TemplatesTable
-          WORKSPACES_TABLE: Workbench-${pPrefix}-WorkspacesTable
-          EXECUTIONS_TABLE: Workbench-${pPrefix}-SolutionExecutionsTable
-          DATASOURCES_TABLE: Workbench-${pPrefix}-DatasourcesTable
+          ACTIVITY_LOGS_TABLE: !Sub Workbench-develop-ActivityLogsTable
+          SOLUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionsTable
+          TEMPLATES_TABLE: !Sub Workbench-${pPrefix}-TemplatesTable
+          WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
+          EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
+          DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
+          ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
+          RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
   # API Gateway
   WorkbenchApi:
-    Type: AWS::ApiGateway::RestApi
+    Type: AWS::Serverless::Api
     Properties:
       Name: !Sub "${pPrefix}-${ApiName}"
-      BodyS3Location:
+      StageName: prod
+      DefinitionUri:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
-      FailOnWarnings: true
-      Description: "12666345"
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+      AlwaysDeploy: True
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -86,22 +93,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-# API Gateway Deployment
-  WorkbenchApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn: WorkspaceLambdaInvokePermission
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
-
-  WorkbenchApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      DeploymentId: !Ref WorkbenchApiDeployment
-      StageName: prod
-      Variables:
-        redeployHash: !Sub "${DeploymentTrigger}"
+  # remove WorkbenchApiDeployment and WorkbenchApiStage resources ...
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -180,6 +172,13 @@ Resources:
           KeyType: HASH
         - AttributeName: AccessKey
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: AccessKey-Index
+          KeySchema:
+            - AttributeName: AccessKey
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
