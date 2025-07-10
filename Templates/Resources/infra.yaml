@@ -27,6 +27,11 @@ Parameters:
     Default: workbenchdb
     Description: Database name for Aurora
 
+  pProfileImageBucket:
+    Type: String
+    Default: "develop-profile-images"
+    Description: S3 bucket name for storing user profile images
+
 Resources:
 
   # VPC Resources
@@ -716,6 +721,16 @@ Resources:
                 Action:
                   - ses:SendEmail
                 Resource: "*"
+
+        - PolicyName: S3Policies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3PutAccess
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${pProfileImageBucket}/profile-images/*"
         
         - PolicyName: SSMPolicies
           PolicyDocument:
