@@ -447,6 +447,26 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  WorkspacesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${pApplicationPrefix}-service-workbench-workspaces"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
@@ -1176,6 +1196,17 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${WorkspacesBucket}
+                  - !Sub arn:aws:s3:::${WorkspacesBucket}/*
+              - Effect: Allow
+                Action: lambda:Invoke
+                Resource: 
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1487,6 +1518,12 @@ Outputs:
     Value: !Ref LogsBucket
     Export:
       Name: !Sub "${pApplicationPrefix}-LogsBucket"
+
+  WorkspacesBucketName:
+    Description: Name of workspaces S3 bucket
+    Value: !Ref WorkspacesBucket
+    Export:
+      Name: !Sub "${pApplicationPrefix}-WorkspacesBucket"
 
   ServiceWorkbenchLambdaLayer:
     Description: Name of the service workbench lambda layer
