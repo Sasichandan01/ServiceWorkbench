@@ -63,7 +63,7 @@ Resources:
           DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
           ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
           RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
-          WORKSPACES_BUCKET: "develop-workspacesandsolutions-lambda"
+          WORKSPACES_BUCKET: !ImportValue develop-WorkspacesBucket
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
