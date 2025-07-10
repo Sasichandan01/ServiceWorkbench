@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,10 +67,14 @@ const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
       </div>
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogTrigger asChild>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <ProtectedButton 
+            resource="datasources" 
+            action="manage"
+            onClick={() => setIsCreateDialogOpen(true)}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Add Data Source
-          </Button>
+          </ProtectedButton>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>

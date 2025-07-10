@@ -1,0 +1,35 @@
+{
+  "ITAdmin": [
+    "users.fullaccess",
+    "roles.fullaccess",
+    "workspaces.fullaccess", 
+    "solutions.fullaccess",
+    "executions.fullaccess",
+    "datasources.fullaccess"
+  ],
+  "ProjectManager": [
+    "workspaces.fullaccess",
+    "solutions.fullaccess", 
+    "executions.fullaccess",
+    "datasources.manage",
+    "users.view",
+    "roles.view"
+  ],
+  "Developer": [
+    "workspaces.manage",
+    "solutions.fullaccess",
+    "executions.fullaccess", 
+    "datasources.view",
+    "users.view"
+  ],
+  "Analyst": [
+    "workspaces.view",
+    "solutions.view",
+    "executions.view",
+    "datasources.view",
+    "users.view"
+  ],
+  "Default": [
+    "users.view"
+  ]
+}
