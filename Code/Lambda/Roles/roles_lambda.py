@@ -29,7 +29,7 @@ def lambda_handler(event, context):
         method = event.get("httpMethod")
         # Extract authorizer data
         auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("userId")
+        user_id = auth.get("user_id")
         role = auth.get("role")
 
         # Sync system roles
