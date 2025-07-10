@@ -40,9 +40,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspacesResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -66,9 +68,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateWorkspaceResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -126,9 +130,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspaceDetails"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -167,9 +173,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -195,9 +203,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspaces-lambda/invocations
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -242,68 +252,90 @@ paths:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
         type: "mock"
-  /roles:
-    post:
-      summary: "Add a new role"
+
+  /workspaces/{workspace_id}/solutions:
+    get:
+      summary: "List all solutions in a workspace"
+      description: "Get all solutions within a specific workspace with filtering and sorting options"
       parameters:
-        - name: "action"
-          in: "query"
+        - name: "workspace_id"
+          in: "path"
           required: true
           schema:
             type: "string"
+          description: "Workspace ID"
+        - name: "filterBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Filter criteria"
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort criteria"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to skip"
       responses:
         "200":
-          description: "Role added successfully"
-          headers:
-            Access-Control-Allow-Origin:
+          description: "Successful response"
+          content:
+            application/json:
               schema:
-                type: "string"
-            Access-Control-Allow-Methods:
-              schema:
-                type: "string"
-            Access-Control-Allow-Headers:
-              schema:
-                type: "string"
+                $ref: "#/components/schemas/SolutionsResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    post:
+      summary: "Create a new solution"
+      description: "Create a new solution within a workspace"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSolutionRequest"
+      responses:
+        "200":
+          description: "Solution created successfully"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
-        "404":
-          description: "Invalid action"
-          headers:
-            Access-Control-Allow-Origin:
-              schema:
-                type: "string"
-            Access-Control-Allow-Methods:
-              schema:
-                type: "string"
-            Access-Control-Allow-Headers:
-              schema:
-                type: "string"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: "Internal server error"
-          headers:
-            Access-Control-Allow-Origin:
-              schema:
-                type: "string"
-            Access-Control-Allow-Methods:
-              schema:
-                type: "string"
-            Access-Control-Allow-Headers:
-              schema:
-                type: "string"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-      x-amazon-apigateway-request-validator: "Validate query string parameters and headers"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-RolesLambdaFunction/invocations"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -313,6 +345,12 @@ paths:
         type: "aws_proxy"
 
     options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
       responses:
         "200":
           description: "200 response"
@@ -342,6 +380,1136 @@ paths:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
         type: "mock"
+
+  /workspaces/{workspace_id}/solutions/{solution_id}:
+    get:
+      summary: "Get solution details"
+      description: "Get details of a specific solution, optionally for a specific version"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+        - name: "version"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Specific version of the solution"
+      responses:
+        "200":
+          description: "Solution details"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolutionDetails"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    put:
+      summary: "Update solution"
+      description: "Update the details of an existing solution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSolutionRequest"
+      responses:
+        "200":
+          description: "Solution updated successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    delete:
+      summary: "Delete solution"
+      description: "Delete a solution from the workspace"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+      responses:
+        "200":
+          description: "Solution deleted successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
+  /workspaces/{workspace_id}/solutions/{solution_id}/executions:
+    get:
+      summary: "Get execution history"
+      description: "Get execution history for a specific solution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to skip"
+      responses:
+        "200":
+          description: "Execution history retrieved successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionHistoryResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    post:
+      summary: "Run solution"
+      description: "Execute a solution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunSolutionRequest"
+      responses:
+        "200":
+          description: "Solution execution started successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunSolutionResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
+  /workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}:
+    get:
+      summary: "Get execution details"
+      description: "Get details of a specific execution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Workspace ID"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Solution ID"
+        - name: "execution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Execution ID"
+      responses:
+        "200":
+          description: "Execution details retrieved successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionDetails"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "execution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
+  /roles:
+    get:
+      summary: "Get all roles"
+      description: "Get all roles"
+      parameters:
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Page number"
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort by"
+        - name: "sortOrder"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort order"
+        - name: "filterBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Filter by"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+
+    post:
+      summary: "Add role"
+      description: "Add a role"
+      parameters:
+        - name: "action"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+
+  /roles/{role_name}:
+    get:
+      parameters:
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesDetailsResponse"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    put:
+      parameters:
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolesUpdateBody"
+        required: true
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    delete:
+      parameters:
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+        "404":
+          description: "404 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "500 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-RolesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      parameters:
+        - name: "role_name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+
+  /datasources/{datasource_id}:
+    get:
+      parameters:
+        - name: "datasource_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Datasource/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    put:
+      parameters:
+        - name: "datasource_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Datasource/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    delete:
+      parameters:
+        - name: "datasource_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Datasource/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    options:
+      parameters:
+        - name: "datasource_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+
+  /users:
+    get:
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+  /datasources:
+    get:
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Datasource/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    post:
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Datasource/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+  /users/{user_id}:
+    get:
+      parameters:
+        - name: "user_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    put:
+      parameters:
+        - name: "user_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+    options:
+      parameters:
+        - name: "user_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
 
 components:
   schemas:
@@ -458,6 +1626,276 @@ components:
       required:
         - message
 
+    SolutionsResponse:
+      type: "object"
+      properties:
+        Solutions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/SolutionSummary"
+        Pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    SolutionSummary:
+      type: "object"
+      properties:
+        SolutionId:
+          type: "string"
+        SolutionName:
+          type: "string"
+        Description:
+          type: "string"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+
+    SolutionDetails:
+      type: "object"
+      properties:
+        SolutionId:
+          type: "string"
+        SolutionName:
+          type: "string"
+        Description:
+          type: "string"
+        CreatedBy:
+          type: "string"
+        Tags:
+          type: "array"
+          items:
+            type: "string"
+        CftS3Path:
+          type: "string"
+        Resources:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Resource"
+        SolutionStatus:
+          type: "string"
+        CreationTime:
+          type: "string"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+        Cost:
+          type: "string"
+        Versions:
+          type: "array"
+          items:
+            type: "string"
+
+    Resource:
+      type: "object"
+      properties:
+        ResourceType:
+          type: "string"
+        ResourceName:
+          type: "string"
+        ResourceArn:
+          type: "string"
+
+    CreateSolutionRequest:
+      type: "object"
+      properties:
+        SolutionName:
+          type: "string"
+        Description:
+          type: "string"
+      required:
+        - SolutionName
+
+    UpdateSolutionRequest:
+      type: "object"
+      properties:
+        SolutionName:
+          type: "string"
+        Description:
+          type: "string"
+        Tags:
+          type: "array"
+          items:
+            type: "string"
+
+    ExecutionHistoryResponse:
+      type: "object"
+      properties:
+        ExecutionHistory:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/ExecutionSummary"
+        Pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    ExecutionSummary:
+      type: "object"
+      properties:
+        ExecutionId:
+          type: "string"
+        ExecutedBy:
+          type: "string"
+        Duration:
+          type: "string"
+        StartTime:
+          type: "string"
+        ExecutionStatus:
+          type: "string"
+        Message:
+          type: "string"
+
+    ExecutionDetails:
+      type: "object"
+      properties:
+        ExecutionId:
+          type: "string"
+        ExecutedBy:
+          type: "string"
+        Duration:
+          type: "string"
+        StartTime:
+          type: "string"
+        ExecutionStatus:
+          type: "string"
+        Message:
+          type: "string"
+        LogsStatus:
+          type: "string"
+        LogsS3Path:
+          type: "string"
+
+    RunSolutionRequest:
+      type: "object"
+      properties:
+        inputParameters:
+          type: "object"
+          description: "Input parameters for solution execution"
+      additionalProperties: true
+
+    RunSolutionResponse:
+      type: "object"
+      properties:
+        Message:
+          type: "string"
+        ExecutionId:
+          type: "string"
+    
+    RolesResponse:
+      title: "RolesResponse"
+      required:
+        - "Pagination"
+        - "Roles"
+      type: "object"
+      properties:
+        Roles:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Role"
+        Pagination:
+          $ref: "#/components/schemas/RolesPagination"
+    Role:
+      type: "object"
+      required:
+        - "CreatedBy"
+        - "CreationTime"
+        - "LastUpdatedBy"
+        - "LastUpdationTime"
+        - "Role"
+      properties:
+        Role:
+          type: "string"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+          format: "date-time"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+          format: "date-time"
+    RolesPagination:
+      type: "object"
+      required:
+        - "Count"
+        - "NextAvailable"
+        - "Page"
+        - "TotalCount"
+      properties:
+        Count:
+          type: "integer"
+        TotalCount:
+          type: "integer"
+        NextAvailable:
+          type: "boolean"
+        Page:
+          type: "integer"
+    RolesDetailsResponse:
+      title: "RoleObject"
+      required:
+        - "CreatedBy"
+        - "CreationTime"
+        - "LastUpdatedBy"
+        - "LastUpdationTime"
+        - "Permissions"
+        - "Role"
+      type: "object"
+      properties:
+        Role:
+          type: "string"
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
+        CreatedBy:
+          type: "string"
+        CreationTime:
+          type: "string"
+          format: "date-time"
+        LastUpdatedBy:
+          type: "string"
+        LastUpdationTime:
+          type: "string"
+          format: "date-time"
+    RolesBody:
+      title: "RoleRequest"
+      required:
+        - "Permissions"
+        - "Role"
+      type: "object"
+      properties:
+        Role:
+          type: "string"
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
+    RolesUpdateBody:
+      title: "PermissionsOnly"
+      required:
+        - "Permissions"
+      type: "object"
+      properties:
+        Permissions:
+          type: "array"
+          items:
+            type: "string"
+  securitySchemes:
+    WorkbenchAuthorizer:
+      type: "apiKey"
+      name: "Authorization"
+      in: "header"
+      x-amazon-apigateway-authtype: "custom"
+      x-amazon-apigateway-authorizer:
+        authorizerUri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:develop-LambdaAuthorizer/invocations"
+        authorizerResultTtlInSeconds: 0
+        identitySource: "method.request.header.Authorization"
+        type: "request"
+        
 x-amazon-apigateway-request-validators:
   Validate body:
     validateRequestParameters: false

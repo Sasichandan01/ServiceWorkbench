@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Development cloudFormation template for the Service Workbench V2
+Transform: 'AWS::Serverless-2016-10-31'
 
 Parameters:
   pPrefix:
@@ -29,14 +30,18 @@ Parameters:
     Type: String
     Description: rag-prefix
     Default: develop
+  SwaggerHash:
+    Type: String
+    Description: Hash or version to force API Gateway update when swagger.yaml changes
+    Default: "v1"
 
 Resources:
 
-  WorkspaceLambdaFunction:
+  WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-workspaces-lambda"
-      Handler: index.handler
+      FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
+      Handler: WorkspacesAndSolutionsLambda.lambda_handler
       Role: !ImportValue WorkspaceLambdaExecutionRole
       Runtime: python3.13
       VpcConfig:
@@ -48,50 +53,48 @@ Resources:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: !Sub Workbench-develop-ActivityLogsTable
+          SOLUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionsTable
+          TEMPLATES_TABLE: !Sub Workbench-${pPrefix}-TemplatesTable
+          WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
+          EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
+          DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
+          ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
+          RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
       Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Hello from Lambda!"}
+        S3Bucket: service-workbench-artifacts
+        S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
   # API Gateway
   WorkbenchApi:
-    Type: AWS::ApiGateway::RestApi
+    Type: AWS::Serverless::Api
     Properties:
-      Name: !Ref ApiName
-      BodyS3Location:
+      Name: !Sub "${pPrefix}-${ApiName}"
+      StageName: prod
+      DefinitionUri:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
-      FailOnWarnings: true
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+      AlwaysDeploy: True
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref WorkspaceLambdaFunction
+      FunctionName: !Ref WorkspacesAndSolutionsLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-  # API Gateway Deployment
-  WorkbenchApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn: WorkspaceLambdaInvokePermission
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
+  # remove WorkbenchApiDeployment and WorkbenchApiStage resources ...
 
-  WorkbenchApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      DeploymentId: !Ref WorkbenchApiDeployment
-      StageName: prod
-      Variables:
-        redeployHash: !Sub "${DeploymentTrigger}"
-
-  # DynamoDB Tables
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -100,9 +103,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: WorkspaceId
           AttributeType: S
+        - AttributeName: WorkspaceName
+          AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CreatedBy-index
+          KeySchema:
+            - AttributeName: CreatedBy
+              KeyType: HASH
+            - AttributeName: WorkspaceName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -156,6 +172,13 @@ Resources:
           KeyType: HASH
         - AttributeName: AccessKey
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: AccessKey-Index
+          KeySchema:
+            - AttributeName: AccessKey
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -166,11 +189,34 @@ Resources:
       TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: SolutionId
+          AttributeType: S
         - AttributeName: ExecutionId
           AttributeType: S
       KeySchema:
-        - AttributeName: ExecutionId
+        - AttributeName: SolutionId
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  TemplatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-TemplatesTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: SolutionId
+          AttributeType: S
+        - AttributeName: Version
+          AttributeType: S
+      KeySchema:
+        - AttributeName: SolutionId
+          KeyType: HASH
+        - AttributeName: Version
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -229,7 +275,7 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          ROLES_TABLE: !Sub "${pPrefix}-RolesTable"
+          ROLES_TABLE: !Sub "Workbench-${pPrefix}-RolesTable"
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -303,11 +349,19 @@ Resources:
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
 
+  WorkbenchLambdaAuthorizerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue LambdaAuthorizerFunctionName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*
+
 Outputs:
 
   WorkspaceLambdaFunctionName:
     Description: Name of the Workspace Lambda function
-    Value: !Ref WorkspaceLambdaFunction
+    Value: !Ref WorkspacesAndSolutionsLambdaFunction
 
   ApiUrl:
     Description: "Invoke URL for the deployed API"

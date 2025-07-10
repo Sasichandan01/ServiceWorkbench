@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { 
   Users, 
   Plus, 
@@ -224,10 +225,14 @@ const Workspaces = () => {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <ProtectedButton 
+              resource="workspaces" 
+              action="manage"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create Workspace
-            </Button>
+            </ProtectedButton>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
@@ -399,8 +404,7 @@ const Workspaces = () => {
                 <TableHead>Workspace</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead className="text-center">Members</TableHead>
-                <TableHead className="text-center">Projects</TableHead>
+                <TableHead className="text-center">Solutions</TableHead>
                 <TableHead>Last Activity</TableHead>
               </TableRow>
             </TableHeader>
@@ -430,12 +434,6 @@ const Workspaces = () => {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium text-gray-900">{workspace.owner}</div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium">{workspace.members}</span>
-                    </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center space-x-1">

@@ -561,6 +561,10 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
+        - Name: Role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
       AutoVerifiedAttributes:
         - email
       AdminCreateUserConfig:
@@ -700,6 +704,7 @@ Resources:
                   - cognito-idp:AdminDeleteUser
                   - cognito-idp:AdminGetUser
                   - cognito-idp:ListUsers
+                  - cognito-idp:AdminUpdateUserAttributes
                 Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
         
         - PolicyName: SESPolicies
@@ -736,12 +741,24 @@ Resources:
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: Email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -786,7 +803,7 @@ Resources:
           - !Ref LambdaSecurityGroup
       Role: !GetAtt CustomResourceExecutionRoles.Arn
       Timeout: 300
-      MemorySize: 128
+      MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
@@ -815,6 +832,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -827,6 +846,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
+          USER_TABLE_NAME: !Ref UserTable
       Layers:
         - !Ref ServiceWorkbenchLambdaLayer
       Tags:
@@ -840,6 +860,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -863,6 +885,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -886,6 +910,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -901,6 +927,8 @@ Resources:
           ROLE_TABLE_NAME: !Sub "Workbench-${pApplicationPrefix}-RolesTable"
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -911,6 +939,8 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-PostAuth"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -934,6 +964,8 @@ Resources:
       FunctionName: !Sub "${pApplicationPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.13
+      Timeout: 60
+      MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1
@@ -944,13 +976,38 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
-      Timeout: 60
-      MemorySize: 1024
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
           USER_POOL_ID: !Ref UserPool
           USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+  
+  LambdaAuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pApplicationPrefix}-LambdaAuthorizer"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.13
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          USERS_TABLE: !Ref UserTable
+          CLIENT_ID: !Ref UserPoolClient
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1073,6 +1130,19 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1483,3 +1553,21 @@ Outputs:
     Description: The name of the database
     Export:
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
+
+  UserExecutionRole:
+    Value: !GetAtt UserExecutionRole.Arn
+    Description: The ARN of the user execution role
+    Export:
+      Name: "UserExecutionRoleARN"
+
+  LambdaAuthorizerFunctionName:
+    Value: !Ref LambdaAuthorizerFunction 
+    Description: The name of the Lambda authorizer function
+    Export:
+      Name: "LambdaAuthorizerFunctionName"
+
+  LambdaAuthorizerFunctionARN:
+    Value: !GetAtt LambdaAuthorizerFunction.Arn
+    Description: The ARN of the Lambda authorizer function
+    Export:
+      Name: "LambdaAuthorizerFunctionARN"
