@@ -81,12 +81,25 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref pProfileImageBucketName
-      AccessControl: Private
+      AccessControl: PublicRead
       VersioningConfiguration:
         Status: Enabled
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+  
+  ProfileImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ProfileImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${ProfileImageBucket.Arn}/*"
 
   # API Gateway
   WorkbenchApi:
@@ -322,7 +335,7 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !ImportValue UsersTableName
-          PROFILE_IMAGE_BUCKET: !Ref pArtifactsBucketName
+          PROFILE_IMAGE_BUCKET: !Ref ProfileImageBucket
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
