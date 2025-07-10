@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -118,9 +119,14 @@ const UserPermissionsDialog = ({ user }: UserPermissionsDialogProps) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <ProtectedButton 
+          resource="users" 
+          action="manage"
+          variant="ghost" 
+          size="sm"
+        >
           <Edit className="w-4 h-4" />
-        </Button>
+        </ProtectedButton>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>

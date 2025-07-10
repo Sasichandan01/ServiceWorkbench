@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import DataSourceBreadcrumb from "@/components/DataSourceBreadcrumb";
 import DataSourcesHeader from "@/components/data-sources/DataSourcesHeader";
 import DataSourcesSummary from "@/components/data-sources/DataSourcesSummary";
