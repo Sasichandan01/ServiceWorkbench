@@ -85,7 +85,12 @@ def paginate_list(
                 400, {"error": f"Invalid sort_by field '{sort_by}'."}
             )
         reverse = sort_order == "desc"
-        data_to_page = sorted(data, key=lambda x: x.get(sort_by, ""), reverse=reverse)
+        data_to_page = sorted(
+            data,
+            key=lambda x: (x.get(sort_by) or "").lower() if isinstance(x.get(sort_by), str) else str(x.get(sort_by) or ""),
+            reverse=reverse
+        )
+
 
     # Pagination
     total_items = len(data_to_page)
