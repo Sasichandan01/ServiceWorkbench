@@ -7,13 +7,10 @@ from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from Utils.utils import log_activity,return_response,paginate_list
 
-
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
 resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
-
-
 
 def create_workspace(event,context):
     try:
