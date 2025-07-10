@@ -324,7 +324,7 @@ async def fetch_cloudwatch_logs(log_group_name, log_stream_name, start_time, end
         logger.error(f"Error fetching CloudWatch logs: {str(e)}")
         return f"Error fetching CloudWatch logs: {str(e)}"
 
-async def process_log_collection(solution_id="", execution_id=""):
+async def process_log_collection(workspace_id="",solution_id="", execution_id=""):
     try:
         
         await update_execution_status(solution_id, execution_id, "RUNNING")
@@ -383,16 +383,22 @@ async def process_log_collection(solution_id="", execution_id=""):
         return return_response(400, str(e))
 
 
-def get_execution_logs(event,context):
+def get_execution_logs(event, context):
     try:
-        path_parameters=event.get('pathParameters')
-        workspace_id=path_parameters.get('workspace_id')
-        solution_id=path_parameters.get('solution_id')
-        execution_id=path_parameters.get('execution_id')
+        path_parameters = event.get('pathParameters')
+        workspace_id = path_parameters.get('workspace_id')
+        solution_id = path_parameters.get('solution_id')
+        execution_id = path_parameters.get('execution_id')
         s3_bucket = os.environ.get('S3_BUCKET', 'bhargav9938')
-        s3_key= f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
-        response= s3_client.head_object(Bucket=s3_bucket, Key=s3_key)
-        if response:
+        s3_key = f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
+
+        # Check execution status and S3 path in DynamoDB
+        table = dynamodb.Table(executions_table)
+        execution = table.get_item(Key={'SolutionId': solution_id, 'ExecutionId': execution_id}).get('Item', {})
+        logs_status = execution.get('LogsStatus')
+        logs_s3_path = execution.get('LogsS3Path')
+
+        if logs_status == 'COMPLETED' and logs_s3_path:
             pre_signed_url = s3_client.generate_presigned_url(
                 ClientMethod='get_object',
                 Params={
@@ -401,21 +407,42 @@ def get_execution_logs(event,context):
                 },
                 ExpiresIn=3600
             )
-
             return return_response(200, pre_signed_url)
         else:
-            return return_response(400, "No logs are present for execution")
+            # If not running, trigger log generation asynchronously
+            if logs_status not in ['RUNNING', 'STARTED']:
+                import threading
+                def async_generate():
+                    # Use a new event/context for the async call
+                    generate_event = {'pathParameters': path_parameters}
+                    generate_execution_logs(generate_event, context)
+                threading.Thread(target=async_generate).start()
+            return return_response(202, "Logs are being generated. Please try again later.")
     except Exception as e:
         print(e)
         return return_response(400, str(e))
 
-def generate_execution_logs(event,context):
+def generate_execution_logs(event, context):
     try:
-        path_parameters=event.get('pathParameters')
-        workspace_id=path_parameters.get('workspace_id')
-        solution_id=path_parameters.get('solution_id')
-        execution_id=path_parameters.get('execution_id')
-        asyncio.run(process_log_collection(solution_id, execution_id))
-        return return_response(200, "Log collection started successfully")
+        path_parameters = event.get('pathParameters', {})
+        workspace_id = path_parameters.get('workspace_id')
+        solution_id = path_parameters.get('solution_id')
+        execution_id = path_parameters.get('execution_id')
+
+        payload = {
+            'workspace_id': workspace_id,
+            'solution_id': solution_id,
+            'execution_id': execution_id,
+            'background': True 
+        }
+
+        lambda_client.invoke(
+            FunctionName=os.environ['AWS_LAMBDA_FUNCTION_NAME'],  
+            InvocationType='Event', 
+            Payload=json.dumps(payload)
+        )
+
+        return return_response(200, "Log collection triggered successfully")
     except Exception as e:
         print(e)
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})

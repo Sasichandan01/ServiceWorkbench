@@ -1,4 +1,4 @@
 {
-    "ITAdmin": ["users.fullaccess", "roles.fullaccess","workspaces.fullaccess"],
+    "ITAdmin": ["users.fullaccess", "roles.fullaccess","workspaces.fullaccess","solutions.fullaccess"],
     "Default": ["users.view"]
 }

@@ -62,7 +62,8 @@ def create_workspace(event,context):
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'), user_id, 'CREATE_WORKSPACE')
+        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'CREATE_WORKSPACE')
+        
         print(resp)
         return return_response(200, {"Message": "Workspace created successfully"})
         
@@ -92,7 +93,7 @@ def update_workspace(event, context):
                     return return_response(400, {"Error": "Workspace is already active"})
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':user_id,':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'),workspace_id, user_id, 'UPDATE_WORKSPACE')
                     return return_response(200, {"Message": "Workspace enabled successfully"})
                 return return_response(400, {"Error": "Workspace status is invalid"})
             else:
@@ -100,7 +101,7 @@ def update_workspace(event, context):
                     return return_response(400, {"Error": "Workspace is already inactive"})
                 elif workspace_response.get('WorkspaceStatus') == 'Active':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':user_id, ':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
                     return return_response(200, {"Message": "Workspace disabled successfully"})
                 else:
                     return return_response(400, {"Error": "Workspace status is invalid"})
@@ -156,7 +157,7 @@ def update_workspace(event, context):
                 ExpressionAttributeValues=expressionAttributeValues,
                 ReturnValues='UPDATED_NEW'
             )
-            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
             return return_response(200, {"Message": "Workspace updated successfully"})
     except Exception as e:
         print(e)
@@ -170,7 +171,7 @@ def delete_workspace(event,context):
         role = auth.get("role")
 
         workspace_id=path_params.get('workspace_id')
-        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}, ProjectionExpression='WorkspaceStatus').get('Item')
+        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
@@ -180,7 +181,7 @@ def delete_workspace(event,context):
         
         if workspace_response.get('WorkspaceStatus') == 'Inactive':
             workspace_table.delete_item(Key={'WorkspaceId': workspace_id})
-            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'DELETE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'DELETE_WORKSPACE')
             return return_response(200, {"Message": "Workspace deleted successfully"})
 
         return return_response(400, {"Error": "Workspace status is invalid"})
