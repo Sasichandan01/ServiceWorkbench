@@ -4,22 +4,25 @@ import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
-from Utils.utils import log_activity
+from Utils.utils import log_activity, paginate_list
 
 DYNAMO_DB = boto3.resource('dynamodb')
+
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
 WORKSPACES_TABLE_NAME = os.environ.get('WORKSPACES_TABLE')
 TEMPLATES_TABLE_NAME = os.environ.get('TEMPLATES_TABLE')
 ACTIVITY_LOGS_TABLE_NAME = os.environ.get('ACTIVITY_LOGS_TABLE')
 DATASOURCES_TABLE_NAME = os.environ.get('DATASOURCES_TABLE')
+SOLUTION_EXECUTIONS_TABLE_NAME = os.environ.get('EXECUTIONS_TABLE')
 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 WORKSPACES_TABLE = DYNAMO_DB.Table(WORKSPACES_TABLE_NAME)
 TEMPLATES_TABLE = DYNAMO_DB.Table(TEMPLATES_TABLE_NAME)
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(ACTIVITY_LOGS_TABLE_NAME)
 DATASOURCES_TABLE = DYNAMO_DB.Table(DATASOURCES_TABLE_NAME)
+SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table(SOLUTION_EXECUTIONS_TABLE_NAME)
 
-def list_solutions(workspace_id, params):
+def list_solutions(workspace_id, params,user_id):
 
     filter_by = params.get('filterBy', '').strip().lower()
     sort_by = params.get('sortBy', 'SolutionName')
@@ -68,7 +71,7 @@ def list_solutions(workspace_id, params):
         })
     }
 
-def create_solution(workspace_id, body):
+def create_solution(workspace_id, body,user_id):
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
@@ -84,20 +87,20 @@ def create_solution(workspace_id, body):
         "SolutionId": solution_id,
         "SolutionName": body.get("SolutionName"),
         "Description": body.get("Description"),
-        "CreatedBy": "user",
+        "CreatedBy": user_id,
         "CreationTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "LastUpdatedBy": "user",
+        "LastUpdatedBy": user_id,
         "LastUpdationTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
     }
     
     SOLUTIONS_TABLE.put_item(Item=item)
 
-    log_activity(
+    logs=log_activity(
         ACTIVITY_LOGS_TABLE,
         resource_type="Solutions",
         resource_name=body.get("SolutionName"),
         resource_id=solution_id,
-        user_id="user",
+        user_id=user_id,
         message="Created new solution"
     )
 
@@ -106,7 +109,7 @@ def create_solution(workspace_id, body):
         "body": json.dumps({"Message": "Solution created", "SolutionId": solution_id})
     }
 
-def get_solution(workspace_id, solution_id, params):
+def get_solution(workspace_id, solution_id, params,user_id):
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
@@ -135,7 +138,7 @@ def get_solution(workspace_id, solution_id, params):
         "body": json.dumps(item)
     }
 
-def update_solution(workspace_id, solution_id, body):
+def update_solution(workspace_id, solution_id, body,user_id):
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
@@ -161,18 +164,19 @@ def update_solution(workspace_id, solution_id, body):
     update_expr = []
     expr_attr_values = {}
 
+    if body.get("Datasources"):
+        datasources = body.get("Datasources")
+        if not isinstance(datasources, list):
+            return {"statusCode": 400, "body": json.dumps({"Message": "Datasources must be a list"})}
+        invalid = []
+        for ds in datasources:
+            ds_resp = DATASOURCES_TABLE.get_item(Key={"DatasourceId": ds})
+            if 'Item' not in ds_resp:
+                invalid.append(ds)
+        if invalid:
+            return {"statusCode": 400, "body": json.dumps({"Message": f"Invalid datasources: {invalid}"})}
+
     for field in ["SolutionName", "Description", "Tags", "Datasources"]:
-        if field == "Datasources":
-            datasources = body[field]
-            if not isinstance(datasources, list):
-                return {"statusCode": 400, "body": json.dumps({"Message": "Datasources must be a list"})}
-            invalid = []
-            for ds in datasources:
-                ds_resp = DATASOURCES_TABLE.get_item(Key={"DatasourceId": ds})
-                if 'Item' not in ds_resp:
-                    invalid.append(ds)
-            if invalid:
-                return {"statusCode": 400, "body": json.dumps({"Message": f"Invalid datasources: {invalid}"})}
         if field in body:
             update_expr.append(f"{field} = :{field}")
             expr_attr_values[f":{field}"] = body[field]
@@ -184,7 +188,7 @@ def update_solution(workspace_id, solution_id, body):
     expr_attr_values[":LastUpdationTime"] = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
     update_expr.append("LastUpdatedBy= :LastUpdatedBy")
-    expr_attr_values[":LastUpdatedBy"] = "user"
+    expr_attr_values[":LastUpdatedBy"] = user_id
 
     update_expression = "SET " + ", ".join(update_expr)
 
@@ -201,7 +205,7 @@ def update_solution(workspace_id, solution_id, body):
         resource_type="Solutions",
         resource_name=body.get("SolutionName"),
         resource_id=solution_id,
-        user_id="user",
+        user_id=user_id,
         message="Updated Solution"
     )
 
@@ -210,7 +214,7 @@ def update_solution(workspace_id, solution_id, body):
         "body": json.dumps({"Message": "Solution updated"})
     }
 
-def delete_solution(workspace_id, solution_id):
+def delete_solution(workspace_id, solution_id,user_id):
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
@@ -249,7 +253,7 @@ def delete_solution(workspace_id, solution_id):
         resource_type="Solutions",
         resource_name=solution_name,
         resource_id=solution_id,
-        user_id="user",
+        user_id=user_id,
         message="Solution deleted"
     )
 

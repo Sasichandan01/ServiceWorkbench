@@ -195,35 +195,26 @@ def get_workspace(event,context):
         role = auth.get("role")
 
         path_params=event.get('pathParameters')
-        limit= path_parameters.get('limit', 10)
-        offset= path_parameters.get('offset', 1)
+        limit= path_params.get('limit', 10)
+        offset= path_params.get('offset', 1)
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         access_resource_response = resource_access_table.query(
-            KeyConditionExpression=Key('AccessKey').eq(f'Solution#{solution_id}'),
-            ProjectionExpression='Id'
+            IndexName='AccessKey-index',
+            KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
         ).get('Items')
+        
         users=[]
         for item in access_resource_response:
             user_id,access_type=item.get('Id').split('#')
             user_response = users_table.get_item(Key={'Id': item.get('Id')},ProjectionExpression="UserId,Username,Email,Roles").get('Item')
             user_response['Access'] = access_type
             users.append(user_response)
+
         resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
-        body={
-            'WorkspaceId':workspace_response.get('WorkspaceId'),
-            'WorkspaceName':workspace_response.get('WorkspaceName'),
-            'Description':workspace_response.get('Description'),
-            'Tags':workspace_response.get('Tags'),
-            'WorkspaceType':workspace_response.get('WorkspaceType'),
-            'WorkspaceStatus':workspace_response.get('WorkspaceStatus'),
-            'CreatedBy':workspace_response.get('CreatedBy'),
-            'CreatinTime':workspace_response.get('CreationTime'),
-            'LastUpdatedBy':workspace_response.get('LastUpdatedBy'),
-            'LastUpdationTime':workspace_response.get('LastUpdationTime'),
-            'Users':resp.get('body')
-        }
+        workspace_response.update({'Users':resp.get('body')})
+
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
         

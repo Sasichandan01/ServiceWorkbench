@@ -1,5 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ProtectedContent } from "@/components/ui/protected-content";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
@@ -52,27 +54,57 @@ const Dashboard = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
+        <ProtectedContent resource="workspaces" action="view" hideIfNoAccess>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">
-                {stat.title}
+                Active Workspaces
               </CardTitle>
-              <stat.icon className="h-4 w-4 text-gray-400" />
+              <Cloud className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+              <div className="text-2xl font-bold text-gray-900">12</div>
               <div className="flex items-center text-xs text-gray-600 mt-1">
-                {stat.changeType === 'positive' ? (
-                  <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
-                ) : (
-                  <ArrowDownRight className="w-3 h-3 text-red-500 mr-1" />
-                )}
-                {stat.change}
+                <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
+                +2 from last week
               </div>
             </CardContent>
           </Card>
-        ))}
+        </ProtectedContent>
+
+        <ProtectedContent resource="datasources" action="view" hideIfNoAccess>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Data Sources
+              </CardTitle>
+              <Database className="h-4 w-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">28</div>
+              <div className="flex items-center text-xs text-gray-600 mt-1">
+                <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
+                +4 from last week
+              </div>
+            </CardContent>
+          </Card>
+        </ProtectedContent>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Monthly Cost
+            </CardTitle>
+            <DollarSign className="h-4 w-4 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">$2,847</div>
+            <div className="flex items-center text-xs text-gray-600 mt-1">
+              <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
+              -12% from last month
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cost Dashboard */}

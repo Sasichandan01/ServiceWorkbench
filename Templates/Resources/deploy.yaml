@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Development cloudFormation template for the Service Workbench V2
+Transform: 'AWS::Serverless-2016-10-31'
 
 Parameters:
   pPrefix:
@@ -60,6 +61,7 @@ Resources:
           WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
           EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
           DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
+          ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
           RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
       Code:
         S3Bucket: service-workbench-artifacts
@@ -72,14 +74,16 @@ Resources:
 
   # API Gateway
   WorkbenchApi:
-    Type: AWS::ApiGateway::RestApi
+    Type: AWS::Serverless::Api
     Properties:
       Name: !Sub "${pPrefix}-${ApiName}"
-      BodyS3Location:
+      StageName: prod
+      DefinitionUri:
         Bucket: service-workbench-artifacts
         Key: develop/swagger.yaml
-      FailOnWarnings: true
-      Description: "12666345"
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+      AlwaysDeploy: True
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -89,22 +93,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-# API Gateway Deployment
-  WorkbenchApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn: WorkspaceLambdaInvokePermission
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      Description: !Sub "Deployment triggered on template update - ${DeploymentTrigger}"
-
-  WorkbenchApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref WorkbenchApi
-      DeploymentId: !Ref WorkbenchApiDeployment
-      StageName: prod
-      Variables:
-        redeployHash: !Sub "${DeploymentTrigger}"
+  # remove WorkbenchApiDeployment and WorkbenchApiStage resources ...
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -183,6 +172,13 @@ Resources:
           KeyType: HASH
         - AttributeName: AccessKey
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: AccessKey-Index
+          KeySchema:
+            - AttributeName: AccessKey
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
