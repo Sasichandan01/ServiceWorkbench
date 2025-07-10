@@ -5,42 +5,47 @@ import uuid
 from datetime import datetime,timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
-import sys
-# sys.path.append('/opt/python/lib/python3.9/site-packages')
-from utils import log_activity
+from Utils.utils import log_activity,return_response,paginate_list
+
 
 dynamodb = boto3.resource('dynamodb')
-workspace_table=dynamodb.Table(os.environ['WORKSPACE_TABLE'])  
+workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
+resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+
+
 
 def create_workspace(event,context):
     try:
         body =json.loads(event.get('body'))
-        print(body)
-
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
         if not all(key in body for key in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']):
-            return {"statusCode": 400, "body": "Bad Request"}
-        
+            return return_response(400, {"Error": "Bad Request"})
         
         for item in body:
             if item not in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']:
-                return {"statusCode": 400, "body": "Bad Request"}
+                return return_response(400, {"Error": "Bad Request"})
         if len(body.get('Description'))==0:
-            return {"statusCode": 400, "body": "Description cannot be empty"}
+            return return_response(400, {"Error": "Description cannot be empty"})
 
         if body.get('WorkspaceType') not in ['Private', 'Public']:
-            return {"statusCode": 400, "body": "WorkspaceType is not valid"}
+            return return_response(400, {"Error": "WorkspaceType is not valid"})
         tags=body.get('Tags')
         if isinstance(tags, list):
             if len(tags)==0:
-                return {"statusCode": 400, "body": "Tags cannot be empty"}
+                return return_response(400, {"Error": "Tags cannot be empty"})
         else:
-            return {"statusCode": 400, "body": "Tags should be sent as list"}
+            return return_response(400, {"Error": "Tags should be sent as list"})
 
-        response=workspace_table.query(IndexName='CreatedBy-Index', KeyConditionExpression=Key('CreatedBy').eq('user'),FilterExpression=Attr('WorkspaceName').eq(body.get('WorkspaceName')))
-
+        response = workspace_table.query(
+            IndexName='CreatedBy-index',
+            KeyConditionExpression=Key('CreatedBy').eq(user_id) & Key('WorkspaceName').eq(body.get('WorkspaceName'))
+        )
+        print(response)
         if response.get('Count')>0:
-            return {"statusCode": 400, "body": "Workspace already exists"}
+            return return_response(200, {"Message": "Workspace already exists"})
 
         timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         workspace_id=str(uuid.uuid4())
@@ -51,81 +56,94 @@ def create_workspace(event,context):
             'Tags': tags,
             'WorkspaceType': body.get('WorkspaceType'),
             'WorkspaceStatus': 'Active',
-            'CreatedBy': '',
-            'LastUpdatedBy':'',
+            'CreatedBy': user_id,
+            'LastUpdatedBy': user_id,
             'LastUpdationTime': timestamp,
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        log_activity('CREATE_WORKSPACE', 'Workspace', workspace_id, '')
-        return {"statusCode": 200, "body": "Workspace created successfully"}
+        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'), user_id, 'CREATE_WORKSPACE')
+        print(resp)
+        return return_response(200, {"Message": "Workspace created successfully"})
         
     except Exception as e:
         print(e)
-        return {"statusCode": 500, "body": f"Internal Server Error, {e}"}
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def update_workspace(event, context):
     try:
         path_params=event.get('pathParameters')
         workspace_id=path_params.get('workspace_id')
-        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id},ProjectionExpression='WorkspaceStatus').get('Item')
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+
+        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
         if not workspace_response:
-            return {"statusCode": 400, "body": "Workspace does not exist"}
+            return return_response(400, {"Error": "Workspace does not exist"})
         queryParams=event.get('queryStringParameters')
         timestamp=str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         if queryParams and queryParams.get('action'):
             action = queryParams.get('action')
             if action not in ['Enable', 'Disable']:
-                return {"statusCode": 400, "body": "Invalid action parameter"}
+                return return_response(400, {"Error": "Invalid action parameter"})
             elif action == 'Enable':
                 if workspace_response.get('WorkspaceStatus') == 'Active':
-                    return {"statusCode": 400, "body": "Workspace is already active"}
+                    return return_response(400, {"Error": "Workspace is already active"})
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
-                    workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':'',':time':timestamp})
-                    log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
-                    return {"statusCode": 200, "body": "Workspace enabled successfully"}
+                    workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':user_id,':time':timestamp})
+                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    return return_response(200, {"Message": "Workspace enabled successfully"})
                     
                 else:
-                    return {"statusCode": 400, "body": "Workspace status is invalid"}
+                    return return_response(400, {"Error": "Workspace status is invalid"})
             else:
                 if workspace_response.get('WorkspaceStatus') == 'Inactive':
-                    return {"statusCode": 400, "body": "Workspace is already inactive"}
+                    return return_response(400, {"Error": "Workspace is already inactive"})
                 elif workspace_response.get('WorkspaceStatus') == 'Active':
-                    workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':'', ':time':timestamp})
-                    log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
-                    return {"statusCode": 200, "body": "Workspace enabled successfully"}
+                    workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':user_id, ':time':timestamp})
+                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    return return_response(200, {"Message": "Workspace disabled successfully"})
                 else:
-                    return {"statusCode": 400, "body": "Workspace status is invalid"}
+                    return return_response(400, {"Error": "Workspace status is invalid"})
 
         else:
             body=json.loads(event.get('body'))
+
+            print(workspace_response)
             if workspace_response.get('WorkspaceStatus') == 'Inactive':
-                return {"statusCode": 400, "body": "Workspace is inactive"}
-            if not all(key in body for key in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']):
-                return {"statusCode": 400, "body": "Bad Request"}
+                return return_response(400, {"Error": "Workspace is inactive"})
+            if not any(key in body for key in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']):
+                return return_response(400, {"Error": "Bad Request"})
             for item in body:
                 if item not in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']:
-                    return {"statusCode": 400, "body": "Bad Request"}
-            if len(body.get('Description'))==0:
-                return {"statusCode": 400, "body": "Description cannot be empty"}
-            if body.get('WorkspaceType') not in ['Private', 'Public']:
-                return {"statusCode": 400, "body": "WorkspaceType is not valid"}
-            if body.get('WorkspaceType') == workspace_response.get('WorkspaceType'):
-                return {"statusCode": 400, "body": "Workspace is already in same type"}
+                    return return_response(400, {"Error": "Bad Request"})
+
+            if body.get('WorkspaceType') and body.get('WorkspaceType') not in ['Private', 'Public']:
+                return return_response(400, {"Error": "WorkspaceType is not valid"})
+            if body.get('WorkspaceType') and  body.get('WorkspaceType') == workspace_response.get('WorkspaceType'):
+                return return_response(400, {"Error": "Workspace is already in same type"})
+
+            if body.get('WorkspaceName') and body.get('WorkspaceName') == workspace_response.get('WorkspaceName'):
+                return return_response(400, {"Error": "Workspace is already in same name"})
             if body.get('WorkspaceName'):
-                response=workspace_table.query(IndexName='CreatedBy-index', KeyConditionExpression=Key('CreatedBy').eq(), FilterExpression=Attr('WorkspaceName').eq(body.get('WorkspaceName')))
+                response = workspace_table.query(
+                    IndexName='CreatedBy-index',
+                    KeyConditionExpression=Key('CreatedBy').eq(str(user_id)) & Key('WorkspaceName').eq(str(body.get('WorkspaceName')))
+                )
+
                 if response.get('Count')>0:
-                    return {"statusCode": 400, "body": "Workspace already exists"}
+                    return return_response(400, {"Error": "Workspace already exists"})
             if body.get('Tags'):
                 tags=body.get('Tags')
                 if isinstance(tags, list):
                     if len(tags)==0:
-                        return {"statusCode": 400, "body": "Tags cannot be empty"}
+                        return return_response(400, {"Error": "Tags cannot be empty"})
                 else:
-                    return {"statusCode": 400, "body": "Tags should be sent as list"}
+                    return return_response(400, {"Error": "Tags should be sent as list"})
 
             expressionAttributeNames = {}
-            expressionAttributeValues = {':time' : timestamp, ':user' : ''}
+            expressionAttributeValues = {':time' : timestamp, ':user' : user_id}
             updateExpression = 'SET LastUpdationTime= :time, LastUpdatedBy= :user'
 
             for item in body:
@@ -140,72 +158,123 @@ def update_workspace(event, context):
                 ExpressionAttributeValues=expressionAttributeValues,
                 ReturnValues='UPDATED_NEW'
             )
-            log_activity('UPDATE_WORKSPACE', 'Workspace', workspace_id, '')
-            return {"statusCode": 200, "body": "Workspace updated successfully"}
+            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+            return return_response(200, {"Message": "Workspace updated successfully"})
     except Exception as e:
         print(e)
-        return {'statusCode': 500, 'body':''}
+        return return_response(500, {"Error": f"{e}"})
 
 def delete_workspace(event,context):
     try:
         path_params=event.get('pathParameters')
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}, ProjectionExpression='WorkspaceStatus').get('Item')
 
         if not workspace_response:
-            return {"statusCode": 400, "body": "Workspace does not exist"}
+            return return_response(400, {"Error": "Workspace does not exist"})
 
         if workspace_response.get('WorkspaceStatus') == 'Active':
-            return {"statusCode": 400, "body": "Workspace is already Active, cannot be deleted, Disable the workspace"}
+            return return_response(400, {"Error": "Workspace is already Active, cannot be deleted, Disable the workspace"})
         
         if workspace_response.get('WorkspaceStatus') == 'Inactive':
             workspace_table.delete_item(Key={'WorkspaceId': workspace_id})
-            log_activity('DELETE_WORKSPACE', 'Workspace', workspace_id, '')
-            return {"statusCode": 200, "body": "Workspace deleted successfully"}
+            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'DELETE_WORKSPACE')
+            return return_response(200, {"Message": "Workspace deleted successfully"})
 
-        return {"statusCode": 400, "body": "Workspace status is invalid"}
+        return return_response(400, {"Error": "Workspace status is invalid"})
     except Exception as e:
         print(e)
-        return {"statusCode": 500, "body": f"Internal Server Error, {e}"}               
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})               
             
 def get_workspace(event,context):
     try:
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+
         path_params=event.get('pathParameters')
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
         if not workspace_response:
-            return {"statusCode": 400, "body": "Workspace does not exist"}
+            return return_response(400, {"Error": "Workspace does not exist"})
         
-        
-
-        return {"statusCode": 200, "body": json.dumps(workspace_response)} 
+        return return_response(200, workspace_response)
     except Exception as e:
         print(e)
-        return {"statusCode": 500, "body": f"Internal Server Error, {e}"}
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def get_workspaces(event, context):
     try:
-        queryParams=event.get('queryStringParameters')
-        if queryParams and queryParams.get('sort_by'):
-            sort_by = queryParams.get('sort_by')
-            if sort_by not in ['asc','desc']:
-                return {"statusCode": 400, "body": "Invalid sort_by parameter"}
-        if queryParams and queryParams.get('filter_by'):
-            filter_by = queryParams.get('filter_by')
-        if queryParams and queryParams.get('limit'):
-            limit = queryParams.get('limit')
-            if not isinstance(limit, int):
-                return {"statusCode": 400, "body": "Invalid limit parameter"}
-        if queryParams and queryParams.get('offset'):
-            offset = queryParams.get('offset')
-            if not isinstance(offset, int):
-                return {"statusCode": 400, "body": "Invalid offset parameter"}
-            
 
-        response=workspace_table.scan(ProjectionExpression='WorkspaceId, WorkspaceName, Description, Tags, WorkspaceType, WorkspaceStatus')
-        paginate_list(response,offset,limit,'Workspace_Name',sort_by)
-        items=response.get('Items')
-        return {"statusCode": 200, "body": json.dumps(items)}
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+
+        queryParams = event.get('queryStringParameters') or {}
+
+        filter_by = queryParams.get('filterBy')
+        sort_order = queryParams.get('sortBy')
+        limit = queryParams.get('limit',10)
+        offset = queryParams.get('offset',1)
+
+        if sort_order and sort_order not in ['asc', 'desc']:
+            return return_response(400, {"Error": "Invalid sort_by parameter. Must be 'asc' or 'desc'."})
+
+        if limit is not None:
+            try:
+                limit = int(limit)
+            except ValueError:
+                return return_response(400, {"Error": "Invalid limit parameter. Must be an integer."})
+
+        if offset is not None:
+            try:
+                offset = int(offset)
+            except ValueError:
+                return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
+
+
+        filter_expression = Attr('Id').contains(user_id)
+        if filter_by:
+            filter_expression &= Attr('WorkspaceName').contains(filter_by)
+
+        resource_access_response = resource_access_table.scan(
+            FilterExpression=filter_expression,
+            ProjectionExpression='AccessKey'
+        )
+        workspace_items = []
+        workspace_response= workspace_table.scan(
+            FilterExpression=Attr('CreatedBy').eq(user_id),
+            ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+        ).get('Items')
+        workspace_items.extend(workspace_response)
+        workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]
+
+        
+        for workspace_id in workspace_ids:
+            response = workspace_table.get_item(
+                Key={'WorkspaceId': workspace_id},
+                ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+            )
+            item = response.get('Item')
+            if item:
+                workspace_items.append(item)
+
+
+        pagination_response = paginate_list(
+            name='Workspaces',
+            data=workspace_items,
+            valid_keys=['WorkspaceName', 'WorkspaceType', 'WorkspaceStatus', 'CreatedBy', 'LastUpdationTime'],
+            offset=offset,
+            limit=limit,
+            sort_by='WorkspaceName',   
+            sort_order=sort_order or 'asc'
+        )
+        return pagination_response
+
+
     except Exception as e:
         print(e)
-        return {"statusCode": 500, "body": f"Internal Server Error, {e}"}
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})
