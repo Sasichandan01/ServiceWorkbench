@@ -1204,7 +1204,7 @@ Resources:
                   - !Sub arn:aws:s3:::${WorkspacesBucket}
                   - !Sub arn:aws:s3:::${WorkspacesBucket}/*
               - Effect: Allow
-                Action: lambda:Invoke
+                Action: lambda:InvokeFunction
                 Resource: 
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
       ManagedPolicyArns:
