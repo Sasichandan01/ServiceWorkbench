@@ -81,7 +81,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref pProfileImageBucketName
-      AccessControl: PublicRead
+      # AccessControl: PublicRead
       VersioningConfiguration:
         Status: Enabled
       Tags:
