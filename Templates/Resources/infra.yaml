@@ -17,7 +17,7 @@ Parameters:
     Default: 10.0.0.0/16
     Description: CIDR block for the VPC
   
-  VPCPrefix:
+  VPCPrefix: 
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
