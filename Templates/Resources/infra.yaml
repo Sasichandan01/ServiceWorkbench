@@ -22,7 +22,7 @@ Parameters:
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
 
-  pDatabaseName:
+  pDatabaseName: 
     Type: String
     Default: workbenchdb
     Description: Database name for Aurora
