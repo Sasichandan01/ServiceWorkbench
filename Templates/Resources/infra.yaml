@@ -1208,7 +1208,7 @@ Resources:
                 Resource: 
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
         - PolicyName: LogAccess
-          PolicyDocument
+          PolicyDocument:
           Version: '2012-10-17'
           Statement:
             - Sid: AllowLogsAndGlueAccess
