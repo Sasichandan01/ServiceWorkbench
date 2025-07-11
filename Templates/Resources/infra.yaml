@@ -22,7 +22,7 @@ Parameters:
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
 
-  pDatabaseName:
+  pDatabaseName: 
     Type: String
     Default: workbenchdb
     Description: Database name for Aurora
@@ -431,6 +431,26 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-logs"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  WorkspacesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${pApplicationPrefix}-service-workbench-workspaces"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -1141,6 +1161,7 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
                   - dynamodb:Scan
+                  - dynamodb:DeleteItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
@@ -1175,6 +1196,30 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${WorkspacesBucket}
+                  - !Sub arn:aws:s3:::${WorkspacesBucket}/*
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: 
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
+        - PolicyName: LogAccess
+          PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Sid: AllowLogsAndGlueAccess
+              Effect: Allow
+              Action:
+                - logs:DescribeLogGroups
+                - logs:DescribeLogStreams
+                - logs:GetLogEvents
+                - glue:GetJobRuns
+              Resource: '*'
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1486,6 +1531,12 @@ Outputs:
     Value: !Ref LogsBucket
     Export:
       Name: !Sub "${pApplicationPrefix}-LogsBucket"
+
+  WorkspacesBucketName:
+    Description: Name of workspaces S3 bucket
+    Value: !Ref WorkspacesBucket
+    Export:
+      Name: !Sub "${pApplicationPrefix}-WorkspacesBucket"
 
   ServiceWorkbenchLambdaLayer:
     Description: Name of the service workbench lambda layer

@@ -63,6 +63,7 @@ Resources:
           DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
           ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
           RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
+          WORKSPACES_BUCKET: !ImportValue develop-WorkspacesBucket
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
@@ -191,13 +192,9 @@ Resources:
       AttributeDefinitions:
         - AttributeName: SolutionId
           AttributeType: S
-        - AttributeName: ExecutionId
-          AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
           KeyType: HASH
-        - AttributeName: ExecutionId
-          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -366,3 +363,4 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+   
