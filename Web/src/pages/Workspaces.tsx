@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,17 +20,21 @@ import {
   FolderOpen,
   Calendar,
   Archive,
-  X
+  X,
+  Loader2
 } from "lucide-react";
+import { WorkspaceService, type Workspace as ApiWorkspace } from "../services/workspaceService";
 
-interface Workspace {
-  id: number;
+interface LocalWorkspace {
+  id: string;
   name: string;
   status: string;
   members: number;
   projects: number;
   lastActivity: string;
   owner: string;
+  description: string;
+  type: string;
 }
 
 const Workspaces = () => {
@@ -40,59 +44,79 @@ const Workspaces = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
   const [workspaceDescription, setWorkspaceDescription] = useState("");
+  const [workspaceType, setWorkspaceType] = useState("Standard");
   const [currentTag, setCurrentTag] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
   const { toast } = useToast();
 
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([
-    {
-      id: 1,
-      name: "Analytics Team",
-      status: "Active",
-      members: 8,
-      projects: 12,
-      lastActivity: "2 hours ago",
-      owner: "Sarah Chen"
-    },
-    {
-      id: 2,
-      name: "ML Research Lab",
-      status: "Active",
-      members: 15,
-      projects: 7,
-      lastActivity: "30 minutes ago",
-      owner: "Dr. Martinez"
-    },
-    {
-      id: 3,
-      name: "Customer Insights",
-      status: "Active",
-      members: 6,
-      projects: 18,
-      lastActivity: "1 day ago",
-      owner: "Mike Johnson"
-    },
-    {
-      id: 4,
-      name: "Development Sandbox",
-      status: "Default",
-      members: 2,
-      projects: 5,
-      lastActivity: "4 hours ago",
-      owner: "Alex Kim"
-    },
-    {
-      id: 5,
-      name: "Legacy Projects",
-      status: "Archived",
-      members: 3,
-      projects: 25,
-      lastActivity: "2 weeks ago",
-      owner: "Jennifer Wu"
+  const fetchWorkspaces = async () => {
+    setLoading(true);
+    try {
+      const searchParams: any = {
+        limit: itemsPerPage,
+        offset: currentPage,
+      };
+
+      if (searchTerm.trim()) {
+        searchParams.filter = searchTerm.trim();
+      }
+
+      const response = await WorkspaceService.getWorkspaces(searchParams);
+      
+      if (response && response.Workspaces && Array.isArray(response.Workspaces)) {
+        const transformedWorkspaces: LocalWorkspace[] = response.Workspaces.map(ws => ({
+          id: ws.WorkspaceId,
+          name: ws.WorkspaceName,
+          status: ws.WorkspaceStatus,
+          members: Math.floor(Math.random() * 15) + 1, // Mock data
+          projects: Math.floor(Math.random() * 20) + 1, // Mock data
+          lastActivity: formatLastActivity(ws.LastUpdationTime),
+          owner: ws.CreatedBy,
+          description: ws.Description,
+          type: ws.WorkspaceType
+        }));
+        setWorkspaces(transformedWorkspaces);
+        setTotalCount(response.Pagination?.TotalCount || transformedWorkspaces.length);
+      } else {
+        setWorkspaces([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch workspaces. Please try again.",
+        variant: "destructive"
+      });
+      setWorkspaces([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const formatLastActivity = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} minutes ago`;
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    } else {
+      return `${Math.floor(diffInMinutes / 1440)} days ago`;
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [currentPage, searchTerm]);
 
   const filteredWorkspaces = workspaces.filter(workspace => {
     const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -127,7 +151,7 @@ const Workspaces = () => {
     }
   };
 
-  const handleWorkspaceClick = (workspaceId: number) => {
+  const handleWorkspaceClick = (workspaceId: string) => {
     navigate(`/workspaces/${workspaceId}`);
   };
 
@@ -149,7 +173,7 @@ const Workspaces = () => {
     }
   };
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     if (!workspaceName.trim()) {
       toast({
         title: "Error",
@@ -177,40 +201,41 @@ const Workspaces = () => {
       return;
     }
 
-    const newWorkspace: Workspace = {
-      id: Math.max(...workspaces.map(w => w.id)) + 1,
-      name: workspaceName,
-      status: "Active",
-      members: 1,
-      projects: 0,
-      lastActivity: "Just now",
-      owner: "You"
-    };
+    try {
+      const createData = {
+        WorkspaceName: workspaceName,
+        Description: workspaceDescription,
+        Tags: tags,
+        WorkspaceType: workspaceType
+      };
 
-    setWorkspaces([newWorkspace, ...workspaces]);
+      const response = await WorkspaceService.createWorkspace(createData);
 
-    console.log("Creating workspace:", {
-      name: workspaceName,
-      description: workspaceDescription,
-      tags: tags
-    });
+      toast({
+        title: "Success",
+        description: `Workspace "${workspaceName}" created successfully!`,
+      });
 
-    toast({
-      title: "Success",
-      description: `Workspace "${workspaceName}" created successfully!`,
-    });
-
-    // Reset form
-    setWorkspaceName("");
-    setWorkspaceDescription("");
-    setTags([]);
-    setCurrentTag("");
-    setIsCreateDialogOpen(false);
+      // Reset form
+      resetForm();
+      setIsCreateDialogOpen(false);
+      
+      // Refresh workspaces list
+      await fetchWorkspaces();
+    } catch (error) {
+      console.error('Error creating workspace:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create workspace. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const resetForm = () => {
     setWorkspaceName("");
     setWorkspaceDescription("");
+    setWorkspaceType("Standard");
     setTags([]);
     setCurrentTag("");
   };
@@ -263,29 +288,41 @@ const Workspaces = () => {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags <span className="text-red-500">*</span></Label>
-                <Input
-                  id="tags"
-                  placeholder="Add a tag and press Enter"
-                  value={currentTag}
-                  onChange={(e) => setCurrentTag(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                />
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                        {tag}
-                        <X 
-                          className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                          onClick={() => handleRemoveTag(tag)}
-                        />
-                      </Badge>
-                    ))}
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Workspace Type</Label>
+                    <Select value={workspaceType} onValueChange={setWorkspaceType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workspace type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Public">Public</SelectItem>
+                        <SelectItem value="Private">Private</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tags">Tags <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="tags"
+                      placeholder="Add a tag and press Enter"
+                      value={currentTag}
+                      onChange={(e) => setCurrentTag(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                    />
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {tags.map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                            {tag}
+                            <X 
+                              className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                              onClick={() => handleRemoveTag(tag)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
             </div>
             <DialogFooter>
               <Button 
@@ -409,7 +446,23 @@ const Workspaces = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedWorkspaces.map((workspace) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <div className="flex items-center justify-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading workspaces...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredWorkspaces.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    No workspaces found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedWorkspaces.map((workspace) => (
                 <TableRow 
                   key={workspace.id} 
                   className={`${getRowColor(workspace.status)} cursor-pointer`}
@@ -448,11 +501,12 @@ const Workspaces = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
           
-          {totalPages > 1 && (
+          {Math.ceil(totalCount / itemsPerPage) > 1 && (
             <div className="mt-4">
               <Pagination>
                 <PaginationContent>
@@ -462,7 +516,7 @@ const Workspaces = () => {
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -474,9 +528,9 @@ const Workspaces = () => {
                     </PaginationItem>
                   ))}
                   <PaginationItem>
-                    <PaginationNext 
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                     <PaginationNext 
+                      onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
+                      className={currentPage === Math.ceil(totalCount / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
                 </PaginationContent>
