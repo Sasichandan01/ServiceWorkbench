@@ -312,6 +312,7 @@ Resources:
       Environment:
         Variables:
           ROLES_TABLE: !Sub "Workbench-${pPrefix}-RolesTable"
+          ACTIVITY_LOGS_TABLE: !Sub Workbench-develop-ActivityLogsTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
