@@ -726,8 +726,8 @@ Resources:
                 Resource:
                   - !ImportValue WorkspacesBucketArn
                   - !Sub
-                      - "${BucketArn}/*"
-                      - { BucketArn: !ImportValue WorkspacesBucketArn }
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: 
