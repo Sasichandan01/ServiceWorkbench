@@ -1641,4 +1641,4 @@ Outputs:
     Value: !Ref UserTable
     Description: The name of the user table
     Export:
-      Name: "UsersTableName"
+      Name: "WorkbenchUsersTableName"
