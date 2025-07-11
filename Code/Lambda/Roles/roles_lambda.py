@@ -5,19 +5,23 @@ from datetime import datetime, timezone
 import boto3
 import botocore
 from RBAC.rbac import sync_system_roles, is_user_action_valid
-from Utils.utils import paginate_list, return_response
+from Utils.utils import paginate_list, return_response, log_activity
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
 ROLES_TABLE = os.getenv("ROLES_TABLE")
-if ROLES_TABLE is None:
+ACTIVITY_LOGS_TABLE = os.getenv("ACTIVITY_LOGS_TABLE")
+if ROLES_TABLE is None :
     LOGGER.critical("Environment variable 'ROLES_TABLE' must be set.")
     raise RuntimeError("ROLES_TABLE env var must be set")
+if ACTIVITY_LOGS_TABLE is None:
+    LOGGER.critical("Environment variable 'ACTIVITY_LOGS_TABLE' must be set.")
+    raise RuntimeError("ACTIVITY_LOGS_TABLE env var must be set")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(ROLES_TABLE)
-
+activity_log_table = dynamodb.Table(ACTIVITY_LOGS_TABLE)
 
 def lambda_handler(event, context):
     """
@@ -111,6 +115,7 @@ def lambda_handler(event, context):
                             "LastUpdationTime": now,
                         }
                     )
+                    log_activity(activity_log_table, "Roles", role_name, role_name, user_id, "Role created")
                 except botocore.exceptions.ClientError as e:
                     LOGGER.exception("DynamoDB ClientError creating role: %s", e)
                     return return_response(500, {"Error": "Failed to create role"})
@@ -154,6 +159,7 @@ def lambda_handler(event, context):
                             ":t": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                         },
                     )
+                    log_activity(activity_log_table, "Roles", role_name, role_name, user_id, "Role updated")
                     return return_response(200, {"Message": "Role updated"})
                 except botocore.exceptions.ClientError as e:
                     LOGGER.exception("DynamoDB ClientError updating role: %s", e)
@@ -168,6 +174,7 @@ def lambda_handler(event, context):
                     return return_response(403, {"Error": "Cannot delete system role"})
                 try:
                     table.delete_item(Key={"Role": role_name})
+                    log_activity(activity_log_table, "Roles", role_name, role_name, user_id, "Role deleted")
                     return return_response(200, {"Message": "Role deleted"})
                 except botocore.exceptions.ClientError as e:
                     LOGGER.exception("DynamoDB ClientError deleting role: %s", e)
