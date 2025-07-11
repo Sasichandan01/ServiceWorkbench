@@ -1,5 +1,5 @@
 import json
-from datetime import datetime 
+from datetime import datetime, timezone
 import boto3
 import os 
 import logging
@@ -22,7 +22,7 @@ ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 def send_email(subject, body, recipient):
     """
     Send an email to a recipient using the configured source email.
-    
+     
     Args:
         subject (str): Email subject
         body (str): Email body content
@@ -167,11 +167,11 @@ def lambda_handler(event, context):
             'UserId': user_id,
             'Username': username,
             'Email': email,
-            'CreationTime': str(datetime.utcnow()),
+            'CreationTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             "ProfileImage": "",
             'Role': role,
             'LastUpdatedBy': user_id,
-            'LastUpdatedTime': str(datetime.utcnow())
+            'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         }
         put_item(USER_TABLE_NAME, dynamo_items)
         LOGGER.info("engagements.cognito, added user %s ", username)
@@ -181,7 +181,7 @@ def lambda_handler(event, context):
             'UserId': user_id,
             'Action': 'ACCOUNT CREATED',
             'Email': email,
-            'EventTime': datetime.utcnow().isoformat(),
+            'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             'ResourceName': 'CognitoPostAuth',
             'ResourceType': 'Cognito'
         }
