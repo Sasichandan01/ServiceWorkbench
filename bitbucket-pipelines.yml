@@ -125,7 +125,7 @@ definitions:
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
 
-        cd "$BRANCH_NAME-web"
+        cd "Web"
 
         STACK_NAME="${BRANCH_NAME}-deployment"
         REGION="us-east-1"
@@ -233,7 +233,7 @@ definitions:
 
         echo "Creating CloudFront invalidation..."
         aws cloudfront create-invalidation \
-          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+          --distribution-id "${BRANCH_NAME}-CloudfrontDistributionId" \
           --paths "/*" || {
             echo "[ERROR] CloudFront invalidation failed"
             exit 1
@@ -435,39 +435,47 @@ definitions:
           # Extract the base function name (remove branch prefix)
           BASE_FUNCTION_NAME=$(echo "$FUNCTION_NAME" | sed "s/^${BRANCH_NAME}-//")
           
-          # Look for corresponding zip file in S3
+          # Convert base function name to lowercase for S3 key
+          BASE_FUNCTION_LOWER=$(echo "$BASE_FUNCTION_NAME" | tr '[:upper:]' '[:lower:]')
+          
+          # Look for zip file in S3 under lambda/<base_function_lowercase>/
           S3_BUCKET="service-workbench-artifacts"
+          S3_PREFIX="lambda/${BASE_FUNCTION_LOWER}/"
           
-          # Try different possible S3 key patterns
-          POSSIBLE_KEYS=(
-            "lambda/${BASE_FUNCTION_NAME}.zip"
-            "lambda/${BASE_FUNCTION_NAME,,}.zip"
-            "lambda/$(echo ${BASE_FUNCTION_NAME} | sed 's/Lambda.*$//' | tr '[:upper:]' '[:lower:]').zip"
-          )
+          echo "Looking for zip files in S3 prefix: s3://${S3_BUCKET}/${S3_PREFIX}"
           
-          FOUND_KEY=""
-          for KEY in "${POSSIBLE_KEYS[@]}"; do
-            echo "Checking if S3 key exists: s3://${S3_BUCKET}/${KEY}"
-            if aws s3api head-object --bucket "${S3_BUCKET}" --key "${KEY}" >/dev/null 2>&1; then
-              FOUND_KEY="$KEY"
-              echo "Found S3 key: $FOUND_KEY"
-              break
-            fi
-          done
+          # List all zip files in the specific folder
+          ZIP_FILES=$(aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}" --recursive | grep "\.zip$" | awk '{print $4}')
           
-          if [ -n "$FOUND_KEY" ]; then
-            echo "Updating Lambda function $FUNCTION_NAME with S3 key: $FOUND_KEY"
+          if [ -z "$ZIP_FILES" ]; then
+            echo "[WARN] No zip files found in s3://${S3_BUCKET}/${S3_PREFIX}"
+            continue
+          fi
+          
+          # Count number of zip files
+          NUM_ZIPS=$(echo "$ZIP_FILES" | wc -l)
+          
+          if [ "$NUM_ZIPS" -eq 1 ]; then
+            # Exactly one zip file found - use it
+            ZIP_KEY=$(echo "$ZIP_FILES" | head -n1)
+            echo "Found single zip file: $ZIP_KEY"
+            
+            echo "Updating Lambda function $FUNCTION_NAME with S3 key: $ZIP_KEY"
             aws lambda update-function-code \
               --function-name "$FUNCTION_NAME" \
               --s3-bucket "${S3_BUCKET}" \
-              --s3-key "${FOUND_KEY}" \
+              --s3-key "${ZIP_KEY}" \
               --region "${REGION}" || {
                 echo "[WARN] Failed to update Lambda function: $FUNCTION_NAME"
                 continue
               }
             echo "Successfully updated Lambda function: $FUNCTION_NAME"
+          elif [ "$NUM_ZIPS" -gt 1 ]; then
+            echo "[WARN] Multiple zip files found for $FUNCTION_NAME:"
+            echo "$ZIP_FILES"
+            echo "Skipping update - please ensure only one zip file exists per function"
           else
-            echo "[WARN] No matching S3 zip found for Lambda function: $FUNCTION_NAME"
+            echo "[WARN] No zip files found for Lambda function: $FUNCTION_NAME"
           fi
         done
 
