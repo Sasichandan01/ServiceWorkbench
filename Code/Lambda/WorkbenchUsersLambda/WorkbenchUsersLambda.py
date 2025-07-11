@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
-# Setup logger WORKbench
+# Setup logger
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
