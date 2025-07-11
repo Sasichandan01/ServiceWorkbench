@@ -202,7 +202,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   TemplatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
