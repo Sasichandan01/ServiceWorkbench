@@ -1453,7 +1453,7 @@ paths:
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-UsersLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -1581,7 +1581,7 @@ paths:
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-UsersLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -1605,7 +1605,7 @@ paths:
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:Workbench-Users/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-UsersLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"

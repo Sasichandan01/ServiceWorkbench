@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
-dynamodb = boto3.resource('dynamodb')
+
 def decimal_default(obj):
     """
     Convert Decimal objects to float for JSON serialization.
@@ -36,7 +36,7 @@ def paginate_list(
     data: Any,
     valid_keys: list,
     offset: int = 1,
-    limit: int = 5,
+    limit: int = 10,
     sort_by: Optional[str] = None,
     sort_order: str = "asc"
 ) -> Dict[str, Any]:
@@ -85,7 +85,12 @@ def paginate_list(
                 400, {"error": f"Invalid sort_by field '{sort_by}'."}
             )
         reverse = sort_order == "desc"
-        data_to_page = sorted(data, key=lambda x: x.get(sort_by, ""), reverse=reverse)
+        data_to_page = sorted(
+            data,
+            key=lambda x: (x.get(sort_by) or "").lower() if isinstance(x.get(sort_by), str) else str(x.get(sort_by) or ""),
+            reverse=reverse
+        )
+
 
     # Pagination
     total_items = len(data_to_page)
@@ -102,7 +107,7 @@ def paginate_list(
     }
     return return_response(200, body)
 
-def log_activity(table, resource_type, resource_name, user_id, action):
+def log_activity(table, resource_type, resource_name, resource_id, user_id, action):
     """
     Log an activity to the DynamoDB activity logs table.
     Args:
@@ -111,16 +116,16 @@ def log_activity(table, resource_type, resource_name, user_id, action):
         resource_name: Name of the resource
         resource_id: ID of the resource
         user_id: ID of the user performing the action
-        message: Description of the activity
+        action: Action performed on the resource
     """
     log_id = str(uuid.uuid4())
     activity_log = {
         "LogId": log_id,
         "ResourceType": resource_type,
         "ResourceName": resource_name,
+        "ResourceId": resource_id,
         "UserId": user_id,
         "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         "Action": action
     }
     table.put_item(Item=activity_log)
-    return return_response(200, "Log Activity added successfully")

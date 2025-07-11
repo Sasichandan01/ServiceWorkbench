@@ -1,9 +1,10 @@
 from executions import get_executions,run_solution,get_execution
 from workspaces import create_workspace,update_workspace,get_workspace,get_workspaces,delete_workspace
 from solutions import get_solution, update_solution, delete_solution, list_solutions, create_solution
-
+from logs import generate_execution_logs,get_execution_logs,process_log_collection
 from RBAC.rbac import is_user_action_valid
 from Utils.utils import return_response
+import asyncio
 import json
 import boto3
 import os
@@ -28,11 +29,11 @@ def lambda_handler(event, context):
         workspace_id = path_params.get('workspace_id',None)
         solution_id = path_params.get('solution_id',None)
 
-        if httpMethod == 'POST' and path == '/workspaces':
-            return create_workspace(event, context)
-
-        elif httpMethod == 'GET' and path == '/workspaces':
-            return get_workspaces(event, context)
+        if resource == '/workspaces':
+            if httpMethod == 'POST':
+                return create_workspace(event, context)
+            elif httpMethod == 'GET':
+                return get_workspaces(event, context)
 
         elif resource == '/workspaces/{workspace_id}/solutions':
             if httpMethod == 'GET':
@@ -50,21 +51,23 @@ def lambda_handler(event, context):
             elif httpMethod == 'DELETE':
                 return delete_solution(workspace_id, solution_id,user_id)
 
-        elif path.startswith('/workspaces/') and 'workspace_id' in event.get('pathParameters', {}) and 'solution_id' in event.get('pathParameters', {}):
+        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions':
             if httpMethod == 'GET':
                 return get_executions(event, context)
             elif httpMethod == 'POST':
                 return run_solution(event, context)
-            elif httpMethod == 'GET' and 'execution_id' in event.get('pathParameters',{}):
+
+        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
+            if httpMethod == 'GET':
                 return get_execution(event, context)
         
-        elif path.startswith('/workspaces/') and 'workspace_id' in event.get('pathParameters', {}):
+        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
             if httpMethod == 'GET':
-                return get_workspace(event, context)
-            elif httpMethod == 'PUT':
-                return update_workspace(event, context)
-            elif httpMethod == 'DELETE':
-                return delete_workspace(event, context)
+                return get_execution_logs(event, context)
+            elif httpMethod == 'POST':
+                return generate_execution_logs(event, context)
+            elif event.get('InvokedBy')=='lambda':
+                return asyncio.run(process_log_collection(event, context))
 
         return {"statusCode": 400, "body": "Bad Request"}
     except Exception as e:
