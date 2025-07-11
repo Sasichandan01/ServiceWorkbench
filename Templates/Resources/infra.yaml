@@ -1204,9 +1204,22 @@ Resources:
                   - !Sub arn:aws:s3:::${WorkspacesBucket}
                   - !Sub arn:aws:s3:::${WorkspacesBucket}/*
               - Effect: Allow
-                Action: lambda:Invoke
+                Action: lambda:InvokeFunction
                 Resource: 
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
+        - PolicyName: LogAccess
+          PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Sid: AllowLogsAndGlueAccess
+              Effect: Allow
+              Action:
+                - logs:DescribeLogGroups
+                - logs:DescribeLogStreams
+                - logs:GetLogEvents
+                - glue:GetJobRuns
+              Resource: '*'
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
