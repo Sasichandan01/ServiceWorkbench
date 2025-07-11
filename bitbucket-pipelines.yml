@@ -357,6 +357,12 @@ definitions:
               exit 1
             }
 
+            # Only update RAGCustomResourceLambda on develop branch
+            if [[ "$CATEGORY_NAME" == "RAGCustomResourceLambda" && "$BRANCH_NAME" != "develop" ]]; then
+              echo "Skipping update for $CATEGORY_NAME on branch $BRANCH_NAME (only allowed on develop)"
+              continue
+            fi
+
             echo "Updating Lambda function: $LAMBDA_NAME"
             aws lambda update-function-code \
               --function-name "${BRANCH_NAME}-${CATEGORY_NAME}" \
