@@ -198,7 +198,7 @@ Resources:
         - AttributeName: SolutionId
           KeyType: HASH
         - AttributeName: ExecutionId
-          AttributeType: S
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
