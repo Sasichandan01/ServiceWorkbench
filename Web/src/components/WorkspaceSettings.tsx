@@ -11,17 +11,21 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, Users, Database, Trash2, Power } from "lucide-react";
+import { ApiClient } from "../lib/apiClient";
 
 interface WorkspaceSettingsProps {
   workspaceName: string;
+  workspaceId?: string;
+  workspaceStatus: string;
   onWorkspaceDeleted?: () => void;
-  onWorkspaceDeactivated?: () => void;
+  onWorkspaceStatusChange?: (newStatus: string) => void;
 }
 
-const WorkspaceSettings = ({ workspaceName, onWorkspaceDeleted, onWorkspaceDeactivated }: WorkspaceSettingsProps) => {
+const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWorkspaceDeleted, onWorkspaceStatusChange }: WorkspaceSettingsProps) => {
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleDeleteWorkspace = () => {
     toast({
@@ -33,13 +37,27 @@ const WorkspaceSettings = ({ workspaceName, onWorkspaceDeleted, onWorkspaceDeact
     onWorkspaceDeleted?.();
   };
 
-  const handleDeactivateWorkspace = () => {
-    toast({
-      title: "Workspace Deactivated",
-      description: "The workspace has been deactivated successfully.",
-    });
-    setIsDeactivateDialogOpen(false);
-    onWorkspaceDeactivated?.();
+  const handleStatusChange = async () => {
+    if (!workspaceId) return;
+    setLoading(true);
+    try {
+      const action = workspaceStatus === "Inactive" ? "enable" : "disable";
+      await ApiClient.put(`/workspaces/${workspaceId}?action=${action}`);
+      toast({
+        title: `Workspace ${action === "enable" ? "Activated" : "Deactivated"}`,
+        description: `The workspace has been ${action === "enable" ? "activated" : "deactivated"} successfully.`,
+      });
+      onWorkspaceStatusChange?.(action === "enable" ? "Active" : "Inactive");
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || `Failed to ${workspaceStatus === "Inactive" ? "activate" : "deactivate"} workspace.`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setIsStatusDialogOpen(false);
+    }
   };
 
   return (
@@ -62,11 +80,11 @@ const WorkspaceSettings = ({ workspaceName, onWorkspaceDeleted, onWorkspaceDeact
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
-            onClick={() => setIsDeactivateDialogOpen(true)}
+            onClick={() => setIsStatusDialogOpen(true)}
             className="text-yellow-600 focus:text-yellow-600"
           >
             <Power className="w-4 h-4 mr-2" />
-            Deactivate Workspace
+            {workspaceStatus === "Inactive" ? "Activate Workspace" : "Deactivate Workspace"}
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => setIsDeleteDialogOpen(true)}
@@ -97,20 +115,22 @@ const WorkspaceSettings = ({ workspaceName, onWorkspaceDeleted, onWorkspaceDeact
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeactivateDialogOpen} onOpenChange={setIsDeactivateDialogOpen}>
+      <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Deactivate Workspace</DialogTitle>
+            <DialogTitle>{workspaceStatus === "Inactive" ? "Activate Workspace" : "Deactivate Workspace"}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to deactivate "{workspaceName}"? Users will lose access to this workspace, but data will be preserved and you can reactivate it later.
+              {workspaceStatus === "Inactive"
+                ? `Are you sure you want to activate "${workspaceName}"? Users will regain access to this workspace.`
+                : `Are you sure you want to deactivate "${workspaceName}"? Users will lose access to this workspace, but data will be preserved and you can reactivate it later.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeactivateDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsStatusDialogOpen(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="secondary" onClick={handleDeactivateWorkspace}>
-              Deactivate Workspace
+            <Button variant="secondary" onClick={handleStatusChange} loading={loading}>
+              {workspaceStatus === "Inactive" ? "Activate Workspace" : "Deactivate Workspace"}
             </Button>
           </DialogFooter>
         </DialogContent>
