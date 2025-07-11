@@ -192,13 +192,17 @@ Resources:
       AttributeDefinitions:
         - AttributeName: SolutionId
           AttributeType: S
+        - AttributeName: ExecutionId
+          AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   TemplatesTable:
     Type: AWS::DynamoDB::Table
     Properties:

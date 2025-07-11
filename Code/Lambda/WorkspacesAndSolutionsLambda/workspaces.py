@@ -260,8 +260,7 @@ def get_workspaces(event, context):
         )
         workspace_items = []
         workspace_response= workspace_table.scan(
-            FilterExpression=Attr('CreatedBy').eq(user_id),
-            ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+            FilterExpression=Attr('CreatedBy').eq(user_id)
         ).get('Items')
         workspace_items.extend(workspace_response)
         workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]
