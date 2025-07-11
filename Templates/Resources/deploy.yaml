@@ -25,7 +25,7 @@ Parameters:
     Description: Name of the S3 bucket for artifacts
   pProfileImageBucketName:
     Type: String
-    Default: "develop-profile-images"
+    Default: "develop-profile-image-bucket"
     Description: Name of the S3 bucket for profile images
   DeploymentTrigger:
     Type: String
