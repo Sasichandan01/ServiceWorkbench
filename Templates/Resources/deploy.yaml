@@ -341,8 +341,8 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          # USER_TABLE_NAME: !ImportValue UsersTableName
-          USER_TABLE_NAME: "Workbench-develop-UserTable"
+          USER_TABLE_NAME: !ImportValue WorkbenchUsersTableName
+          # USER_TABLE_NAME: "Workbench-develop-UserTable"
           PROFILE_IMAGE_BUCKET: !Ref ProfileImageBucket
       VpcConfig:
         SubnetIds:
