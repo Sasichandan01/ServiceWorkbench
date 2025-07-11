@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,13 +43,16 @@ import {
   MoreHorizontal,
   Shield,
   Ban,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import { ProtectedButton } from "@/components/ui/protected-button";
 import UserProfileDialog from "./UserProfileDialog";
 import UserPermissionsDialog from "./UserPermissionsDialog";
+import { useToast } from "@/hooks/use-toast";
+import { UserService, type User as ApiUser } from "../../services/userService";
 
-interface User {
+interface LocalUser {
   id: string;
   name: string;
   email: string;
@@ -61,14 +64,68 @@ interface User {
 }
 
 const AdminUsersTable = () => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<LocalUser | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<LocalUser[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const itemsPerPage = 10;
 
-  // Mock data - in real app this would come from API
-  const users: User[] = [
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const searchParams: any = {
+        limit: itemsPerPage,
+        offset: currentPage,
+      };
+
+      if (searchTerm.trim()) {
+        searchParams.filter = searchTerm.trim();
+      }
+
+      const response = await UserService.getUsers(searchParams);
+      
+      if (response && response.Users && Array.isArray(response.Users)) {
+        const transformedUsers: LocalUser[] = response.Users.map(user => ({
+          id: user.UserId,
+          name: user.Username,
+          email: user.Email,
+          role: Array.isArray(user.Roles) ? user.Roles[0] : user.Roles as string,
+          status: "active", // Mock status since not in API
+          lastLogin: "Unknown", // Mock data since not in API
+          workspaces: Math.floor(Math.random() * 5) + 1, // Mock data
+          createdAt: new Date().toISOString().split('T')[0] // Mock data
+        }));
+        setUsers(transformedUsers);
+        setTotalCount(response.Pagination?.TotalCount || transformedUsers.length);
+      } else {
+        setUsers([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch users. Please try again.",
+        variant: "destructive"
+      });
+      setUsers([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [currentPage, searchTerm]);
+
+  // Remove the hardcoded mock data
+  const mockUsers: LocalUser[] = [
     {
       id: "1",
       name: "John Doe",
@@ -110,8 +167,7 @@ const AdminUsersTable = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const itemsPerPage = 10;
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
 
@@ -197,8 +253,24 @@ const AdminUsersTable = () => {
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {paginatedUsers.map((user) => (
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading users...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      No users found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center space-x-3">
@@ -223,8 +295,9 @@ const AdminUsersTable = () => {
                       <UserPermissionsDialog user={user} />
                     </div>
                   </TableCell>
-                </TableRow>
-              ))}
+                  </TableRow>
+                  ))
+                )}
             </TableBody>
           </Table>
         </div>
