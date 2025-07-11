@@ -1234,7 +1234,7 @@ Resources:
                   - logs:GetLogEvents
                   - glue:GetJobRuns
                 Resource: '*'
-
+ 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
