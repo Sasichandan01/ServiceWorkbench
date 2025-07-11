@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -84,12 +84,6 @@ definitions:
 
           echo "Waiting for stack creation..."
           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
-          # if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
-          #   aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
-          #     echo "[ERROR] Stack creation or update failed"
-          #     exit 1
-          #   }
-          # fi
           echo "API deployment completed successfully."
         else
           echo "Skipping deployment: No DEPLOY keyword in commit message."
@@ -127,9 +121,13 @@ definitions:
         |
         set -e
         echo "Building UI from Web directory..."
-        cd Web
 
-        STACK_NAME="develop-infra"
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Branch name: $BRANCH_NAME"
+
+        cd "$BRANCH_NAME-web"
+
+        STACK_NAME="${BRANCH_NAME}-deployment"
         REGION="us-east-1"
 
         echo "Fetching Cognito values from stack: $STACK_NAME..."
@@ -137,25 +135,25 @@ definitions:
         USER_POOL_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoUserPoolId'].OutputValue" \
           --output text)
 
         CLIENT_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CognitoAppClientId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoAppClientId'].OutputValue" \
           --output text)
 
         REGION_VALUE=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CognitoRegion'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoRegion'].OutputValue" \
           --output text)
 
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name "develop-deployment" \
+          --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-ApiUrl'].OutputValue" \
           --output text)
 
         echo "Creating .env file with Cognito values..."
@@ -209,21 +207,23 @@ definitions:
           exit 1
         fi
 
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Branch name: $BRANCH_NAME"
+
         echo "Syncing contents to S3..."
-        aws s3 sync dist/ "s3://${UI_BUCKET_NAME}/web/" --delete || {
+        aws s3 sync dist/ "s3://${UI_BUCKET_NAME}/${BRANCH_NAME}-web/" --delete || {
           echo "[ERROR] S3 sync failed"
           exit 1
         }
 
-
-        STACK_NAME="develop-infra" # or dynamically set based on branch
+        STACK_NAME="${BRANCH_NAME}-deployment" # or dynamically set based on branch
         REGION="us-east-1"
 
         echo "Fetching CloudFront Distribution ID from stack outputs..."
         CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='CloudfrontDistributionId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CloudfrontDistributionId'].OutputValue" \
           --output text)
 
         if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
@@ -302,8 +302,6 @@ definitions:
 
         echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
-
-
     - script: &zip_and_upload_lambdas
         |
         set -e
@@ -359,51 +357,6 @@ definitions:
           fi
         done
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
-
-
-        # |
-        # set -e
-        # echo "Zipping and uploading lambda files under Code/Lambda to S3..."
-
-        # BASE_DIR="Code/Lambda"
-        # DEST_BUCKET="service-workbench-artifacts"
-        # # DEST_BUCKET="mayank-swb"
-        # LAMBDA_ZIP_DIR="lambda_zips"
-        # mkdir -p "$LAMBDA_ZIP_DIR"
-        # trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
-
-        # # Loop over immediate subdirectories of Code/Lambda
-        # for CATEGORY in "$BASE_DIR"/*; do
-        #   if [ -d "$CATEGORY" ]; then
-        #     CATEGORY_NAME=$(basename "$CATEGORY")
-        #     S3_PREFIX="lambda/${CATEGORY_NAME,,}"  # Lowercase folder name
-
-        #     # Loop over all Python files inside the folder
-        #     find "$CATEGORY" -maxdepth 1 -type f -name "*.py" | while read -r py_file; do
-        #       FILE_NAME=$(basename "$py_file" .py)
-        #       ZIP_PATH="${LAMBDA_ZIP_DIR}/${FILE_NAME}.zip"
-        #       TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
-
-        #       echo "Processing $py_file -> $ZIP_PATH"
-
-        #       mkdir -p "$TEMP_DIR"
-        #       cp "$py_file" "$TEMP_DIR/lambda_function.py"
-        #       (
-        #         cd "$TEMP_DIR"
-        #         zip -r "../${FILE_NAME}.zip" lambda_function.py > /dev/null
-        #       )
-        #       rm -rf "$TEMP_DIR"
-
-        #       echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
-        #       aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
-        #         echo "[ERROR] Failed to upload ${ZIP_PATH}"
-        #         exit 1
-        #       }
-        #     done
-        #   fi
-        # done
-
-        # echo "All zips uploaded to S3 under lambda/<folder>/ structure."
   
     - script: &zip_and_upload_layers
         |
