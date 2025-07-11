@@ -223,7 +223,7 @@ definitions:
         CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CloudfrontDistributionId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CloudFrontDistributionId'].OutputValue" \
           --output text)
 
         if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
@@ -233,7 +233,7 @@ definitions:
 
         echo "Creating CloudFront invalidation..."
         aws cloudfront create-invalidation \
-          --distribution-id "${BRANCH_NAME}-CloudfrontDistributionId" \
+          --distribution-id "${BRANCH_NAME}-CloudFrontDistributionId" \
           --paths "/*" || {
             echo "[ERROR] CloudFront invalidation failed"
             exit 1
