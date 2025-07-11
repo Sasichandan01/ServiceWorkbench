@@ -85,7 +85,12 @@ def paginate_list(
                 400, {"error": f"Invalid sort_by field '{sort_by}'."}
             )
         reverse = sort_order == "desc"
-        data_to_page = sorted(data, key=lambda x: x.get(sort_by, ""), reverse=reverse)
+        data_to_page = sorted(
+            data,
+            key=lambda x: (x.get(sort_by) or "").lower() if isinstance(x.get(sort_by), str) else str(x.get(sort_by) or ""),
+            reverse=reverse
+        )
+
 
     # Pagination
     total_items = len(data_to_page)
@@ -102,7 +107,7 @@ def paginate_list(
     }
     return return_response(200, body)
 
-def log_activity(table, resource_type, resource_name, resource_id, user_id, message):
+def log_activity(table, resource_type, resource_name, resource_id, user_id, action):
     """
     Log an activity to the DynamoDB activity logs table.
     Args:
@@ -111,7 +116,7 @@ def log_activity(table, resource_type, resource_name, resource_id, user_id, mess
         resource_name: Name of the resource
         resource_id: ID of the resource
         user_id: ID of the user performing the action
-        message: Description of the activity
+        action: Action performed on the resource
     """
     log_id = str(uuid.uuid4())
     activity_log = {
@@ -121,6 +126,6 @@ def log_activity(table, resource_type, resource_name, resource_id, user_id, mess
         "ResourceId": resource_id,
         "UserId": user_id,
         "EventTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-        "Message": message
+        "Action": action
     }
     table.put_item(Item=activity_log)

@@ -5,7 +5,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Database, CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 interface DataSource {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   type: string;
@@ -19,7 +19,7 @@ interface DataSource {
 
 interface DataSourcesTableProps {
   dataSources: DataSource[];
-  onDataSourceClick: (id: number) => void;
+  onDataSourceClick: (id: string | number) => void;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;

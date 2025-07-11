@@ -154,7 +154,7 @@ const Layout = () => {
     <TooltipProvider>
       <div className="min-h-screen bg-gray-50 flex">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'w-72' : 'w-16'} bg-white border-r transition-all duration-300 flex flex-col`}>
+        <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white border-r transition-all duration-300 flex flex-col fixed left-0 top-0 h-full z-10`}>
           {/* Logo */}
           <div className="px-4 py-4 border-b h-[73px] flex items-center justify-center">
             <div className="flex items-center space-x-2">
@@ -182,7 +182,7 @@ const Layout = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${sidebarOpen ? 'ml-64' : 'ml-16'} transition-all duration-300`}>
           {/* Header */}
           <header className="bg-white border-b px-6 py-4">
             <div className="flex items-center justify-between">
