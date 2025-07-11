@@ -626,29 +626,33 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *update_branch_lambdas
       - step: *deploy
+      - step: *update_branch_lambdas
+      - step: *build_and_deploy_ui
 
     wb-abhishek:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *update_branch_lambdas
       - step: *deploy
-
+      - step: *update_branch_lambdas
+      - step: *build_and_deploy_ui
+      
     wb-salma:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *update_branch_lambdas
       - step: *deploy
+      - step: *update_branch_lambdas
+      - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *update_branch_lambdas
       - step: *deploy
+      - step: *update_branch_lambdas
+      - step: *build_and_deploy_ui
 
     wb-*:
       - step: *lint_and_validate
@@ -659,6 +663,8 @@ pipelines:
       - step: *zipping_and_uploading_lambdas
       - step: *deploy_infra_stack
       - step: *deploy
+      - step: *update_branch_lambdas
+      - step: *build_and_deploy_ui
 
   custom:
     Infra-setup:
