@@ -67,6 +67,7 @@ Resources:
           DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
           ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
           RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
+          WORKSPACES_BUCKET: !ImportValue develop-WorkspacesBucket
       Code:
         S3Bucket: service-workbench-artifacts
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
@@ -235,7 +236,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   TemplatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -441,3 +442,4 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+   
