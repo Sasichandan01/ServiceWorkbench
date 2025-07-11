@@ -135,25 +135,25 @@ definitions:
         USER_POOL_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoUserPoolId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='$CognitoUserPoolId'].OutputValue" \
           --output text)
 
         CLIENT_ID=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoAppClientId'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='$CognitoAppClientId'].OutputValue" \
           --output text)
 
         REGION_VALUE=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-CognitoRegion'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='$CognitoRegion'].OutputValue" \
           --output text)
 
         API_URL=$(aws cloudformation describe-stacks \
           --stack-name "$STACK_NAME" \
           --region "$REGION" \
-          --query "Stacks[0].Outputs[?OutputKey=='${BRANCH_NAME}-ApiUrl'].OutputValue" \
+          --query "Stacks[0].Outputs[?OutputKey=='$ApiUrl'].OutputValue" \
           --output text)
 
         echo "Creating .env file with Cognito values..."
