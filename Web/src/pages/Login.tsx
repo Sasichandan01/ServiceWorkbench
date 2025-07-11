@@ -44,7 +44,7 @@ const Login = () => {
         });
         
         // Force navigation to trigger AuthProvider re-initialization
-        window.location.href = "/dashboard";
+        window.location.href = "/workspaces";
       } else {
         // Handle sign up
         const signUpData = {
