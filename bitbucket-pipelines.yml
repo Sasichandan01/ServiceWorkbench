@@ -302,13 +302,15 @@ definitions:
 
         echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
-    - script: &zip_and_upload_lambdas
+    - script: &zip_upload_and_update_lambdas
         |
         set -e
         echo "Zipping and uploading lambda files under Code/Lambda to S3..."
         BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
         LAMBDA_ZIP_DIR="lambda_zips"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
 
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
@@ -354,6 +356,17 @@ definitions:
               echo "[ERROR] Failed to upload ${ZIP_PATH}"
               exit 1
             }
+
+            echo "Updating Lambda function: $LAMBDA_NAME"
+            aws lambda update-function-code \
+              --function-name "${BRANCH_NAME}-${CATEGORY_NAME}" \
+              --s3-bucket "${DEST_BUCKET}" \
+              --s3-key "${S3_PREFIX}/${ZIP_NAME}" || {
+                echo "[ERROR] Lambda update failed"
+                exit 1
+              }
+            echo "Lambda function ${BRANCH_NAME}-${CATEGORY_NAME} updated successfully"
+
           fi
         done
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
@@ -612,13 +625,13 @@ definitions:
           - *authenticate
           - *zip_and_upload_layers
     
-    - step: &zipping_and_uploading_lambdas
+    - step: &zipping_uploading_and_updating_lambdas
         name: Zip and Upload Lambdas
         oidc: true
         script:
           - echo "Zipping and uploading lambda files..."
           - *authenticate
-          - *zip_and_upload_lambdas
+          - *zip_upload_and_update_lambdas
 
     - step: &update_branch_lambdas
         name: Update Branch Lambda Functions
@@ -632,34 +645,30 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *update_branch_lambdas
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_uploading_and_updating_lambdas
       - step: *build_and_deploy_ui
 
     wb-abhishek:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *update_branch_lambdas
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_uploading_and_updating_lambdas
       - step: *build_and_deploy_ui
       
     wb-salma:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *update_branch_lambdas
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_uploading_and_updating_lambdas
       - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *deploy
-      - step: *update_branch_lambdas
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_uploading_and_updating_lambdas
       - step: *build_and_deploy_ui
 
     wb-*:
@@ -667,11 +676,9 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
-      - step: *deploy_infra_stack
       - step: *deploy
-      - step: *update_branch_lambdas
+      - step: *zipping_and_uploading_layers
+      - step: *zipping_uploading_and_updating_lambdas
       - step: *build_and_deploy_ui
 
   custom:
