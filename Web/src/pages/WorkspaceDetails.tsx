@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   Power,
   Wand2
 } from "lucide-react";
+import { WorkspaceService, type Workspace as ApiWorkspace } from "../services/workspaceService";
 
 interface Solution {
   id: number;
@@ -78,74 +79,31 @@ const WorkspaceDetails = () => {
   const itemsPerPage = 5;
 
   // Workspace state management
+  const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<string>("Active");
+  const [loading, setLoading] = useState(true);
 
-  // Mock workspaces data - in a real app, this would come from an API
-  const workspacesData: { [key: string]: WorkspaceData } = {
-    "1": {
-      id: 1,
-      name: "Analytics Team",
-      description: "Advanced analytics and data science workspace for business intelligence",
-      status: "Active",
-      owner: "Sarah Chen",
-      created: "2024-01-15",
-      members: 8,
-      solutions: 12,
-      dataSources: 5,
-      monthlyCost: 1250
-    },
-    "2": {
-      id: 2,
-      name: "ML Research Lab",
-      description: "Machine learning research and experimentation workspace",
-      status: "Active",
-      owner: "Dr. Martinez",
-      created: "2024-02-01",
-      members: 15,
-      solutions: 7,
-      dataSources: 8,
-      monthlyCost: 2400
-    },
-    "3": {
-      id: 3,
-      name: "Customer Insights",
-      description: "Customer behavior analysis and market research workspace",
-      status: "Active",
-      owner: "Mike Johnson",
-      created: "2024-01-20",
-      members: 6,
-      solutions: 18,
-      dataSources: 3,
-      monthlyCost: 890
-    },
-    "4": {
-      id: 4,
-      name: "Development Sandbox",
-      description: "Development and testing environment for new features",
-      status: "Default",
-      owner: "Alex Kim",
-      created: "2024-03-01",
-      members: 2,
-      solutions: 5,
-      dataSources: 2,
-      monthlyCost: 450
-    },
-    "5": {
-      id: 5,
-      name: "Legacy Projects",
-      description: "Archive workspace for completed and legacy projects",
-      status: "Archived",
-      owner: "Jennifer Wu",
-      created: "2023-12-15",
-      members: 3,
-      solutions: 25,
-      dataSources: 1,
-      monthlyCost: 200
-    }
-  };
-
-  // Get workspace data based on ID, fallback to first workspace if not found
-  const workspace = workspacesData[id || "1"] || workspacesData["1"];
+  useEffect(() => {
+    const fetchWorkspace = async () => {
+      setLoading(true);
+      try {
+        if (id) {
+          const data = await WorkspaceService.getWorkspace(id);
+          setWorkspace(data);
+          setWorkspaceStatus(data.WorkspaceStatus);
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch workspace details.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWorkspace();
+  }, [id]);
 
   // Mock data - in a real app, this would come from an API with server-side pagination
   const [allSolutions, setAllSolutions] = useState<Solution[]>([
@@ -315,19 +273,34 @@ const WorkspaceDetails = () => {
     navigate(`/workspaces/${id}/ai-generator`);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <span>Loading workspace details...</span>
+      </div>
+    );
+  }
+  if (!workspace) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <span>Workspace not found.</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <WorkspaceBreadcrumb workspaceName={workspace.name} />
+      <WorkspaceBreadcrumb workspaceName={workspace.WorkspaceName} />
 
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{workspace.name}</h1>
-          <p className="text-gray-600 mt-1">{workspace.description}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{workspace.WorkspaceName}</h1>
+          <p className="text-gray-600 mt-1">{workspace.Description}</p>
         </div>
         <WorkspaceSettings 
-          workspaceName={workspace.name} 
+          workspaceName={workspace.WorkspaceName} 
           onWorkspaceDeleted={handleWorkspaceDeleted}
           onWorkspaceDeactivated={handleWorkspaceDeactivated}
         />
@@ -355,7 +328,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <FolderOpen className="w-8 h-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.solutions}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace.SolutionsCount}</p>
                 <p className="text-sm text-gray-600">Solutions</p>
               </div>
             </div>
@@ -367,7 +340,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <Users className="w-8 h-8 text-green-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.members}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace.MembersCount}</p>
                 <p className="text-sm text-gray-600">Users</p>
               </div>
             </div>
@@ -379,7 +352,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <Database className="w-8 h-8 text-purple-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.dataSources}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace.DataSourcesCount}</p>
                 <p className="text-sm text-gray-600">Data Sources</p>
               </div>
             </div>
@@ -391,7 +364,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="w-8 h-8 text-yellow-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">${workspace.monthlyCost}</p>
+                <p className="text-2xl font-bold text-gray-900">${workspace.MonthlyCost}</p>
                 <p className="text-sm text-gray-600">Monthly Cost</p>
               </div>
             </div>
@@ -408,7 +381,7 @@ const WorkspaceDetails = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <Label className="text-sm font-medium text-gray-700">Owner</Label>
-              <p className="mt-1 text-gray-900">{workspace.owner}</p>
+              <p className="mt-1 text-gray-900">{workspace.CreatedBy}</p>
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-700">Status</Label>
@@ -422,7 +395,7 @@ const WorkspaceDetails = () => {
               <Label className="text-sm font-medium text-gray-700">Created</Label>
               <div className="mt-1 flex items-center space-x-1">
                 <Calendar className="w-4 h-4 text-gray-400" />
-                <p className="text-gray-900">{workspace.created}</p>
+                <p className="text-gray-900">{workspace.CreationTime}</p>
               </div>
             </div>
           </div>

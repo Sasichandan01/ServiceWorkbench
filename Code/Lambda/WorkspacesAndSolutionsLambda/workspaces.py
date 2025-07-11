@@ -7,13 +7,10 @@ from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from Utils.utils import log_activity,return_response,paginate_list
 
-
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
 resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
-
-
 
 def create_workspace(event,context):
     try:
@@ -62,7 +59,8 @@ def create_workspace(event,context):
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'), user_id, 'CREATE_WORKSPACE')
+        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'CREATE_WORKSPACE')
+        
         print(resp)
         return return_response(200, {"Message": "Workspace created successfully"})
         
@@ -92,17 +90,15 @@ def update_workspace(event, context):
                     return return_response(400, {"Error": "Workspace is already active"})
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':user_id,':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'),workspace_id, user_id, 'UPDATE_WORKSPACE')
                     return return_response(200, {"Message": "Workspace enabled successfully"})
-                    
-                else:
-                    return return_response(400, {"Error": "Workspace status is invalid"})
+                return return_response(400, {"Error": "Workspace status is invalid"})
             else:
                 if workspace_response.get('WorkspaceStatus') == 'Inactive':
                     return return_response(400, {"Error": "Workspace is already inactive"})
                 elif workspace_response.get('WorkspaceStatus') == 'Active':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':user_id, ':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
                     return return_response(200, {"Message": "Workspace disabled successfully"})
                 else:
                     return return_response(400, {"Error": "Workspace status is invalid"})
@@ -158,7 +154,7 @@ def update_workspace(event, context):
                 ExpressionAttributeValues=expressionAttributeValues,
                 ReturnValues='UPDATED_NEW'
             )
-            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'UPDATE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
             return return_response(200, {"Message": "Workspace updated successfully"})
     except Exception as e:
         print(e)
@@ -172,7 +168,7 @@ def delete_workspace(event,context):
         role = auth.get("role")
 
         workspace_id=path_params.get('workspace_id')
-        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}, ProjectionExpression='WorkspaceStatus').get('Item')
+        workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
@@ -182,7 +178,7 @@ def delete_workspace(event,context):
         
         if workspace_response.get('WorkspaceStatus') == 'Inactive':
             workspace_table.delete_item(Key={'WorkspaceId': workspace_id})
-            log_activity(activity_logs_table, 'Workspace', workspace_id, user_id, 'DELETE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'DELETE_WORKSPACE')
             return return_response(200, {"Message": "Workspace deleted successfully"})
 
         return return_response(400, {"Error": "Workspace status is invalid"})
@@ -197,8 +193,26 @@ def get_workspace(event,context):
         role = auth.get("role")
 
         path_params=event.get('pathParameters')
+        limit= path_params.get('limit', 10)
+        offset= path_params.get('offset', 1)
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
+
+        access_resource_response = resource_access_table.query(
+            IndexName='AccessKey-Index',
+            KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
+        ).get('Items')
+        
+        users=[]
+        for item in access_resource_response:
+            user_id,access_type=item.get('Id').split('#')
+            user_response = users_table.get_item(Key={'Id': item.get('Id')},ProjectionExpression="UserId,Username,Email,Roles").get('Item')
+            user_response['Access'] = access_type
+            users.append(user_response)
+
+        resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
+        workspace_response.update({'Users':resp.get('body')})
+
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
         
@@ -246,8 +260,7 @@ def get_workspaces(event, context):
         )
         workspace_items = []
         workspace_response= workspace_table.scan(
-            FilterExpression=Attr('CreatedBy').eq(user_id),
-            ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+            FilterExpression=Attr('CreatedBy').eq(user_id)
         ).get('Items')
         workspace_items.extend(workspace_response)
         workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]
@@ -266,7 +279,7 @@ def get_workspaces(event, context):
         pagination_response = paginate_list(
             name='Workspaces',
             data=workspace_items,
-            valid_keys=['WorkspaceName', 'WorkspaceType', 'WorkspaceStatus', 'CreatedBy', 'LastUpdationTime'],
+            valid_keys=['WorkspaceName'],
             offset=offset,
             limit=limit,
             sort_by='WorkspaceName',   

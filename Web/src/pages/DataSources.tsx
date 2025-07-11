@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedButton } from "@/components/ui/protected-button";
@@ -8,6 +8,7 @@ import DataSourcesSummary from "@/components/data-sources/DataSourcesSummary";
 import DataSourcesFilters from "@/components/data-sources/DataSourcesFilters";
 import DataSourcesTable from "@/components/data-sources/DataSourcesTable";
 import DataSourcesEmpty from "@/components/data-sources/DataSourcesEmpty";
+import { DatasourceService, type Datasource } from "../services/datasourceService";
 
 const DataSources = () => {
   const navigate = useNavigate();
@@ -15,94 +16,103 @@ const DataSources = () => {
   const [typeFilter, setTypeFilter] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [dataSources, setDataSources] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
   const { toast } = useToast();
 
-  const [dataSources, setDataSources] = useState([
-    {
-      id: 1,
-      name: "Customer Database",
-      description: "Primary customer data from production RDS",
-      type: "RDS",
-      status: "Connected",
-      connectionString: "prod-customer-db.amazonaws.com",
-      lastSync: "2 minutes ago",
-      records: "2.5M",
-      workspaces: ["Analytics Workspace", "Customer Analytics"],
-      tags: ["production", "customer", "pii"]
-    },
-    {
-      id: 2,
-      name: "Sales Data Warehouse",
-      description: "Historical sales data in Redshift",
-      type: "Redshift",
-      status: "Connected",
-      connectionString: "sales-warehouse.redshift.amazonaws.com",
-      lastSync: "15 minutes ago",
-      records: "8.7M",
-      workspaces: ["Analytics Workspace", "Data Lake Processing"],
-      tags: ["sales", "warehouse", "historical"]
-    },
-    {
-      id: 3,
-      name: "Application Logs",
-      description: "Real-time application logs from S3",
-      type: "S3",
-      status: "Connected",
-      connectionString: "s3://app-logs-bucket/",
-      lastSync: "1 minute ago",
-      records: "150GB",
-      workspaces: ["Development Sandbox", "Data Lake Processing"],
-      tags: ["logs", "real-time", "monitoring"]
-    },
-    {
-      id: 4,
-      name: "User Activity Stream",
-      description: "User behavior tracking data",
-      type: "DynamoDB",
-      status: "Error",
-      connectionString: "user-activity-table",
-      lastSync: "2 hours ago",
-      records: "12.3M",
-      workspaces: ["ML Training Environment"],
-      tags: ["user-behavior", "streaming", "ml"]
-    },
-    {
-      id: 5,
-      name: "Marketing Data",
-      description: "Campaign performance and attribution data",
-      type: "S3",
-      status: "Syncing",
-      connectionString: "s3://marketing-data/",
-      lastSync: "Syncing...",
-      records: "45.2K",
-      workspaces: ["Customer Analytics"],
-      tags: ["marketing", "campaigns", "attribution"]
+  const fetchDataSources = async () => {
+    setLoading(true);
+    try {
+      const searchParams: any = {
+        limit: itemsPerPage,
+        offset: currentPage,
+      };
+
+      if (searchTerm.trim()) {
+        searchParams.filter = searchTerm.trim();
+      }
+
+      const response = await DatasourceService.getDatasources(searchParams);
+      
+      if (response && response.Datasources && Array.isArray(response.Datasources)) {
+        // Transform API data to match existing UI expectations
+        const transformedDataSources = response.Datasources.map(ds => ({
+          id: ds.DatasourceId,
+          name: ds.DatasourceName,
+          description: ds.Description || "No description available",
+          type: ds.S3Path ? "S3" : "RDS", // Mock type based on S3Path
+          status: ds.DatasourceStatus,
+          connectionString: ds.S3Path || "connection-string",
+          lastSync: formatLastActivity(ds.LastUpdationTime),
+          records: "N/A", // Mock data
+          workspaces: [], // Mock data
+          tags: ds.Tags || []
+        }));
+        setDataSources(transformedDataSources);
+        setTotalCount(response.Pagination?.TotalCount || transformedDataSources.length);
+      } else {
+        setDataSources([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching datasources:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch datasources. Please try again.",
+        variant: "destructive"
+      });
+      setDataSources([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  const handleCreateDataSource = (name: string, description: string, type: string) => {
-    const newDataSource = {
-      id: Math.max(...dataSources.map(ds => ds.id)) + 1,
-      name,
-      description,
-      type,
-      status: "Connected",
-      connectionString: "new-connection-string",
-      lastSync: "Just now",
-      records: "0",
-      workspaces: [],
-      tags: []
-    };
+  const formatLastActivity = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} minutes ago`;
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    } else {
+      return `${Math.floor(diffInMinutes / 1440)} days ago`;
+    }
+  };
 
-    setDataSources([newDataSource, ...dataSources]);
+  useEffect(() => {
+    fetchDataSources();
+  }, [currentPage, searchTerm]);
 
-    console.log("Creating data source:", { name, description, type });
+  const handleCreateDataSource = async (name: string, description: string, type: string) => {
+    try {
+      const createData = {
+        DatasourceName: name,
+        Description: description,
+        Tags: [type] // Use type as initial tag
+      };
 
-    toast({
-      title: "Success",
-      description: `Data source "${name}" created successfully!`,
-    });
+      const response = await DatasourceService.createDatasource(createData);
+
+      toast({
+        title: "Success",
+        description: `Data source "${name}" created successfully!`,
+      });
+
+      // Refresh datasources list
+      await fetchDataSources();
+    } catch (error) {
+      console.error('Error creating datasource:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create datasource. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredDataSources = dataSources.filter(dataSource => {
@@ -113,7 +123,7 @@ const DataSources = () => {
   });
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredDataSources.length / itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedDataSources = filteredDataSources.slice(startIndex, startIndex + itemsPerPage);
 
@@ -123,7 +133,7 @@ const DataSources = () => {
   const errorDataSources = dataSources.filter(ds => ds.status === "Error").length;
   const syncingDataSources = dataSources.filter(ds => ds.status === "Syncing").length;
 
-  const handleDataSourceClick = (dataSourceId: number) => {
+  const handleDataSourceClick = (dataSourceId: string | number) => {
     console.log(`Opening data source details for data source ${dataSourceId}`);
     navigate(`/data-sources/${dataSourceId}`);
   };

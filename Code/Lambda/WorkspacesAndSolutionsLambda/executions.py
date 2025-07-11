@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 from Utils.utils import log_activity, return_response
+from boto3.dynamodb.conditions import Attr,Key
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -26,7 +27,7 @@ def validate_path_parameters(params, required_keys):
 def get_executions(event, context):
     """Retrieve all executions for a solution."""
     try:
-        # Validate input
+
         path_parameters = event.get('pathParameters', {})
         is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id'])
         if not is_valid:
@@ -34,23 +35,15 @@ def get_executions(event, context):
 
         solution_id = path_parameters['solution_id']
         
-        # Get user context
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         
-        # Query executions
         response = executions_table.query(
             KeyConditionExpression=Key('SolutionId').eq(solution_id),
-            ProjectionExpression="ExecutionId, SolutionId, ExecutionStatus, StartTime, EndTime"
-        )
+            ProjectionExpression="ExecutionId, ExecutionStatus, StartTime, EndTime, ExecutedBy"
+        ).get('Items', [])
         
-        # Log activity
-        log_activity(activity_logs_table, 'Solution', solution_id, user_id, 'GET_EXECUTIONS')
-        
-        return return_response(200, {
-            'executions': response.get('Items', []),
-            'count': response.get('Count', 0)
-        })
+        return return_response(200, response)
     except ClientError as e:
         print(f"Error retrieving executions: {e}")
         return return_response(500, {"Error": 'Internal server error retrieving executions'})
@@ -62,7 +55,8 @@ def run_solution(event, context):
         is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id'])
         if not is_valid:
             return return_response(400, {"Error": message})
-
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
         solution_id = path_parameters['solution_id']
         execution_id = str(uuid.uuid4())
         timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
@@ -71,13 +65,12 @@ def run_solution(event, context):
             'ExecutionId': execution_id,
             'SolutionId': solution_id,
             'ExecutionStatus': 'STARTED',
-            'StartTime': timestamp.isoformat(),
+            'StartTime': timestamp,
             'ExecutedBy': user_id,  
         }
 
         executions_table.put_item(Item=execution)
         
-        # Log activity
         log_activity(activity_logs_table, 'Solution', solution_id, user_id, 'RUN_SOLUTION')
 
         return return_response(201, {
@@ -98,20 +91,18 @@ def get_execution(event, context):
             return return_response(400, {"Error": message})
 
         execution_id = path_parameters['execution_id']
-        
-        # Get user context
+        solution_id = path_parameters['solution_id']
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         
         response = executions_table.get_item(
-            Key={'ExecutionId': execution_id}
+            Key= {'SolutionId': solution_id},
+            FilterExpression=Attr('ExecutionId').eq(execution_id)
         )
         
         if 'Item' not in response:
             return return_response(404, {"Error": 'Execution not found'})
 
-        # Log activity
-        log_activity(activity_logs_table, 'Execution', execution_id, user_id, 'GET_EXECUTION')
 
         return return_response(200, response['Item'])
     except ClientError as e:
