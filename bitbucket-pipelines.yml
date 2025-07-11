@@ -626,7 +626,7 @@ definitions:
           - *zip_and_upload_layers
     
     - step: &zipping_uploading_and_updating_lambdas
-        name: Zip and Upload Lambdas
+        name: Zip Upload and Update Lambdas
         oidc: true
         script:
           - echo "Zipping and uploading lambda files..."
