@@ -11,17 +11,17 @@ LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
 ROLES_TABLE = os.getenv("ROLES_TABLE")
-ACTIVITY_LOG_TABLE = os.getenv("ACTIVITY_LOG_TABLE")
+ACTIVITY_LOGS_TABLE = os.getenv("ACTIVITY_LOGS_TABLE")
 if ROLES_TABLE is None :
     LOGGER.critical("Environment variable 'ROLES_TABLE' must be set.")
     raise RuntimeError("ROLES_TABLE env var must be set")
-if ACTIVITY_LOG_TABLE is None:
-    LOGGER.critical("Environment variable 'ACTIVITY_LOG_TABLE' must be set.")
-    raise RuntimeError("ACTIVITY_LOG_TABLE env var must be set")
+if ACTIVITY_LOGS_TABLE is None:
+    LOGGER.critical("Environment variable 'ACTIVITY_LOGS_TABLE' must be set.")
+    raise RuntimeError("ACTIVITY_LOGS_TABLE env var must be set")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(ROLES_TABLE)
-activity_log_table = dynamodb.Table(ACTIVITY_LOG_TABLE)
+activity_log_table = dynamodb.Table(ACTIVITY_LOGS_TABLE)
 
 def lambda_handler(event, context):
     """
