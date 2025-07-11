@@ -22,7 +22,7 @@ stepfunctions_client = boto3.client('stepfunctions')
 
 executions_table = os.environ.get('EXECUTIONS_TABLE')
 solutions_table = os.environ.get('SOLUTIONS_TABLE')
-
+workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
 
 async def update_execution_status(solution_id, execution_id, status):
     """
@@ -324,23 +324,25 @@ async def fetch_cloudwatch_logs(log_group_name, log_stream_name, start_time, end
         logger.error(f"Error fetching CloudWatch logs: {str(e)}")
         return f"Error fetching CloudWatch logs: {str(e)}"
 
-async def process_log_collection(workspace_id="",solution_id="", execution_id=""):
+async def process_log_collection(event,context):
     try:
-        
-        await update_execution_status(solution_id, execution_id, "RUNNING")
+        solution_id=event.get('solution_id','bvjfhkbk')
+        execution_id=event.get('execution_id','bkjyuy')
+        workspace_id=event.get('workspace_id','jvjyuvhjkk')
+        # await update_execution_status(solution_id, execution_id, "RUNNING")
 
-        resources = await fetch_resources_for_solution(solution_id)
+        # resources = await fetch_resources_for_solution(solution_id)
         
-        execution_details = await fetch_execution_details(solution_id, execution_id)
-        start_time = execution_details['StartTime']
-        end_time = execution_details['EndTime']
-        # start_time = '2025-04-01T00:00:00Z'
-        # end_time = '2025-04-05T20:53:59Z'
-        # resources=[
-        #     {'Type':'glue','Name':'test-automated-kb-processor'},
-        #     {'Type':'lambda','Name':'RAGCustomResourceLambda'},
-        #     {'Type':'stepfunction','Name':'sfa2-stepfunction-shashank-videoprocessingworkflow'}
-        # ]
+        # execution_details = await fetch_execution_details(solution_id, execution_id)
+        # start_time = execution_details['StartTime']
+        # end_time = execution_details['EndTime']
+        start_time = '2025-04-01T00:00:00Z'
+        end_time = '2025-04-05T20:53:59Z'
+        resources=[
+            {'Type':'glue','Name':'test-automated-kb-processor'},
+            {'Type':'lambda','Name':'RAGCustomResourceLambda'},
+            {'Type':'stepfunction','Name':'sfa2-stepfunction-shashank-videoprocessingworkflow'}
+        ]
         if isinstance(start_time, str):
             start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
         if isinstance(end_time, str):
@@ -352,27 +354,44 @@ async def process_log_collection(workspace_id="",solution_id="", execution_id=""
             for resource in resources
         ])
 
+        print("logs_contents:", logs_contents)
+        for log_file in logs_contents:
+            print("Checking log file:", log_file)
+            print("Exists:", os.path.exists(log_file))
+            if os.path.exists(log_file):
+                print("Size:", os.path.getsize(log_file))
+
         merged_logs = ""
         for log_file in logs_contents:
-            with open(log_file, 'r') as f:
-                merged_logs += f.read() + "\n"
-            os.unlink(log_file)
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    merged_logs += f.read() + "\n"
+                os.unlink(log_file)
+            else:
+                print(f"Log file missing: {log_file}")
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
             tmp_file.write(merged_logs)
             merged_log_file = tmp_file.name
 
-        s3_bucket = os.environ.get('S3_BUCKET', 'bhargav9938')
+        print("Merged log file path:", merged_log_file)
+        with open(merged_log_file, 'r') as f:
+            print("Merged log file content (first 500 chars):", f.read(500))
         
+        s3_bucket = workspaces_bucket
+        print(s3_bucket)
         s3_key = f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: s3_client.upload_file(merged_log_file, s3_bucket, s3_key)
-        )
+        print(s3_key)
+        try:
+            print(f"Uploading {merged_log_file} to bucket {s3_bucket} with key {s3_key}")
+            s3_client.upload_file(merged_log_file, s3_bucket, s3_key)
+            print("Upload successful")
+        except Exception as upload_exc:
+            print(f"Upload failed: {upload_exc}")
+            return return_response(500, f"S3 upload failed: {upload_exc}")
         os.unlink(merged_log_file)
-
-        await update_execution_status_and_s3(solution_id, execution_id, "COMPLETED", s3_key)
+        print("done")
+        # await update_execution_status_and_s3(solution_id, execution_id, "COMPLETED", s3_key)
 
         return return_response(200, {
             's3_location': f's3://{s3_bucket}/{s3_key}',
@@ -389,7 +408,7 @@ def get_execution_logs(event, context):
         workspace_id = path_parameters.get('workspace_id')
         solution_id = path_parameters.get('solution_id')
         execution_id = path_parameters.get('execution_id')
-        s3_bucket = os.environ.get('S3_BUCKET', 'bhargav9938')
+        s3_bucket = workspaces_bucket
         s3_key = f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
 
         table = dynamodb.Table(executions_table)
@@ -416,20 +435,22 @@ def get_execution_logs(event, context):
 
 def generate_execution_logs(event, context):
     try:
-        path_parameters = event.get('pathParameters', {})
-        workspace_id = path_parameters.get('workspace_id')
-        solution_id = path_parameters.get('solution_id')
-        execution_id = path_parameters.get('execution_id')
+        # path_parameters = event.get('pathParameters', {})
+        # workspace_id = path_parameters.get('workspace_id')
+        # solution_id = path_parameters.get('solution_id')
+        # execution_id = path_parameters.get('execution_id')
 
         payload = {
-            'workspace_id': workspace_id,
-            'solution_id': solution_id,
-            'execution_id': execution_id,
-            'background': True 
+            # 'workspace_id': workspace_id,
+            # 'solution_id': solution_id,
+            # 'execution_id': execution_id,
+            'background': True,
+            'resource': '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs',
+            'InvokedBy': 'lambda'
         }
 
         lambda_client.invoke(
-            FunctionName=os.environ['AWS_LAMBDA_FUNCTION_NAME'],  
+            FunctionName='wb-bhargav-workspacesandsolutions-lambda',  
             InvocationType='Event', 
             Payload=json.dumps(payload)
         )
