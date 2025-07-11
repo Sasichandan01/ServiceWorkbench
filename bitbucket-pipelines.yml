@@ -244,46 +244,27 @@ definitions:
     - script: &update_lambda_code
         |
         set -e
-
-        if [ -z "$LAMBDA_NAME" ] || [ -z "$HANDLER_FILE_PATH" ]; then
-          echo "[ERROR] LAMBDA_NAME and HANDLER_FILE_PATH are required"
+        if [ -z "$LAMBDA_NAME" ] || [ -z "$S3_KEY" ]; then
+          echo "[ERROR] LAMBDA_NAME and S3_KEY are required"
           exit 1
         fi
-
-        if [ ! -f "$HANDLER_FILE_PATH" ]; then
-          echo "[ERROR] File not found at path: $HANDLER_FILE_PATH"
-          exit 1
-        fi
-
-        echo "Preparing to update Lambda '$LAMBDA_NAME' using '$HANDLER_FILE_PATH'"
 
         S3_BUCKET="service-workbench-artifacts"
-        TEMP_FILE="/tmp/lambda_function.py"
-        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+        REGION="us-east-1"
 
-        cp "$HANDLER_FILE_PATH" "$TEMP_FILE"
+        echo "Updating Lambda '$LAMBDA_NAME' using S3 object s3://${S3_BUCKET}/${S3_KEY}..."
 
-        echo "Zipping file..."
-        zip -j "$ZIP_PATH" "$TEMP_FILE" || {
-          echo "[ERROR] Failed to zip"
-          exit 1
-        }
-
-        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
-        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
-          echo "[ERROR] S3 upload failed"
-          exit 1
-        }
-
-        echo "Updating Lambda in AWS Console..."
         aws lambda update-function-code \
           --function-name "$LAMBDA_NAME" \
-          --zip-file "fileb://${ZIP_PATH}" || {
-            echo "[ERROR] Lambda update failed"
+          --s3-bucket "$S3_BUCKET" \
+          --s3-key "$S3_KEY" \
+          --region "$REGION" || {
+            echo "[ERROR] Failed to update Lambda function"
             exit 1
           }
 
-        echo "✅ Lambda '$LAMBDA_NAME' successfully updated."
+        echo "Lambda '$LAMBDA_NAME' updated successfully using ZIP from S3."
+
         # |
         # set -e
 
@@ -693,11 +674,11 @@ pipelines:
             default: "abc"
             required: true
             description: "Enter the AWS Lambda function name (e.g., lambda1)"
-          - name: HANDLER_FILE_PATH
-            default: "Code/Lambda/User/users_handler.py"
+          - name: S3_KEY
+            default: "lambda/user/users_handler.zip"
             required: true
-            description: "Path to the handler file (e.g., Code/Lambda/Users/users_handler.py)"
-  
+            description: "S3 key for the Lambda ZIP file (e.g., lambda/user/users_handler.zip)"
+ 
       - step:
           name: Update Lambda Function (Manual)
           oidc: true
