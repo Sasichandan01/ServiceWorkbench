@@ -403,6 +403,76 @@ definitions:
 
         echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
 
+    - script: &update_branch_specific_lambdas
+        |
+        set -e
+        echo "Updating Lambda functions for branch: $BITBUCKET_BRANCH"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        REGION="us-east-1"
+
+        echo "🔍 Listing Lambda functions for branch: $BRANCH_NAME"
+        
+        # Get all Lambda functions that start with the branch name
+        FUNCTION_NAMES=$(aws lambda list-functions \
+          --region "${REGION}" \
+          --query "Functions[?starts_with(FunctionName, '${BRANCH_NAME}')].FunctionName" \
+          --output text)
+
+        if [ -z "$FUNCTION_NAMES" ]; then
+          echo "No Lambda functions found for branch: $BRANCH_NAME"
+          echo "Skipping Lambda updates."
+          exit 0
+        fi
+
+        echo "Found Lambda functions for branch $BRANCH_NAME:"
+        echo "$FUNCTION_NAMES" | tr '\t' '\n'
+
+        # Update each Lambda function found for this branch
+        for FUNCTION_NAME in $FUNCTION_NAMES; do
+          echo "Attempting to update Lambda function: $FUNCTION_NAME"
+          
+          # Extract the base function name (remove branch prefix)
+          BASE_FUNCTION_NAME=$(echo "$FUNCTION_NAME" | sed "s/^${BRANCH_NAME}-//")
+          
+          # Look for corresponding zip file in S3
+          S3_BUCKET="service-workbench-artifacts"
+          
+          # Try different possible S3 key patterns
+          POSSIBLE_KEYS=(
+            "lambda/${BASE_FUNCTION_NAME}.zip"
+            "lambda/${BASE_FUNCTION_NAME,,}.zip"
+            "lambda/$(echo ${BASE_FUNCTION_NAME} | sed 's/Lambda.*$//' | tr '[:upper:]' '[:lower:]').zip"
+          )
+          
+          FOUND_KEY=""
+          for KEY in "${POSSIBLE_KEYS[@]}"; do
+            echo "Checking if S3 key exists: s3://${S3_BUCKET}/${KEY}"
+            if aws s3api head-object --bucket "${S3_BUCKET}" --key "${KEY}" >/dev/null 2>&1; then
+              FOUND_KEY="$KEY"
+              echo "Found S3 key: $FOUND_KEY"
+              break
+            fi
+          done
+          
+          if [ -n "$FOUND_KEY" ]; then
+            echo "Updating Lambda function $FUNCTION_NAME with S3 key: $FOUND_KEY"
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --s3-bucket "${S3_BUCKET}" \
+              --s3-key "${FOUND_KEY}" \
+              --region "${REGION}" || {
+                echo "[WARN] Failed to update Lambda function: $FUNCTION_NAME"
+                continue
+              }
+            echo "Successfully updated Lambda function: $FUNCTION_NAME"
+          else
+            echo "[WARN] No matching S3 zip found for Lambda function: $FUNCTION_NAME"
+          fi
+        done
+
+        echo "Completed Lambda function updates for branch: $BRANCH_NAME"
+
     - script: &update_selected_lambdas_with_layer
         |
         set -e
@@ -542,30 +612,42 @@ definitions:
           - *authenticate
           - *zip_and_upload_lambdas
 
+    - step: &update_branch_lambdas
+        name: Update Branch Lambda Functions
+        oidc: true
+        script:
+          - echo "Updating Lambda functions for current branch..."
+          - *authenticate
+          - *update_branch_specific_lambdas
+
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_branch_lambdas
       - step: *deploy
 
     wb-abhishek:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_branch_lambdas
       - step: *deploy
 
     wb-salma:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_branch_lambdas
       - step: *deploy
 
     wb-bhargav:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_branch_lambdas
       - step: *deploy
 
     wb-*:
