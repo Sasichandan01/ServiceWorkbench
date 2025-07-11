@@ -125,7 +125,7 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub
               - "arn:aws:s3:::${BucketName}/*"
-              - { BucketName: !ImportValue WebsiteBucketName }
+              - {BucketName: !ImportValue WebsiteBucketName}
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
@@ -144,7 +144,7 @@ Resources:
             Action: s3:PutObject
             Resource: !Sub
               - "arn:aws:s3:::${BucketName}/*"
-              - { BucketName: !ImportValue LogsBucketName }
+              - {BucketName: !ImportValue LogsBucketName}
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
@@ -726,8 +726,8 @@ Resources:
                 Resource:
                   - !ImportValue WorkspacesBucketArn
                   - !Sub
-                      - "${BucketArn}/*"
-                      - { BucketArn: !ImportValue WorkspacesBucketArn }
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: 
