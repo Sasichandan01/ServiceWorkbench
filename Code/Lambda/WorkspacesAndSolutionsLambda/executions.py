@@ -95,6 +95,10 @@ def get_execution(event, context):
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         
+        # Get user context
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        
         response = executions_table.get_item(
             Key= {'SolutionId': solution_id},
             FilterExpression=Attr('ExecutionId').eq(execution_id)
