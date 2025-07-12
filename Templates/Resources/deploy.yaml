@@ -28,11 +28,6 @@ Parameters:
     Default: "develop-datasource-bucket"
     Description: Name of the S3 bucket for data sources
 
-  pDatasourceBucketName:
-    Type: String
-    Default: "develop-datasource-bucket"
-    Description: Name of the S3 bucket for data sources
-
   pRAGPrefix:
     Type: String
     Default: "develop"
