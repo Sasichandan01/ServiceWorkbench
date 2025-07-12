@@ -26,6 +26,7 @@ Parameters:
     Type: String
     Default: "develop-datasource-bucket"
     Description: Name of the S3 bucket for data sources
+
   pRAGPrefix:
     Type: String
     Default: "develop"
@@ -820,36 +821,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
   
-  # S3 Bucket for artifacts
-  ProfileImageBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Ref pProfileImageBucketName
-      # AccessControl: PublicRead
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-  
-  ProfileImageBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref ProfileImageBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: "*"
-            Action: "s3:GetObject"
-            Resource: !Sub "${ProfileImageBucket.Arn}/*"
-  
   DatasourceBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -1353,7 +1324,7 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  
+
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
@@ -1380,4 +1351,4 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-   
+  
