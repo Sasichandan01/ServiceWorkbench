@@ -14,7 +14,7 @@ LOGGER.setLevel(logging.INFO)
 
 # Environment variable and client setup
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-PROFILE_IMAGE_BUCKET = os.environ.get("PROFILE_IMAGE_BUCKET")
+MISC_BUCKET = os.environ.get("MISC_BUCKET")
 
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
@@ -205,7 +205,7 @@ def get_profile_image_upload_url(user_id, body):
     """
     LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
 
-    if not PROFILE_IMAGE_BUCKET:
+    if not MISC_BUCKET:
         return response(500, {"message": "S3 bucket not configured"})
 
     file_name = user_id
@@ -235,7 +235,7 @@ def get_profile_image_upload_url(user_id, body):
         presigned_url = s3_client.generate_presigned_url(
             "put_object",
             Params={
-                "Bucket": PROFILE_IMAGE_BUCKET,
+                "Bucket": MISC_BUCKET,
                 "Key": object_key,
                 "ContentType": content_type
             },
