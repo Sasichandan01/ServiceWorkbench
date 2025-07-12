@@ -840,6 +840,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-UserTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -863,6 +864,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-ActivityLogsTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
@@ -1003,6 +1005,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Role
           AttributeType: S
