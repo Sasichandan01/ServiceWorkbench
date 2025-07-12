@@ -1005,7 +1005,6 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
-      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Role
           AttributeType: S
