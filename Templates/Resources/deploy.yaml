@@ -1088,66 +1088,66 @@ Resources:
 
 #Lambda Roles
   DatasourceLambdaRole:
-  Type: AWS::IAM::Role
-  Properties:
-    RoleName: !Sub "${pPrefix}-UserExecutionRole"
-    AssumeRolePolicyDocument:
-      Version: "2012-10-17"
-      Statement:
-        - Effect: Allow
-          Principal:
-            Service: lambda.amazonaws.com
-          Action: sts:AssumeRole
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-UserExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
 
-    Policies:
-      - PolicyName: CloudwatchLogs
-        PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Sid: CloudWatchLogsAccess
-              Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
 
-      - PolicyName: DynamoDBAccess
-        PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Sid: DatasourcesTableAccess
-              Effect: Allow
-              Action:
-                - dynamodb:PutItem
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-                - dynamodb:DeleteItem
-                - dynamodb:Scan
-                - dynamodb:Query
-              Resource: !GetAtt DatasourcesTable.Arn
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DatasourcesTableAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: !GetAtt DatasourcesTable.Arn
 
-      - PolicyName: S3Access
-        PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Sid: S3AccessToDatasourceFolder
-              Effect: Allow
-              Action:
-                - s3:PutObject
-                - s3:GetObject
-                - s3:DeleteObject
-                - s3:ListBucket
-              Resource:
-                - !Sub arn:aws:s3:::${pDatasourceBucketName}
-                - !Sub arn:aws:s3:::${pDatasourceBucketName}/datasources/*
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3AccessToDatasourceFolder
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${pDatasourceBucketName}
+                  - !Sub arn:aws:s3:::${pDatasourceBucketName}/datasources/*
 
-    ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
-    Tags:
-      - Key: Name
-        Value: WorkbenchV2
+      Tags:
+        - Key: Name
+          Value: WorkbenchV2
 
 
 
