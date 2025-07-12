@@ -23,11 +23,6 @@ Parameters:
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
 
-  pDatasourceBucketName:
-    Type: String
-    Default: "develop-datasource-bucket"
-    Description: Name of the S3 bucket for data sources
-
   pRAGPrefix:
     Type: String
     Default: "develop"
@@ -780,8 +775,6 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           USERS_TABLE: !Ref UserTable
           CLIENT_ID: !Ref UserPoolClient
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"  
@@ -821,34 +814,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-  
-  DatasourceBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "${pPrefix}-datasource-bucket"
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-  
-  DatasourceBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref DatasourceBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: "*"
-            Action: "s3:GetObject"
-            Resource: !Sub "${DatasourceBucket.Arn}/*" 
 
   # API Gateway
   WorkbenchApi:
@@ -1078,72 +1043,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambda Roles
-  DatasourceLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${pPrefix}-UserExecutionRole"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-
-      Policies:
-        - PolicyName: CloudwatchLogs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: CloudWatchLogsAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
- 
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: DatasourcesTableAccess
-                Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                Resource: !GetAtt DatasourcesTable.Arn
-
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: S3AccessToDatasourceFolder
-                Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${DatasourceBucket}
-                  - !Sub arn:aws:s3:::${DatasourceBucket}/datasources/*
-
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-
-      Tags:
-        - Key: Name
-          Value: WorkbenchV2
-
-
-
 # Lambdas
   RolesLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1202,36 +1101,6 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/workbenchuserslambda/WorkbenchUsersLambda.zip
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  DatasourcesLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${pPrefix}-DatasourcesLambdaFunction"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt DatasourceLambdaRole.Arn
-      Runtime: python3.12
-      Timeout: 900
-      Environment:
-        Variables:
-          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
-          DATASOURCE_BUCKET: !Ref DatasourceBucket
-      VpcConfig:
-        SubnetIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
-        SecurityGroupIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1317,7 +1186,7 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-
+  
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
@@ -1344,4 +1213,4 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-  
+   
