@@ -27,6 +27,11 @@ Parameters:
     Type: String
     Default: "develop"
     Description: rag-prefix
+  
+  DeploymentTrigger:
+    Type: String
+    Default: "2025-07-02T00:00:00Z"
+    Description: Trigger date for deployment, used for versioning
 
 Resources:
 
@@ -262,6 +267,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   CognitoTriggersResource:
     Type: Custom::CognitoTriggers
@@ -273,6 +280,7 @@ Resources:
       PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
       PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -307,6 +315,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   PreAuthFunction:
     Type: AWS::Lambda::Function
@@ -335,6 +345,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   PreTokenGenerationFunction:
     Type: AWS::Lambda::Function
@@ -363,6 +375,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   PostConfirmationFunction:
     Type: AWS::Lambda::Function
@@ -396,6 +410,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   PostAuthFunction:
     Type: AWS::Lambda::Function
@@ -424,6 +440,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   UserPoolCleanUp:
     Type: AWS::Lambda::Function
@@ -454,6 +472,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata: 
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
@@ -778,6 +798,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"  
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
@@ -814,6 +836,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   # API Gateway
   WorkbenchApi:
@@ -1039,6 +1063,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   RBACCustomResource:
     Type: Custom::RBACCustomResource
@@ -1082,6 +1108,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
   UsersLambda:
     Type: AWS::Lambda::Function
@@ -1113,6 +1141,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+    Metadata:
+      DeploymentTrigger: !Ref DeploymentTrigger
 
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
