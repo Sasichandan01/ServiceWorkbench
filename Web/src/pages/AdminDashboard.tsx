@@ -95,7 +95,7 @@ const AdminDashboard = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="flex w-full justify-start">
+        <TabsList className="grid w-full grid-cols-6 gap-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           {canView('users') && <TabsTrigger value="users">Users</TabsTrigger>}
           {canView('roles') && <TabsTrigger value="roles">Roles</TabsTrigger>}
