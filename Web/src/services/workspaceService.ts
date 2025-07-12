@@ -12,6 +12,14 @@ export interface Workspace {
   LastUpdationTime: string;
   Tags?: string[];
   Cost?: string;
+  Users?: {
+    Users: any[];
+    Pagination: {
+      Count: number;
+      TotalCount: number;
+      NextAvailable: boolean;
+    };
+  };
 }
 
 export interface WorkspaceListResponse {

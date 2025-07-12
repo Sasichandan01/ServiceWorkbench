@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import {
   Power,
   Wand2
 } from "lucide-react";
+import { WorkspaceService } from "../services/workspaceService";
+import { SolutionService } from "../services/solutionService";
 
 interface Solution {
   id: number;
@@ -79,96 +81,69 @@ const WorkspaceDetails = () => {
 
   // Workspace state management
   const [workspaceStatus, setWorkspaceStatus] = useState<string>("Active");
+  const [workspace, setWorkspace] = useState<any>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
-  // Mock workspaces data - in a real app, this would come from an API
-  const workspacesData: { [key: string]: WorkspaceData } = {
-    "1": {
-      id: 1,
-      name: "Analytics Team",
-      description: "Advanced analytics and data science workspace for business intelligence",
-      status: "Active",
-      owner: "Sarah Chen",
-      created: "2024-01-15",
-      members: 8,
-      solutions: 12,
-      dataSources: 5,
-      monthlyCost: 1250
-    },
-    "2": {
-      id: 2,
-      name: "ML Research Lab",
-      description: "Machine learning research and experimentation workspace",
-      status: "Active",
-      owner: "Dr. Martinez",
-      created: "2024-02-01",
-      members: 15,
-      solutions: 7,
-      dataSources: 8,
-      monthlyCost: 2400
-    },
-    "3": {
-      id: 3,
-      name: "Customer Insights",
-      description: "Customer behavior analysis and market research workspace",
-      status: "Active",
-      owner: "Mike Johnson",
-      created: "2024-01-20",
-      members: 6,
-      solutions: 18,
-      dataSources: 3,
-      monthlyCost: 890
-    },
-    "4": {
-      id: 4,
-      name: "Development Sandbox",
-      description: "Development and testing environment for new features",
-      status: "Default",
-      owner: "Alex Kim",
-      created: "2024-03-01",
-      members: 2,
-      solutions: 5,
-      dataSources: 2,
-      monthlyCost: 450
-    },
-    "5": {
-      id: 5,
-      name: "Legacy Projects",
-      description: "Archive workspace for completed and legacy projects",
-      status: "Archived",
-      owner: "Jennifer Wu",
-      created: "2023-12-15",
-      members: 3,
-      solutions: 25,
-      dataSources: 1,
-      monthlyCost: 200
-    }
-  };
+  // Solutions state
+  const [allSolutions, setAllSolutions] = useState<any[]>([]);
+  const [solutionsLoading, setSolutionsLoading] = useState(true);
+  const [solutionsError, setSolutionsError] = useState<string | null>(null);
 
-  // Get workspace data based on ID, fallback to first workspace if not found
-  const workspace = workspacesData[id || "1"] || workspacesData["1"];
+  // Users: keep mock for now
+  const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([]);
 
-  // Mock data - in a real app, this would come from an API with server-side pagination
-  const [allSolutions, setAllSolutions] = useState<Solution[]>([
-    { id: 1, name: "Customer Segmentation", status: "Active", lastModified: "2 hours ago", type: "ML Model" },
-    { id: 2, name: "Sales Dashboard", status: "Active", lastModified: "1 day ago", type: "Dashboard" },
-    { id: 3, name: "Churn Prediction", status: "Development", lastModified: "3 hours ago", type: "ML Model" },
-    { id: 4, name: "Revenue Analytics", status: "Active", lastModified: "5 hours ago", type: "Dashboard" },
-    { id: 5, name: "Product Recommendation", status: "Development", lastModified: "1 day ago", type: "ML Model" },
-    { id: 6, name: "Inventory Management", status: "Active", lastModified: "2 days ago", type: "Dashboard" },
-    { id: 7, name: "Fraud Detection", status: "Active", lastModified: "3 days ago", type: "ML Model" },
-    { id: 8, name: "Marketing Campaign", status: "Development", lastModified: "4 days ago", type: "Dashboard" },
-  ]);
+  // Fetch workspace details and solutions on mount/id change
+  useEffect(() => {
+    if (!id) return;
+    setWorkspaceLoading(true);
+    setWorkspaceError(null);
+    setSolutionsLoading(true);
+    setSolutionsError(null);
 
-  const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([
-    { id: 1, name: "Sarah Chen", email: "sarah.chen@company.com", role: "Admin", joinedDate: "2024-01-15" },
-    { id: 2, name: "Mike Johnson", email: "mike.johnson@company.com", role: "Editor", joinedDate: "2024-01-20" },
-    { id: 3, name: "Anna Smith", email: "anna.smith@company.com", role: "Viewer", joinedDate: "2024-02-01" },
-    { id: 4, name: "David Wilson", email: "david.wilson@company.com", role: "Editor", joinedDate: "2024-02-05" },
-    { id: 5, name: "Emma Davis", email: "emma.davis@company.com", role: "Viewer", joinedDate: "2024-02-10" },
-    { id: 6, name: "James Brown", email: "james.brown@company.com", role: "Editor", joinedDate: "2024-02-15" },
-    { id: 7, name: "Lisa Taylor", email: "lisa.taylor@company.com", role: "Viewer", joinedDate: "2024-02-20" },
-    { id: 8, name: "Robert Garcia", email: "robert.garcia@company.com", role: "Editor", joinedDate: "2024-02-25" },
-  ]);
+    WorkspaceService.getWorkspace(id)
+      .then((data) => {
+        setWorkspace({
+          id: data.WorkspaceId,
+          name: data.WorkspaceName,
+          description: data.Description,
+          status: data.WorkspaceStatus,
+          owner: data.CreatedBy,
+          created: data.CreationTime,
+          members: data.Users?.Pagination?.TotalCount || 0,
+          solutions: 0, // Update if you have solutions count elsewhere
+          dataSources: 0, // Update if you have data sources count elsewhere
+          monthlyCost: 0, // Update if you have cost info
+        });
+        setWorkspaceStatus(data.WorkspaceStatus || "Active");
+        // Map API users to WorkspaceUser interface
+        const apiUsers = data.Users?.Users || [];
+        setAllUsers(
+          apiUsers.map((u: any, idx: number) => ({
+            id: u.UserId || idx + 1,
+            name: u.Username || u.Email || "Unknown",
+            email: u.Email || "",
+            role: Array.isArray(u.Roles) ? (u.Roles[0] || "Viewer") : (u.Roles || "Viewer"),
+            joinedDate: u.JoinedDate || "",
+          }))
+        );
+        setWorkspaceLoading(false);
+      })
+      .catch((err) => {
+        setWorkspaceError("Failed to load workspace details.");
+        setWorkspaceLoading(false);
+      });
+
+    SolutionService.getSolutions(id)
+      .then((data) => {
+        setAllSolutions(data.Solutions || []);
+        setSolutionsLoading(false);
+      })
+      .catch((err) => {
+        setSolutionsError("Failed to load solutions.");
+        setSolutionsLoading(false);
+      });
+  }, [id]);
 
   // Filter and paginate solutions
   const filteredSolutions = allSolutions.filter(solution =>
@@ -318,18 +293,20 @@ const WorkspaceDetails = () => {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <WorkspaceBreadcrumb workspaceName={workspace.name} />
+      <WorkspaceBreadcrumb workspaceName={workspace?.name || "Loading..."} />
 
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{workspace.name}</h1>
-          <p className="text-gray-600 mt-1">{workspace.description}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{workspace?.name || "Loading..."}</h1>
+          <p className="text-gray-600 mt-1">{workspace?.description || "Description not available."}</p>
         </div>
-        <WorkspaceSettings 
-          workspaceName={workspace.name} 
+        <WorkspaceSettings
+          workspaceName={workspace?.name || "Loading..."}
+          workspaceId={workspace?.id}
+          workspaceStatus={workspaceStatus}
           onWorkspaceDeleted={handleWorkspaceDeleted}
-          onWorkspaceDeactivated={handleWorkspaceDeactivated}
+          onWorkspaceStatusChange={(newStatus) => setWorkspaceStatus(newStatus)}
         />
       </div>
 
@@ -355,7 +332,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <FolderOpen className="w-8 h-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.solutions}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace?.solutions || "0"}</p>
                 <p className="text-sm text-gray-600">Solutions</p>
               </div>
             </div>
@@ -367,7 +344,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <Users className="w-8 h-8 text-green-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.members}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace?.members || "0"}</p>
                 <p className="text-sm text-gray-600">Users</p>
               </div>
             </div>
@@ -379,7 +356,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <Database className="w-8 h-8 text-purple-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace.dataSources}</p>
+                <p className="text-2xl font-bold text-gray-900">{workspace?.dataSources || "0"}</p>
                 <p className="text-sm text-gray-600">Data Sources</p>
               </div>
             </div>
@@ -391,7 +368,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="w-8 h-8 text-yellow-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">${workspace.monthlyCost}</p>
+                <p className="text-2xl font-bold text-gray-900">${workspace?.monthlyCost || "0"}</p>
                 <p className="text-sm text-gray-600">Monthly Cost</p>
               </div>
             </div>
@@ -408,7 +385,7 @@ const WorkspaceDetails = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <Label className="text-sm font-medium text-gray-700">Owner</Label>
-              <p className="mt-1 text-gray-900">{workspace.owner}</p>
+              <p className="mt-1 text-gray-900">{workspace?.owner || "N/A"}</p>
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-700">Status</Label>
@@ -422,7 +399,7 @@ const WorkspaceDetails = () => {
               <Label className="text-sm font-medium text-gray-700">Created</Label>
               <div className="mt-1 flex items-center space-x-1">
                 <Calendar className="w-4 h-4 text-gray-400" />
-                <p className="text-gray-900">{workspace.created}</p>
+                <p className="text-gray-900">{workspace?.created || "N/A"}</p>
               </div>
             </div>
           </div>
@@ -510,29 +487,42 @@ const WorkspaceDetails = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedSolutions.map((solution) => (
-                  <TableRow 
-                    key={solution.id} 
-                    className="cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => handleSolutionClick(solution.id)}
-                  >
-                    <TableCell>
-                      <div className="font-medium text-gray-900">{solution.name}</div>
+                {solutionsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                      Loading solutions...
                     </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solution.status)}`}>
-                        {solution.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-gray-600">{solution.lastModified}</TableCell>
                   </TableRow>
-                ))}
-                {paginatedSolutions.length === 0 && (
+                ) : solutionsError ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-red-500">
+                      {solutionsError}
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedSolutions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
+                ) : (
+                  paginatedSolutions.map((solution) => (
+                    <TableRow 
+                      key={solution.id} 
+                      className="cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => handleSolutionClick(solution.id)}
+                    >
+                      <TableCell>
+                        <div className="font-medium text-gray-900">{solution.name}</div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solution.status)}`}>
+                          {solution.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-gray-600">{solution.lastModified}</TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>

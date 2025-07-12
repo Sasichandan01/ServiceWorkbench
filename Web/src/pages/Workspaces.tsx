@@ -101,16 +101,28 @@ const Workspaces = () => {
   };
 
   const formatLastActivity = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    if (!timestamp) return "Unknown";
+    // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, treat as UTC
+    let isoTimestamp = timestamp;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+      isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+    }
+    const date = new Date(isoTimestamp);
+    if (isNaN(date.getTime())) return "Unknown";
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} minutes ago`;
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 0) return "Just now";
+    const diffInMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffInMinutes < 1) {
+      return "Just now";
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
     } else if (diffInMinutes < 1440) {
-      return `${Math.floor(diffInMinutes / 60)} hours ago`;
+      const hours = Math.floor(diffInMinutes / 60);
+      return `${hours} hour${hours === 1 ? '' : 's'} ago`;
     } else {
-      return `${Math.floor(diffInMinutes / 1440)} days ago`;
+      const days = Math.floor(diffInMinutes / 1440);
+      return `${days} day${days === 1 ? '' : 's'} ago`;
     }
   };
 
@@ -187,6 +199,15 @@ const Workspaces = () => {
       toast({
         title: "Error",
         description: "Workspace description is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!workspaceType || workspaceType === "" || workspaceType === undefined) {
+      toast({
+        title: "Error",
+        description: "Workspace type is required.",
         variant: "destructive",
       });
       return;
@@ -289,7 +310,7 @@ const Workspaces = () => {
                 />
               </div>
                   <div className="space-y-2">
-                    <Label htmlFor="type">Workspace Type</Label>
+                    <Label htmlFor="type">Workspace Type <span className="text-red-500">*</span></Label>
                     <Select value={workspaceType} onValueChange={setWorkspaceType}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select workspace type" />
@@ -397,35 +418,6 @@ const Workspaces = () => {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search workspaces..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="default">Default</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Workspaces Table */}
       <Card>
         <CardHeader>
@@ -435,13 +427,25 @@ const Workspaces = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Search Bar inside All Workspaces */}
+          <div className="mb-4 flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Search workspaces..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Workspace</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead className="text-center">Solutions</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Last Activity</TableHead>
               </TableRow>
             </TableHeader>
@@ -481,18 +485,17 @@ const Workspaces = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
-                      <span>{workspace.status}</span>
+                    <div className="font-medium text-gray-900">{workspace.owner}</div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                      <span>{workspace.type}</span>
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-gray-900">{workspace.owner}</div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <FolderOpen className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium">{workspace.projects}</span>
-                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
+                      <span>{workspace.status}</span>
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
