@@ -199,7 +199,7 @@ def get_workspace(event,context):
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         access_resource_response = resource_access_table.query(
-            IndexName='AccessKey-index',
+            IndexName='AccessKey-Index',
             KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
         ).get('Items')
         

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Verification from "./pages/Verification";
 import Dashboard from "./pages/Dashboard";
+import Welcome from "./pages/Welcome";
 import Workspaces from "./pages/Workspaces";
 import WorkspaceDetails from "./pages/WorkspaceDetails";
 import CreateSolution from "./pages/CreateSolution";
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/verification" element={<Verification />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/welcome" element={<Welcome />} />
             <Route path="/workspaces" element={
               <ProtectedContent resource="workspaces" action="view">
                 <Workspaces />
