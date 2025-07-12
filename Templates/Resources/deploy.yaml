@@ -1237,8 +1237,8 @@ Resources:
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        S3Bucket: service-workbench-artifacts
-        S3Key: lambda/datasourceslambda/DatasourcesLambda.zip
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
