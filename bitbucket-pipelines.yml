@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -84,12 +84,6 @@ definitions:
 
           echo "Waiting for stack creation..."
           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
-          # if ! aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"; then
-          #   aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || {
-          #     echo "[ERROR] Stack creation or update failed"
-          #     exit 1
-          #   }
-          # fi
           echo "API deployment completed successfully."
         else
           echo "Skipping deployment: No DEPLOY keyword in commit message."
@@ -127,9 +121,13 @@ definitions:
         |
         set -e
         echo "Building UI from Web directory..."
-        cd Web
 
-        STACK_NAME="develop-infra"
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Branch name: $BRANCH_NAME"
+
+        cd "Web"
+
+        STACK_NAME="${BRANCH_NAME}-deployment"
         REGION="us-east-1"
 
         echo "Fetching Cognito values from stack: $STACK_NAME..."
@@ -153,7 +151,7 @@ definitions:
           --output text)
 
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name "develop-deployment" \
+          --stack-name "$STACK_NAME" \
           --region "$REGION" \
           --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
           --output text)
@@ -209,14 +207,16 @@ definitions:
           exit 1
         fi
 
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Branch name: $BRANCH_NAME"
+
         echo "Syncing contents to S3..."
-        aws s3 sync dist/ "s3://${UI_BUCKET_NAME}/web/" --delete || {
+        aws s3 sync dist/ "s3://${UI_BUCKET_NAME}/${BRANCH_NAME}-web/" --delete || {
           echo "[ERROR] S3 sync failed"
           exit 1
         }
 
-
-        STACK_NAME="develop-infra" # or dynamically set based on branch
+        STACK_NAME="${BRANCH_NAME}-deployment" # or dynamically set based on branch
         REGION="us-east-1"
 
         echo "Fetching CloudFront Distribution ID from stack outputs..."
@@ -325,8 +325,6 @@ definitions:
 
         # echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
-
-
     - script: &zip_and_upload_lambdas
         |
         set -e
@@ -334,6 +332,8 @@ definitions:
         BASE_DIR="Code/Lambda"
         DEST_BUCKET="service-workbench-artifacts"
         LAMBDA_ZIP_DIR="lambda_zips"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
 
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
@@ -382,51 +382,6 @@ definitions:
           fi
         done
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
-
-
-        # |
-        # set -e
-        # echo "Zipping and uploading lambda files under Code/Lambda to S3..."
-
-        # BASE_DIR="Code/Lambda"
-        # DEST_BUCKET="service-workbench-artifacts"
-        # # DEST_BUCKET="mayank-swb"
-        # LAMBDA_ZIP_DIR="lambda_zips"
-        # mkdir -p "$LAMBDA_ZIP_DIR"
-        # trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
-
-        # # Loop over immediate subdirectories of Code/Lambda
-        # for CATEGORY in "$BASE_DIR"/*; do
-        #   if [ -d "$CATEGORY" ]; then
-        #     CATEGORY_NAME=$(basename "$CATEGORY")
-        #     S3_PREFIX="lambda/${CATEGORY_NAME,,}"  # Lowercase folder name
-
-        #     # Loop over all Python files inside the folder
-        #     find "$CATEGORY" -maxdepth 1 -type f -name "*.py" | while read -r py_file; do
-        #       FILE_NAME=$(basename "$py_file" .py)
-        #       ZIP_PATH="${LAMBDA_ZIP_DIR}/${FILE_NAME}.zip"
-        #       TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
-
-        #       echo "Processing $py_file -> $ZIP_PATH"
-
-        #       mkdir -p "$TEMP_DIR"
-        #       cp "$py_file" "$TEMP_DIR/lambda_function.py"
-        #       (
-        #         cd "$TEMP_DIR"
-        #         zip -r "../${FILE_NAME}.zip" lambda_function.py > /dev/null
-        #       )
-        #       rm -rf "$TEMP_DIR"
-
-        #       echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip"
-        #       aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}.zip" || {
-        #         echo "[ERROR] Failed to upload ${ZIP_PATH}"
-        #         exit 1
-        #       }
-        #     done
-        #   fi
-        # done
-
-        # echo "All zips uploaded to S3 under lambda/<folder>/ structure."
   
     - script: &zip_and_upload_layers
         |
@@ -472,6 +427,84 @@ definitions:
         }
 
         echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
+
+    - script: &update_branch_specific_lambdas
+        |
+        set -e
+        echo "Updating Lambda functions for branch: $BITBUCKET_BRANCH"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        REGION="us-east-1"
+
+        echo "🔍 Listing Lambda functions for branch: $BRANCH_NAME"
+        
+        # Get all Lambda functions that start with the branch name
+        FUNCTION_NAMES=$(aws lambda list-functions \
+          --region "${REGION}" \
+          --query "Functions[?starts_with(FunctionName, '${BRANCH_NAME}')].FunctionName" \
+          --output text)
+
+        if [ -z "$FUNCTION_NAMES" ]; then
+          echo "No Lambda functions found for branch: $BRANCH_NAME"
+          echo "Skipping Lambda updates."
+          exit 0
+        fi
+
+        echo "Found Lambda functions for branch $BRANCH_NAME:"
+        echo "$FUNCTION_NAMES" | tr '\t' '\n'
+
+        # Update each Lambda function found for this branch
+        for FUNCTION_NAME in $FUNCTION_NAMES; do
+          echo "Attempting to update Lambda function: $FUNCTION_NAME"
+          
+          # Extract the base function name (remove branch prefix)
+          BASE_FUNCTION_NAME=$(echo "$FUNCTION_NAME" | sed "s/^${BRANCH_NAME}-//")
+          
+          # Convert base function name to lowercase for S3 key
+          BASE_FUNCTION_LOWER=$(echo "$BASE_FUNCTION_NAME" | tr '[:upper:]' '[:lower:]')
+          
+          # Look for zip file in S3 under lambda/<base_function_lowercase>/
+          S3_BUCKET="service-workbench-artifacts"
+          S3_PREFIX="lambda/${BASE_FUNCTION_LOWER}/"
+          
+          echo "Looking for zip files in S3 prefix: s3://${S3_BUCKET}/${S3_PREFIX}"
+          
+          # List all zip files in the specific folder
+          ZIP_FILES=$(aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}" --recursive | grep "\.zip$" | awk '{print $4}')
+          
+          if [ -z "$ZIP_FILES" ]; then
+            echo "[WARN] No zip files found in s3://${S3_BUCKET}/${S3_PREFIX}"
+            continue
+          fi
+          
+          # Count number of zip files
+          NUM_ZIPS=$(echo "$ZIP_FILES" | wc -l)
+          
+          if [ "$NUM_ZIPS" -eq 1 ]; then
+            # Exactly one zip file found - use it
+            ZIP_KEY=$(echo "$ZIP_FILES" | head -n1)
+            echo "Found single zip file: $ZIP_KEY"
+            
+            echo "Updating Lambda function $FUNCTION_NAME with S3 key: $ZIP_KEY"
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --s3-bucket "${S3_BUCKET}" \
+              --s3-key "${ZIP_KEY}" \
+              --region "${REGION}" || {
+                echo "[WARN] Failed to update Lambda function: $FUNCTION_NAME"
+                continue
+              }
+            echo "Successfully updated Lambda function: $FUNCTION_NAME"
+          elif [ "$NUM_ZIPS" -gt 1 ]; then
+            echo "[WARN] Multiple zip files found for $FUNCTION_NAME:"
+            echo "$ZIP_FILES"
+            echo "Skipping update - please ensure only one zip file exists per function"
+          else
+            echo "[WARN] No zip files found for Lambda function: $FUNCTION_NAME"
+          fi
+        done
+
+        echo "Completed Lambda function updates for branch: $BRANCH_NAME"
 
     - script: &update_selected_lambdas_with_layer
         |
@@ -612,41 +645,54 @@ definitions:
           - *authenticate
           - *zip_and_upload_lambdas
 
+    - step: &update_branch_lambdas
+        name: Update Branch Lambda Functions
+        oidc: true
+        script:
+          - echo "Updating Lambda functions for current branch..."
+          - *authenticate
+          - *update_branch_specific_lambdas
+
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
+      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *deploy
+      - step: *build_and_deploy_ui
 
     wb-abhishek:
       - step: *lint_and_validate
+      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *deploy
-
+      - step: *build_and_deploy_ui
+      
     wb-salma:
       - step: *lint_and_validate
+      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *deploy
+      - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
+      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *deploy
+      - step: *build_and_deploy_ui
 
     wb-*:
       - step: *lint_and_validate
 
     develop:
       - step: *lint_and_validate
+      - step: *deploy
+      - step: *deploy_infra_stack
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *deploy_infra_stack
-      - step: *deploy
+      - step: *build_and_deploy_ui
 
   custom:
     Infra-setup:
@@ -686,7 +732,7 @@ pipelines:
             - *authenticate
             - *update_lambda_code
 
-    Zip-and-upload-lambdas:
+    Zip-upload-and-update-lambdas:
       - step:
           name: Zip and Upload Lambdas (Manual)
           oidc: true
