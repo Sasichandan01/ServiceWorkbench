@@ -22,10 +22,6 @@ Parameters:
     Type: String
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
-  pDatasourceBucketName:
-    Type: String
-    Default: "develop-datasource-bucket"
-    Description: Name of the S3 bucket for data sources
 
   pDatasourceBucketName:
     Type: String
@@ -1107,7 +1103,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-#Lambda Roles
+# Lambda Roles
   DatasourceLambdaRole:
     Type: AWS::IAM::Role
     Properties:
