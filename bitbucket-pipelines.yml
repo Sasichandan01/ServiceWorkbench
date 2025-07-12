@@ -244,86 +244,63 @@ definitions:
     - script: &update_lambda_code
         |
         set -e
-        if [ -z "$LAMBDA_NAME" ] || [ -z "$S3_KEY" ]; then
-          echo "[ERROR] LAMBDA_NAME and S3_KEY are required"
+
+        if [ -z "$LAMBDA_NAME" ]; then
+          echo "[ERROR] LAMBDA_NAME is required"
           exit 1
         fi
 
         S3_BUCKET="service-workbench-artifacts"
-        REGION="us-east-1"
+        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+        BASE_DIR="Code"
 
-        echo "Updating Lambda '$LAMBDA_NAME' using S3 object s3://${S3_BUCKET}/${S3_KEY}..."
+        echo "Listing contents of $BASE_DIR:"
+        ls -alR "$BASE_DIR"
 
+        echo "Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
+        MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
+
+        if [ -z "$MATCHING_FILES" ]; then
+          echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
+          exit 1
+        fi
+
+        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
+        if [ "$NUM_MATCHES" -gt 1 ]; then
+          echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
+          echo "$MATCHING_FILES"
+          exit 1
+        fi
+
+        FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
+
+        echo "Found Lambda file: $FILE_PATH"
+
+        # Copy and rename to a temp location as lambda_function.py
+        TEMP_FILE="/tmp/lambda_function.py"
+        cp "$FILE_PATH" "$TEMP_FILE"
+
+        echo "Creating zip with renamed file as lambda_function.py"
+        zip -j "$ZIP_PATH" "$TEMP_FILE" || {
+          echo "[ERROR] Failed to create zip"
+          exit 1
+        }
+
+        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
+          echo "[ERROR] Failed to upload to S3"
+          exit 1
+        }
+
+        echo "Updating Lambda: $LAMBDA_NAME"
         aws lambda update-function-code \
           --function-name "$LAMBDA_NAME" \
-          --s3-bucket "$S3_BUCKET" \
-          --s3-key "$S3_KEY" \
-          --region "$REGION" || {
-            echo "[ERROR] Failed to update Lambda function"
+          --zip-file "fileb://${ZIP_PATH}" || {
+            echo "[ERROR] Lambda update failed"
             exit 1
           }
 
-        echo "Lambda '$LAMBDA_NAME' updated successfully using ZIP from S3."
-
-        # |
-        # set -e
-
-        # if [ -z "$LAMBDA_NAME" ]; then
-        #   echo "[ERROR] LAMBDA_NAME is required"
-        #   exit 1
-        # fi
-
-        # S3_BUCKET="service-workbench-artifacts"
-        # ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
-        # BASE_DIR="Code"
-
-        # echo "Listing contents of $BASE_DIR:"
-        # ls -alR "$BASE_DIR"
-
-        # echo "Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
-        # MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
-
-        # if [ -z "$MATCHING_FILES" ]; then
-        #   echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
-        #   exit 1
-        # fi
-
-        # NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
-        # if [ "$NUM_MATCHES" -gt 1 ]; then
-        #   echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
-        #   echo "$MATCHING_FILES"
-        #   exit 1
-        # fi
-
-        # FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
-
-        # echo "Found Lambda file: $FILE_PATH"
-
-        # # Copy and rename to a temp location as lambda_function.py
-        # TEMP_FILE="/tmp/lambda_function.py"
-        # cp "$FILE_PATH" "$TEMP_FILE"
-
-        # echo "Creating zip with renamed file as lambda_function.py"
-        # zip -j "$ZIP_PATH" "$TEMP_FILE" || {
-        #   echo "[ERROR] Failed to create zip"
-        #   exit 1
-        # }
-
-        # echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
-        # aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
-        #   echo "[ERROR] Failed to upload to S3"
-        #   exit 1
-        # }
-
-        # echo "Updating Lambda: $LAMBDA_NAME"
-        # aws lambda update-function-code \
-        #   --function-name "$LAMBDA_NAME" \
-        #   --zip-file "fileb://${ZIP_PATH}" || {
-        #     echo "[ERROR] Lambda update failed"
-        #     exit 1
-        #   }
-
-        # echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
+        echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
     - script: &zip_and_upload_lambdas
         |
@@ -549,8 +526,9 @@ definitions:
           --query 'Functions[*].FunctionName' \
           --output text)
         
-        # Filter only functions that start with "develop" or "wb"
-        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        echo "Filtering functions with prefix: $BRANCH_NAME"
+        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep "^${BRANCH_NAME}")
 
         # for FN in "${TARGET_FUNCTIONS[@]}"; do
         # for FN in $FUNCTION_NAMES; do
@@ -720,11 +698,6 @@ pipelines:
             default: "abc"
             required: true
             description: "Enter the AWS Lambda function name (e.g., lambda1)"
-          - name: S3_KEY
-            default: "lambda/user/users_handler.zip"
-            required: true
-            description: "S3 key for the Lambda ZIP file (e.g., lambda/user/users_handler.zip)"
- 
       - step:
           name: Update Lambda Function (Manual)
           oidc: true
