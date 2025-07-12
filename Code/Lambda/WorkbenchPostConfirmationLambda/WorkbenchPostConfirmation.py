@@ -178,6 +178,7 @@ def lambda_handler(event, context):
 
         log_item = {
             'LogId': str(uuid.uuid4()),
+            'ResourceId': str(uuid.uuid4()),
             'UserId': user_id,
             'Action': 'ACCOUNT CREATED',
             'Email': email,
