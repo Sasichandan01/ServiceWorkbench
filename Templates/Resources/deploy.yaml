@@ -22,6 +22,7 @@ Parameters:
     Type: String
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
+
   pDatasourceBucketName:
     Type: String
     Default: "develop-datasource-bucket"
@@ -824,7 +825,7 @@ Resources:
   DatasourceBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref pDatasourceBucketName
+      BucketName: !Sub "${pPrefix}-datasource-bucket"
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -1139,8 +1140,8 @@ Resources:
                   - s3:DeleteObject
                   - s3:ListBucket
                 Resource:
-                  - !Sub arn:aws:s3:::${pDatasourceBucketName}
-                  - !Sub arn:aws:s3:::${pDatasourceBucketName}/datasources/*
+                  - !Sub arn:aws:s3:::${DatasourceBucket}
+                  - !Sub arn:aws:s3:::${DatasourceBucket}/datasources/*
 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
