@@ -1225,4 +1225,4 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-   
+  
