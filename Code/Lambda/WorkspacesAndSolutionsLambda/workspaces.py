@@ -199,7 +199,7 @@ def get_workspace(event,context):
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         access_resource_response = resource_access_table.query(
-            IndexName='AccessKey-index',
+            IndexName='AccessKey-Index',
             KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
         ).get('Items')
         
@@ -260,8 +260,7 @@ def get_workspaces(event, context):
         )
         workspace_items = []
         workspace_response= workspace_table.scan(
-            FilterExpression=Attr('CreatedBy').eq(user_id),
-            ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+            FilterExpression=Attr('CreatedBy').eq(user_id)
         ).get('Items')
         workspace_items.extend(workspace_response)
         workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]

@@ -5,20 +5,19 @@ Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
   pPrefix:
     Type: String
+    Default: "develop"
     Description: Prefix for Lambda function naming
-    Default: develop
-  pTableName:
-    Type: String
-    Description: Table name for Aurora DB
-    Default: wb_bhargav
+
   ApiName:
     Type: String
     Default: WorkbenchAPI
     Description: Name of the API Gateway API
+
   VPCPrefix:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
+
   pArtifactsBucketName:
     Type: String
     Default: "service-workbench-artifacts"
@@ -27,30 +26,770 @@ Parameters:
     Type: String
     Default: "develop-datasource-bucket"
     Description: Name of the S3 bucket for data sources
-  pProfileImageBucketName:
-    Type: String
-    Default: "develop-profile-images"
-    Description: Name of the S3 bucket for profile images
-  DeploymentTrigger:
-    Type: String
-    Description: time
   pRAGPrefix:
     Type: String
+    Default: "develop"
     Description: rag-prefix
-    Default: develop
-  SwaggerHash:
-    Type: String
-    Description: Hash or version to force API Gateway update when swagger.yaml changes
-    Default: "v1"
 
 Resources:
+
+  # S3 Bucket for artifacts
+  MiscBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${pPrefix}-service-workbench-misc"
+      # AccessControl: PublicRead
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  MiscBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MiscBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${MiscBucket.Arn}/*"
+
+  # CloudFront Origin Access Control (OAC)
+  WebsiteOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${pPrefix}-service-workbench-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+# CloudFront Distribution
+  WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !ImportValue WebsiteBucketRegionalDomainName
+            S3OriginConfig: {}
+            OriginAccessControlId: !Ref WebsiteOAC
+            OriginPath: !Sub "/${pPrefix}-web"
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        Logging:
+          Bucket: !ImportValue LogsBucketDomainName
+          Prefix: !Sub "${pPrefix}-cloudfront-logs/"
+          IncludeCookies: false
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+      Tags:
+        - Key: Name
+          Value: "ServiceWorkbench"
+
+# S3 Bucket Policy to allow CloudFront OAC access only
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !ImportValue WebsiteBucketName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub
+              - "arn:aws:s3:::${BucketName}/*"
+              - {BucketName: !ImportValue WebsiteBucketName}
+
+# Bucket policy to allow CloudFront to write logs
+  CloudFrontLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !ImportValue LogsBucketName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub
+              - "arn:aws:s3:::${BucketName}/*"
+              - {BucketName: !ImportValue LogsBucketName}
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !ImportValue LogsBucketArn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+
+# Cognito User Pool and Client
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${pPrefix}-UserPool"
+      AliasAttributes:
+        - email
+        - preferred_username
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: preferred_username
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: Role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      AutoVerifiedAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate:
+          EmailSubject: "Your temporary password for WorkBench"
+          EmailMessage: "Your username is {username} and temporary password is {####}"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Your verification code for WorkBench"
+        EmailMessage: "Your verification code is {####}"
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${pPrefix}-Client"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        AccessToken: "minutes"
+        IdToken: "minutes"
+        RefreshToken: "days"
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_CUSTOM_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      PreventUserExistenceErrors: ENABLED
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub "${pPrefix}-${AWS::AccountId}-auth"
+      ManagedLoginVersion: "2"
+
+  CleanupDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pPrefix}-CleanupDLQ"
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+    
+  CognitoTriggersCustomResource:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-CognitoTriggersCustomResource"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  CognitoTriggersResource:
+    Type: Custom::CognitoTriggers
+    Properties:
+      ServiceToken: !GetAtt CognitoTriggersCustomResource.Arn
+      UserPoolId: !Ref UserPool
+      PreSignUpLambdaArn: !GetAtt PreSignUpFunction.Arn
+      PreAuthLambdaArn: !GetAtt PreAuthFunction.Arn
+      PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
+      PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
+      PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreSignUpFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-PreSignUp"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpresignuplambda/WorkbenchPresignup.zip"
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref CleanupQueue
+          USER_TABLE_NAME: !Ref UserTable
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreAuthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-PreAuth"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpreauthlambda/WorkbenchPreAuth.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreTokenGenerationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-PreTokenGen"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PostConfirmationFunction:
+    Type: AWS::Lambda::Function
+    Properties: 
+      FunctionName: !Sub "${pPrefix}-PostConfirm"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt UserExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UserTable
+          ROLE_TABLE_NAME: !Ref RolesTable
+          DOMAIN: "ServiceWorkbench v2.0"
+          SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PostAuthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-PostAuth"
+      Role: !GetAtt UserExecutionRole.Arn
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchpostauthlambda/WorkbenchPostAuth.zip"
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  UserPoolCleanUp:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-Workbench-UserPool"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref CleanupQueue
+          USER_POOL_ID: !Ref UserPool
+          USER_TABLE_NAME: !Ref UserTable
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  PreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreAuthPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreAuthFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreTokenPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreTokenGenerationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PostConfirmPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostConfirmationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+  
+  PostAuthPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostAuthFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+# Event Source Mapping for Cleanup Queue
+  CleanupQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt CleanupQueue.Arn
+      FunctionName: !GetAtt UserPoolCleanUp.Arn
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+# Main SQS queue with redrive policy
+  CleanupQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${pPrefix}-CleanupQueue"
+      VisibilityTimeout: 65
+      ReceiveMessageWaitTimeSeconds: 20
+      DelaySeconds: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CleanupDLQ.Arn
+        maxReceiveCount: 5  # Message is sent to DLQ after 5 failed receives
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  # IAM Role for the Custom Resource Lambda
+  CustomResourceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:UpdateUserPool
+                Resource: !GetAtt UserPool.Arn
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  UserExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        
+        - PolicyName: SQSPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SQSPutPolicies
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt CleanupQueue.Arn
+        
+        - PolicyName: DynamoDBPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DynamoDBActivityLogsAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+        
+        - PolicyName: CognitoPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CognitoAccess
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
+                  - cognito-idp:AdminUpdateUserAttributes
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
+        
+        - PolicyName: SESPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SESAccess
+                Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: "*"
+
+        - PolicyName: S3Policies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3PutAccess
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: "*"
+        
+        - PolicyName: SSMPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SSMAccess
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  RolesLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-RolesLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+    
+  WorkspaceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-WorkspaceLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
+                  - !Sub
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: 
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
+        - PolicyName: LogAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowLogsAndGlueAccess
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                  - glue:GetJobRuns
+                Resource: '*'
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  LambdaAuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-LambdaAuthorizer"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Role: !GetAtt UserExecutionRole.Arn
+      Code:
+        S3Bucket: "service-workbench-artifacts"
+        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          USERS_TABLE: !Ref UserTable
+          CLIENT_ID: !Ref UserPoolClient
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"  
 
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: WorkspacesAndSolutionsLambda.lambda_handler
-      Role: !ImportValue WorkspaceLambdaExecutionRole
+      Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
@@ -63,17 +802,17 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: !Sub Workbench-develop-ActivityLogsTable
-          SOLUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionsTable
-          TEMPLATES_TABLE: !Sub Workbench-${pPrefix}-TemplatesTable
-          WORKSPACES_TABLE: !Sub Workbench-${pPrefix}-WorkspacesTable
-          EXECUTIONS_TABLE: !Sub Workbench-${pPrefix}-SolutionExecutionsTable
-          DATASOURCES_TABLE: !Sub Workbench-${pPrefix}-DatasourcesTable
-          ROLES_TABLE: !Sub Workbench-${pPrefix}-RolesTable
-          RESOURCE_ACCESS_TABLE: !Sub Workbench-${pPrefix}-ResourceAccessTable
-          WORKSPACES_BUCKET: !Sub "${pPrefix}-workspacesandsolutions-lambda"
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          SOLUTIONS_TABLE: !Ref SolutionsTable
+          TEMPLATES_TABLE: !Ref TemplatesTable
+          WORKSPACES_TABLE: !Ref WorkspacesTable
+          EXECUTIONS_TABLE: !Ref SolutionExecutionsTable
+          DATASOURCES_TABLE: !Ref DatasourcesTable
+          ROLES_TABLE: !Ref RolesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
       Code:
-        S3Bucket: service-workbench-artifacts
+        S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
@@ -146,7 +885,7 @@ Resources:
       Name: !Sub "${pPrefix}-${ApiName}"
       StageName: prod
       DefinitionUri:
-        Bucket: service-workbench-artifacts
+        Bucket: !Ref pArtifactsBucketName
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
@@ -160,7 +899,51 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
 
-  # remove WorkbenchApiDeployment and WorkbenchApiStage resources ...
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "Workbench-${pPrefix}-UserTable"
+      AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: Email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ActivityLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "Workbench-${pPrefix}-ActivityLogsTable"
+      AttributeDefinitions:
+        - AttributeName: LogId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LogId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -258,13 +1041,17 @@ Resources:
       AttributeDefinitions:
         - AttributeName: SolutionId
           AttributeType: S
+        - AttributeName: ExecutionId
+          AttributeType: S
       KeySchema:
         - AttributeName: SolutionId
           KeyType: HASH
+        - AttributeName: ExecutionId
+          KeyType: RANGE
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   TemplatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -304,13 +1091,13 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-RBACCustomResource"
       Handler: lambda_function.lambda_handler
-      Role: !ImportValue WorkbenchCustomResourceLambdaExecutionRole
+      Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        S3Bucket: service-workbench-artifacts
+        S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/rbaccustomresource/rbac_custom_resource.zip
       Tags:
         - Key: Name
@@ -399,12 +1186,13 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !ImportValue RolesLambdaFunctionRole
+      Role: !GetAtt RolesLambdaExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Environment:
         Variables:
-          ROLES_TABLE: !Sub "Workbench-${pPrefix}-RolesTable"
+          ROLES_TABLE: !Ref RolesTable
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -417,7 +1205,7 @@ Resources:
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        S3Bucket: service-workbench-artifacts
+        S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/roles/roles_lambda.zip
       Tags:
         - Key: Name
@@ -428,14 +1216,14 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-UsersLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !ImportValue UserExecutionRoleARN
+      Role: !GetAtt UserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Environment:
         Variables:
-          # USER_TABLE_NAME: !ImportValue UsersTableName
-          USER_TABLE_NAME: "Workbench-develop-UserTable"
-          PROFILE_IMAGE_BUCKET: !Ref ProfileImageBucket
+          USER_TABLE_NAME: !Ref UserTable
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          MISC_BUCKET: !Ref MiscBucket
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -448,7 +1236,7 @@ Resources:
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
-        S3Bucket: service-workbench-artifacts
+        S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/workbenchuserslambda/WorkbenchUsersLambda.zip
       Tags:
         - Key: Name
@@ -506,15 +1294,15 @@ Resources:
     Properties:
       Name: !Sub "${pPrefix}-KnowledgeBase"
       Description: "Stores vectorized data in OpenSearch"
-      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      RoleArn: !ImportValue "CustomResourceLambdaRoleARN"
       StorageConfiguration:
         Type: OPENSEARCH_MANAGED_CLUSTER
         OpensearchManagedClusterConfiguration:
-          DomainArn: !ImportValue "develop-OpenSearchDBArn"
+          DomainArn: !ImportValue "OpenSearchDBArn"
           DomainEndpoint: !Join
             - ""
             - - "https://"
-              - !ImportValue "develop-OpenSearchEndpoint"
+              - !ImportValue "OpenSearchEndpoint"
           FieldMapping: 
             VectorField: "bedrock-knowledge-base-default-vector"  
             TextField: "AMAZON_BEDROCK_TEXT_CHUNK"               
@@ -530,7 +1318,7 @@ Resources:
     Properties:
       Name: !Sub "${pPrefix}-AuroraKB"
       Description: "Knowledge base using Aurora PostgreSQL"
-      RoleArn: !ImportValue "develop-CustomResourceLambdaRoleARN"
+      RoleArn: !ImportValue "CustomResourceLambdaRoleARN"
       KnowledgeBaseConfiguration:
         Type: "VECTOR"
         VectorKnowledgeBaseConfiguration:
@@ -538,9 +1326,9 @@ Resources:
       StorageConfiguration:
         Type: "RDS"
         RdsConfiguration:
-          ResourceArn: !ImportValue "develop-AuroraDBClusterARN"
-          CredentialsSecretArn: !ImportValue "develop-AuroraDBSecretARN"
-          DatabaseName: !ImportValue "develop-AuroraDBName"
+          ResourceArn: !ImportValue "AuroraDBClusterARN"
+          CredentialsSecretArn: !ImportValue "AuroraDBSecretARN"
+          DatabaseName: !ImportValue "AuroraDBName"
           TableName: !Sub "${pRAGPrefix}_aurora_table" 
           FieldMapping:
             VectorField: "embedding"
@@ -551,7 +1339,7 @@ Resources:
   WorkbenchLambdaAuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !ImportValue LambdaAuthorizerFunctionName
+      FunctionName: !Ref LambdaAuthorizerFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*
@@ -565,3 +1353,31 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  
+  CloudfrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !GetAtt WebsiteDistribution.Id
+    Export:
+      Name: !Sub "${pPrefix}-CloudFrontDistributionId"
+
+  CloudFrontDomainName:
+    Description: Domain name of the CloudFront distribution
+    Value: !GetAtt WebsiteDistribution.DomainName
+    Export:
+      Name: !Sub "${pPrefix}-CloudFrontDomainName"
+    
+  CognitoUserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${pPrefix}-CognitoUserPoolId"
+
+  CognitoAppClientId:
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${pPrefix}-CognitoAppClientId"
+
+  CognitoRegion:
+    Value: !Ref "AWS::Region"
+    Export:
+      Name: !Sub "${pPrefix}-Region"
+   

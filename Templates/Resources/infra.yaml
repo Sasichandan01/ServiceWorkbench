@@ -472,6 +472,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+<<<<<<< HEAD
 # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
@@ -1113,6 +1114,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+=======
+>>>>>>> develop
 
   ServiceWorkbenchLambdaLayer:
     Type: AWS::Lambda::LayerVersion
@@ -1120,114 +1123,10 @@ Resources:
       LayerName: "ServiceWorkbenchLambdaLayer"
       Description: "Service Workbench Lambda Layer"
       Content:
-        S3Bucket: service-workbench-artifacts
+        S3Bucket: !Ref pArtifactsBucketName
         S3Key: layer/layer.zip
-        # S3Bucket: "mayank-swb"
-        # S3Key: "layers.zip"
       CompatibleRuntimes:
         - python3.12
-
-  CustomResourceLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "WorkbenchCustomResourceLambdaExecutionRole"
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:UpdateItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-  RolesLambdaFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${pApplicationPrefix}-RolesLambdaFunctionRole"
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:Scan
-                  - dynamodb:DeleteItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-    
-  WorkspaceLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${pApplicationPrefix}-WorkspaceLambdaExecutionRole"
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaBasicExecution
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                Resource:
-                  - !Sub arn:aws:s3:::${WorkspacesBucket}
-                  - !Sub arn:aws:s3:::${WorkspacesBucket}/*
-              - Effect: Allow
-                Action: lambda:Invoke
-                Resource: 
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
 
   OpenSearchDB:
     Type: AWS::OpenSearchService::Domain
@@ -1503,42 +1402,53 @@ Outputs:
     Export:
       Name: !Sub ${VPCPrefix}-NAT-Gateway-ID
 
-  CloudfrontDistributionId:
-    Description: CloudFront distribution ID
-    Value: !GetAtt WebsiteDistribution.Id
+  WebsiteBucketName:
+    Description: Website bucket name
+    Value: !Ref WebsiteBucket
     Export:
-      Name: !Sub "${pApplicationPrefix}-CloudFrontDistributionId"
+      Name: "WebsiteBucketName"
 
-  CloudFrontDomainName:
-    Description: Domain name of the CloudFront distribution
-    Value: !GetAtt WebsiteDistribution.DomainName
-    
-  CognitoUserPoolId:
-    Value: !Ref UserPool
+  WebsiteBucketArn:
+    Description: Website bucket ARN
+    Value: !GetAtt WebsiteBucket.Arn
     Export:
-      Name: !Sub "${pApplicationPrefix}-CognitoUserPoolId"
+      Name: "WebsiteBucketArn"
 
-  CognitoAppClientId:
-    Value: !Ref UserPoolClient
+  WebsiteBucketRegionalDomainName:
+    Description: Website bucket regional domain name
+    Value: !GetAtt WebsiteBucket.RegionalDomainName
     Export:
-      Name: !Sub "${pApplicationPrefix}-CognitoAppClientId"
+      Name: "WebsiteBucketRegionalDomainName"
 
-  CognitoRegion:
-    Value: !Ref "AWS::Region"
+  LogsBucketDomainName:
+    Description: Logs bucket domain name
+    Value: !GetAtt LogsBucket.DomainName
     Export:
-      Name: !Sub "${pApplicationPrefix}-Region"
+      Name: "LogsBucketDomainName"
 
   LogsBucketName:
     Description: Name of the logs S3 bucket
     Value: !Ref LogsBucket
     Export:
-      Name: !Sub "${pApplicationPrefix}-LogsBucket"
+      Name: "LogsBucketName"
+
+  LogsBucketArn:
+    Description: Logs bucket ARN
+    Value: !GetAtt LogsBucket.Arn
+    Export:
+      Name: "LogsBucketArn"
 
   WorkspacesBucketName:
     Description: Name of workspaces S3 bucket
     Value: !Ref WorkspacesBucket
     Export:
-      Name: !Sub "${pApplicationPrefix}-WorkspacesBucket"
+      Name: "WorkspacesBucket"
+  
+  WorkspacesBucketArn:
+    Description: Workspaces bucket ARN
+    Value: !GetAtt WorkspacesBucket.Arn
+    Export:
+      Name: "WorkspacesBucketArn"
 
   ServiceWorkbenchLambdaLayer:
     Description: Name of the service workbench lambda layer
@@ -1546,64 +1456,41 @@ Outputs:
     Export:
       Name: "ServiceWorkbenchLambdaLayer"
 
-  WorkspaceLambdaExecutionRole:
-    Description: Name of the workbench lambda execution role
-    Value: !GetAtt WorkspaceLambdaExecutionRole.Arn
-    Export:
-      Name: "WorkspaceLambdaExecutionRole"
-
-  CustomResourceLambdaExecutionRole:
-    Description: Name of the custom resource lambda execution role
-    Value: !GetAtt CustomResourceLambdaExecutionRole.Arn
-    Export:
-      Name: "WorkbenchCustomResourceLambdaExecutionRole"
-
-  RolesLambdaFunctionRole:
-    Description: Name of the roles lambda function role
-    Value: !GetAtt RolesLambdaFunctionRole.Arn
-    Export: 
-      Name: "RolesLambdaFunctionRole"
-
-  CustomResourceExecutionRoles:
-    Description: Name of the custom resource execution roles
-    Value: !GetAtt CustomResourceExecutionRoles.Arn
-    Export:
-      Name: "CustomResourceExecutionRoles"
-
   OpenSearchDBEndpoint:
     Value: !GetAtt OpenSearchDB.DomainEndpoint
     Description: The endpoint of the OpenSearch cluster
     Export:
-      Name: !Sub "${pApplicationPrefix}-OpenSearchEndpoint"
+      Name: "OpenSearchEndpoint"
 
   OpenSearchDBArn:
     Value: !GetAtt OpenSearchDB.Arn
     Description: The ARN of the OpenSearch cluster
     Export:
-      Name: !Sub "${pApplicationPrefix}-OpenSearchDBArn"
+      Name: "OpenSearchDBArn"
 
   RAGCustomResourceLambdaRole:
     Value: !GetAtt RAGCustomResourceLambdaRole.Arn
     Description: The ARN of the custom resource lambda role
     Export:
-      Name: !Sub "${pApplicationPrefix}-CustomResourceLambdaRoleARN"
+      Name: "CustomResourceLambdaRoleARN"
 
   AuroraDBClusterARN:
     Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
     Description: The ARN of the Aurora DB cluster
     Export:
-      Name: !Sub "${pApplicationPrefix}-AuroraDBClusterARN"
+      Name: "AuroraDBClusterARN"
 
   AuroraDBClusterSecret:
     Value: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
     Description: The secret ARN for the Aurora DB cluster
     Export:
-      Name: !Sub "${pApplicationPrefix}-AuroraDBSecretARN"
+      Name: "AuroraDBSecretARN"
 
   AuroraDBName:
     Value: !Ref pDatabaseName
     Description: The name of the database
     Export:
+<<<<<<< HEAD
       Name: !Sub "${pApplicationPrefix}-AuroraDBName"
 
   UserExecutionRole:
@@ -1629,3 +1516,6 @@ Outputs:
     Description: The name of the user table
     Export:
       Name: "UsersTableName"
+=======
+      Name: "AuroraDBName"
+>>>>>>> develop

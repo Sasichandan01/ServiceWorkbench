@@ -4,6 +4,7 @@ import { setAuth, setLoading } from '../../store/slices/authSlice';
 import { setPermissions, clearPermissions } from '../../store/slices/permissionsSlice';
 import { getUserInfo } from '../../lib/tokenUtils';
 import { PermissionService } from '../../services/permissionService';
+import { ApiClient } from '../../lib/apiClient';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -21,11 +22,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userInfo = getUserInfo();
 
         if (accessToken && userInfo) {
-          // Get permissions for user's role first
+          // Get permissions for user's role from local mapping
           const userRole = userInfo.role || 'Default';
           const permissions = PermissionService.getPermissionsForRole(userRole);
-          
-          // Set permissions first, then auth state
           dispatch(setPermissions(permissions));
           
           // Set authenticated user

@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
-  Home, 
+  DollarSign, 
   Database, 
   Cloud, 
   User, 
@@ -52,9 +52,9 @@ const Layout = () => {
   }, []);
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: Home, resource: null },
     { name: "Workspaces", href: "/workspaces", icon: Cloud, resource: "workspaces" },
     { name: "Data Sources", href: "/data-sources", icon: Database, resource: "datasources" },
+    { name: "Cost Dashboard", href: "/dashboard", icon: DollarSign, resource: null },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -100,6 +100,11 @@ const Layout = () => {
   const handleSwitchRole = () => {
     console.log("Switching role...");
     // Add switch role logic here
+  };
+
+  // Check if user has any permissions
+  const hasAnyPermission = () => {
+    return navigation.some(item => !item.resource || canView(item.resource));
   };
 
   const NavLink = ({ item }: { item: typeof navigation[0] }) => {
@@ -154,7 +159,7 @@ const Layout = () => {
     <TooltipProvider>
       <div className="min-h-screen bg-gray-50 flex">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'w-72' : 'w-16'} bg-white border-r transition-all duration-300 flex flex-col`}>
+        <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white border-r transition-all duration-300 flex flex-col fixed left-0 top-0 h-full z-10`}>
           {/* Logo */}
           <div className="px-4 py-4 border-b h-[73px] flex items-center justify-center">
             <div className="flex items-center space-x-2">
@@ -182,7 +187,7 @@ const Layout = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${sidebarOpen ? 'ml-64' : 'ml-16'} transition-all duration-300`}>
           {/* Header */}
           <header className="bg-white border-b px-6 py-4">
             <div className="flex items-center justify-between">
@@ -257,7 +262,49 @@ const Layout = () => {
 
           {/* Page Content */}
           <main className="flex-1 p-6">
-            <Outlet />
+            {!hasAnyPermission() && location.pathname !== '/welcome' ? (
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+                <div className="w-full max-w-md">
+                  <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Shield className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome!</h1>
+                    <p className="text-gray-600">Your account is being set up</p>
+                  </div>
+                  
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <Shield className="w-5 h-5 text-yellow-600" />
+                      <span className="font-medium text-yellow-800">Waiting for Access</span>
+                    </div>
+                    <p className="text-sm text-yellow-700 text-center">
+                      Please wait for an administrator to assign you a role with the necessary permissions.
+                    </p>
+                  </div>
+                  
+                  <div className="text-sm text-gray-500 text-center">
+                    <p className="mb-3">Once your role is assigned, you'll have access to:</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                        <span>Workspaces management</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                        <span>Data sources</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                        <span>Cost analytics</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Outlet />
+            )}
           </main>
         </div>
       </div>
