@@ -69,6 +69,8 @@ def is_user_action_valid(
     # 3. Check permissions
     missing_perms = []
     insufficient_perms = []
+    LOGGER.info("API permissions: %r", api_perms)
+    LOGGER.info("Role permissions: %r", role_perms)
     for perm in api_perms:
         try:
             key, req_level = perm.split(".", 1)

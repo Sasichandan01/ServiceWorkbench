@@ -848,9 +848,6 @@ Resources:
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       GlobalSecondaryIndexes:
         - IndexName: EmailIndex
           KeySchema:
@@ -858,9 +855,6 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: 1
-            WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -875,9 +869,6 @@ Resources:
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
