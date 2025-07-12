@@ -666,6 +666,7 @@ pipelines:
     develop:
       - step: *lint_and_validate
       - step: *deploy
+      - step: *deploy_infra_stack
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *build_and_deploy_ui

@@ -126,9 +126,6 @@ Resources:
             Resource: !Sub
               - "arn:aws:s3:::${BucketName}/*"
               - {BucketName: !ImportValue WebsiteBucketName}
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
 
 # Bucket policy to allow CloudFront to write logs
   CloudFrontLogBucketPolicy:
