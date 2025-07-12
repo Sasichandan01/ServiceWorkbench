@@ -28,10 +28,20 @@ Parameters:
     Default: "develop-datasource-bucket"
     Description: Name of the S3 bucket for data sources
 
+  pDatasourceBucketName:
+    Type: String
+    Default: "develop-datasource-bucket"
+    Description: Name of the S3 bucket for data sources
+
   pRAGPrefix:
     Type: String
     Default: "develop"
     Description: rag-prefix
+  
+  DeploymentTrigger:
+    Type: String
+    Default: "2025-07-02T00:00:00Z"
+    Description: Trigger date for deployment, used for versioning
 
 Resources:
 
@@ -246,6 +256,7 @@ Resources:
   CognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-CognitoTriggersCustomResource"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -278,6 +289,7 @@ Resources:
       PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
       PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -285,6 +297,7 @@ Resources:
   PreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreSignUp"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -316,6 +329,7 @@ Resources:
   PreAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreAuth"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -344,6 +358,7 @@ Resources:
   PreTokenGenerationFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreTokenGen"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -372,6 +387,7 @@ Resources:
   PostConfirmationFunction:
     Type: AWS::Lambda::Function
     Properties: 
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostConfirm"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -405,6 +421,7 @@ Resources:
   PostAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostAuth"
       Role: !GetAtt UserExecutionRole.Arn
       Handler: lambda_function.lambda_handler
@@ -433,6 +450,7 @@ Resources:
   UserPoolCleanUp:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -757,6 +775,7 @@ Resources:
   LambdaAuthorizerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-LambdaAuthorizer"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -784,11 +803,12 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"  
+          Value: "WorkbenchV2" 
 
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: WorkspacesAndSolutionsLambda.lambda_handler
       Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
@@ -1061,6 +1081,7 @@ Resources:
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-RBACCustomResource"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
@@ -1157,6 +1178,7 @@ Resources:
   RolesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt RolesLambdaExecutionRole.Arn
@@ -1187,6 +1209,7 @@ Resources:
   UsersLambda:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-UsersLambdaFunction"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -1218,6 +1241,7 @@ Resources:
   DatasourcesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-DatasourcesLambdaFunction"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt DatasourceLambdaRole.Arn

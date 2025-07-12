@@ -6,6 +6,7 @@ from datetime import datetime,timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from Utils.utils import log_activity,return_response,paginate_list
+from FGAC.fgac import create_workspace_fgac
 
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
@@ -61,8 +62,10 @@ def create_workspace(event,context):
         workspace_response=workspace_table.put_item(Item=item)
         resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'CREATE_WORKSPACE')
         
+        create_workspace_fgac(resource_access_table,user_id,"owner",workspace_id)
+
         print(resp)
-        return return_response(200, {"Message": "Workspace created successfully"})
+        return return_response(200, {"Message": "Workspace created successfully","WorkspaceId":workspace_id})
         
     except Exception as e:
         print(e)
@@ -223,7 +226,6 @@ def get_workspace(event,context):
 
 def get_workspaces(event, context):
     try:
-
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
 
@@ -231,8 +233,8 @@ def get_workspaces(event, context):
 
         filter_by = queryParams.get('filterBy')
         sort_order = queryParams.get('sortBy')
-        limit = queryParams.get('limit',10)
-        offset = queryParams.get('offset',1)
+        limit = queryParams.get('limit', 10)
+        offset = queryParams.get('offset', 1)
 
         if sort_order and sort_order not in ['asc', 'desc']:
             return return_response(400, {"Error": "Invalid sort_by parameter. Must be 'asc' or 'desc'."})
@@ -249,23 +251,23 @@ def get_workspaces(event, context):
             except ValueError:
                 return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
 
-
-        filter_expression = Attr('Id').contains(user_id)
-        if filter_by:
-            filter_expression &= Attr('WorkspaceName').contains(filter_by)
-
+        # Get all workspaces the user has access to from resource_access_table
+        # Query resource_access_table for entries where user_id matches and resource_type is WORKSPACE
         resource_access_response = resource_access_table.scan(
-            FilterExpression=filter_expression,
+            FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
             ProjectionExpression='AccessKey'
         )
-        workspace_items = []
-        workspace_response= workspace_table.scan(
-            FilterExpression=Attr('CreatedBy').eq(user_id)
-        ).get('Items')
-        workspace_items.extend(workspace_response)
-        workspace_ids = [item['AccessKey'].split('#')[1] for item in resource_access_response.get('Items', [])]
-
         
+        # Extract workspace IDs from access keys (format: WORKSPACE#workspace_id)
+        workspace_ids = []
+        for item in resource_access_response.get('Items', []):
+            access_key = item.get('AccessKey', '')
+            if access_key.startswith('WORKSPACE#'):
+                workspace_id = access_key.split('#')[1]
+                workspace_ids.append(workspace_id)
+        
+        # Get workspace details for all accessible workspaces
+        workspace_items = []
         for workspace_id in workspace_ids:
             response = workspace_table.get_item(
                 Key={'WorkspaceId': workspace_id},
@@ -275,7 +277,12 @@ def get_workspaces(event, context):
             if item:
                 workspace_items.append(item)
 
+        # Apply filtering if specified
+        if filter_by:
+            workspace_items = [item for item in workspace_items 
+                             if filter_by.lower() in item.get('WorkspaceName', '').lower()]
 
+        # Apply pagination and sorting
         pagination_response = paginate_list(
             name='Workspaces',
             data=workspace_items,
@@ -286,7 +293,6 @@ def get_workspaces(event, context):
             sort_order=sort_order or 'asc'
         )
         return pagination_response
-
 
     except Exception as e:
         print(e)
