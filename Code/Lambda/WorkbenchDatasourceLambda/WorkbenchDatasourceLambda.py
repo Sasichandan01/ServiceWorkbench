@@ -18,10 +18,13 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
+ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
+table = dynamodb.Table(ROLES_TABLE)
+
 
 def response(status_code, body):
     return {
@@ -33,6 +36,13 @@ def response(status_code, body):
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
+        
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
