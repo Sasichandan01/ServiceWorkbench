@@ -5,12 +5,13 @@ import logging
 import uuid
 from datetime import datetime
 from Utils.utils import paginate_list
+from RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
 
 
 VALID_DATASOURCE_SORT_KEYS = [
     'CreationTime', 'DatasourceId', 'DatasourceName',
-    'CreatedBy', 'DatasourceStatus', 'LastUpdatedBy', 'LastUpdationTime'
+    'CreatedBy', 'LastUpdatedBy', 'LastUpdationTime'
 ]
 
 LOGGER = logging.getLogger()
@@ -36,17 +37,19 @@ def response(status_code, body):
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
-        if not valid:
-            return return_response(403, {"Error": msg})
         
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
         path_params = event.get("pathParameters") or {}
+        resource = event.get("resource", "")
+
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get("body") or "{}")
@@ -117,12 +120,13 @@ def get_all_datasources(query_params):
         {
             "DatasourceId": item.get("DatasourceId"),
             "DatasourceName": item.get("DatasourceName"),
+            "Description": item.get("Description"),
             "CreatedBy": item.get("CreatedBy"),
-            "DatasourceStatus": item.get("DatasourceStatus"),
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
             "LastUpdatedBy": item.get("LastUpdatedBy"),
-            "LastUpdationTime": item.get("LastUpdationTime")
+            "LastUpdationTime": item.get("LastUpdationTime"),
+            "Tags": item.get("Tags", [])
         }
         for item in items
     ]
@@ -154,8 +158,7 @@ def create_datasource(body):
         "DatasourceName": body.get("DatasourceName"),
         "Tags": body.get("Tags", []),
         "Description": body.get("Description", ""),
-        "DatasourceStatus": "ACTIVE",
-        "CreatedBy": "SYSTEM",  # Replace with actual user identity if available
+        "CreatedBy": "SYSTEM",
         "CreationTime": now,
         "LastUpdatedBy": "SYSTEM",
         "LastUpdationTime": now,

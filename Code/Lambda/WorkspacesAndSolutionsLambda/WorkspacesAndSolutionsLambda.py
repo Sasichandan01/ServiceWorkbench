@@ -8,7 +8,7 @@ import asyncio
 import json
 import boto3
 import os
-
+ 
 dynamodb = boto3.resource("dynamodb")
 roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 

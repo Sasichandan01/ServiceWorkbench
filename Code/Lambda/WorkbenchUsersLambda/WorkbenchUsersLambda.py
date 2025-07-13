@@ -4,6 +4,7 @@ import os
 import logging
 from boto3.dynamodb.conditions import Key
 from Utils.utils import paginate_list
+from RBAC.rbac import is_user_action_valid, return_response
 from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
@@ -54,12 +55,6 @@ def lambda_handler(event, context):
     """
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
-        if not valid:
-            return return_response(403, {"Error": msg})
         # Check for S3 trigger (presence of 'Records' with 's3' key)
         if "Records" in event and event["Records"][0].get("eventSource") == "aws:s3":
             return update_profile_image_on_s3_upload(event, context)
@@ -68,6 +63,14 @@ def lambda_handler(event, context):
         path = event.get('path', '')
         query_params = event.get('queryStringParameters') or {}
         path_params = event.get('pathParameters') or {}
+        resource = event.get('resource', '')
+
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get('body') or "{}")

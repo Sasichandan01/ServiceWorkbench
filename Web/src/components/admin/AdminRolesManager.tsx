@@ -446,17 +446,6 @@ const AdminRolesManager = () => {
               className="pl-10"
             />
           </div>
-          <Select value={limit.toString()} onValueChange={(value) => setLimit(Number(value))}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5 per page</SelectItem>
-              <SelectItem value="10">10 per page</SelectItem>
-              <SelectItem value="20">20 per page</SelectItem>
-              <SelectItem value="50">50 per page</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Roles Table */}
