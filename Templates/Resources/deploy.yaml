@@ -27,6 +27,11 @@ Parameters:
     Type: String
     Default: "develop"
     Description: rag-prefix
+  
+  DeploymentTrigger:
+    Type: String
+    Default: "2025-07-02T00:00:00Z"
+    Description: Trigger date for deployment, used for versioning
 
 Resources:
 
@@ -241,6 +246,7 @@ Resources:
   CognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-CognitoTriggersCustomResource"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -273,6 +279,7 @@ Resources:
       PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
       PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
+      Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -280,6 +287,7 @@ Resources:
   PreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreSignUp"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -311,6 +319,7 @@ Resources:
   PreAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreAuth"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -339,6 +348,7 @@ Resources:
   PreTokenGenerationFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreTokenGen"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -367,6 +377,7 @@ Resources:
   PostConfirmationFunction:
     Type: AWS::Lambda::Function
     Properties: 
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostConfirm"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -400,6 +411,7 @@ Resources:
   PostAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostAuth"
       Role: !GetAtt UserExecutionRole.Arn
       Handler: lambda_function.lambda_handler
@@ -428,6 +440,7 @@ Resources:
   UserPoolCleanUp:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -752,6 +765,7 @@ Resources:
   LambdaAuthorizerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-LambdaAuthorizer"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -777,11 +791,12 @@ Resources:
           CLIENT_ID: !Ref UserPoolClient
       Tags:
         - Key: Name
-          Value: "WorkbenchV2"  
+          Value: "WorkbenchV2" 
 
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: WorkspacesAndSolutionsLambda.lambda_handler
       Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
@@ -1019,6 +1034,7 @@ Resources:
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-RBACCustomResource"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
@@ -1045,10 +1061,77 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+# Lambda Roles
+  DatasourceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-UserExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+ 
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DatasourcesTableAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: !GetAtt DatasourcesTable.Arn
+
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3AccessToDatasourceFolder
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${DatasourceBucket}
+                  - !Sub arn:aws:s3:::${DatasourceBucket}/datasources/*
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+      Tags:
+        - Key: Name
+          Value: WorkbenchV2
+
+
+
 # Lambdas
   RolesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt RolesLambdaExecutionRole.Arn
@@ -1079,6 +1162,7 @@ Resources:
   UsersLambda:
     Type: AWS::Lambda::Function
     Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-UsersLambdaFunction"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt UserExecutionRole.Arn
@@ -1107,6 +1191,37 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  DatasourcesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-DatasourcesLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt DatasourceLambdaRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      Environment:
+        Variables:
+          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
+          DATASOURCE_BUCKET: !Ref DatasourceBucket
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1120,6 +1235,14 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref UsersLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+  
+  DatasourcesLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DatasourcesLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*

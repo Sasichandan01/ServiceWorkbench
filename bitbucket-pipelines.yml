@@ -76,7 +76,7 @@ definitions:
             --template-file Templates/Resources/deploy.yaml \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -520,14 +520,21 @@ definitions:
         #   "wb-abhishek-RolesLambdaFunction"
         # )
 
-        echo "🔍 Listing all Lambda functions..."
+        echo "Listing all Lambda functions..."
         FUNCTION_NAMES=$(aws lambda list-functions \
           --region "${REGION}" \
           --query 'Functions[*].FunctionName' \
           --output text)
         
-        # Filter only functions that start with "develop" or "wb"
-        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep -E '^(develop|wb)')
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-' | xargs)
+        echo "Filtering functions with prefix: $BRANCH_NAME"
+
+        TARGET_FUNCTIONS=$(echo "$FUNCTION_NAMES" | tr '\t' '\n' | grep "^${BRANCH_NAME}" || true)
+
+        if [ -z "$TARGET_FUNCTIONS" ]; then
+          echo "[INFO] No matching Lambda functions found for prefix: $BRANCH_NAME"
+          exit 0
+        fi
 
         # for FN in "${TARGET_FUNCTIONS[@]}"; do
         # for FN in $FUNCTION_NAMES; do
@@ -641,23 +648,23 @@ pipelines:
 
     wb-abhishek:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
       - step: *build_and_deploy_ui
       
     wb-salma:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
       - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
       - step: *build_and_deploy_ui
 
     wb-*:
@@ -665,10 +672,10 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
-      - step: *deploy
-      - step: *deploy_infra_stack
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
+      - step: *deploy_infra_stack
       - step: *build_and_deploy_ui
 
   custom:
