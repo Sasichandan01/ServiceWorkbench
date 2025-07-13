@@ -495,27 +495,28 @@ const WorkspaceDetails = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Solution Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Last Modified</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {solutionsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       Loading solutions...
                     </TableCell>
                   </TableRow>
                 ) : solutionsError ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-red-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-red-500">
                       {solutionsError}
                     </TableCell>
                   </TableRow>
                 ) : allSolutions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
@@ -530,9 +531,18 @@ const WorkspaceDetails = () => {
                         <div className="font-medium text-gray-900">{solution.SolutionName}</div>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solution.SolutionStatus)}`}>
-                          {solution.SolutionStatus}
-                        </span>
+                        <div className="text-gray-700 text-sm line-clamp-2">{solution.Description}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
+                            solution.Tags.map((tag: string, idx: number) => (
+                              <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">No tags</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-gray-600">{solution.LastUpdationTime}</TableCell>
                     </TableRow>
