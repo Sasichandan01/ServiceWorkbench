@@ -60,6 +60,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
   const [uploadTargetFolder, setUploadTargetFolder] = useState<string>("");
+  const uploadInputRef = React.useRef<HTMLInputElement>(null);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -173,8 +174,8 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       
       // Step 2: Upload files to S3 with progress tracking
       const uploadPromises = files.map(async (file) => {
-        const presignedData = response.PreSignedURL.find(p => p.FileName === file.name);
-        if (!presignedData) {
+        const presignedUrl = response.PreSignedURL[file.name];
+        if (!presignedUrl) {
           throw new Error(`No presigned URL found for ${file.name}`);
         }
 
@@ -227,7 +228,8 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
             reject(new Error(`Upload failed for ${file.name}`));
           });
 
-          xhr.open('PUT', presignedData.Url);
+          xhr.open('PUT', presignedUrl);
+          // Don't set Content-Type for S3 presigned URLs - let browser handle it
           xhr.send(file);
         });
       });
@@ -404,15 +406,20 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       // Step 1: Get presigned URLs
       const fileData = selectedUploadFiles.map(file => ({
         FileName: file.name,
-        Type: file.name.split('.').pop()?.toLowerCase() || ''
+        ContentType: getContentType(file)
       }));
       const response = await DatasourceService.getPresignedUrls(datasourceId, fileData);
+      console.log('Presigned URL response:', response);
+      
       // Step 2: Upload files to S3 with progress tracking
       const uploadPromises = selectedUploadFiles.map(async (file) => {
-        const presignedData = response.PreSignedURL.find(p => p.FileName === file.name);
-        if (!presignedData) {
+        const presignedUrl = response.PreSignedURL[file.name];
+        if (!presignedUrl) {
+          console.error(`No presigned URL found for ${file.name}`);
           throw new Error(`No presigned URL found for ${file.name}`);
         }
+        console.log(`Uploading file: ${file.name}`);
+        console.log(`Presigned URL: ${presignedUrl}`);
         return new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.upload.addEventListener('progress', (e) => {
@@ -429,6 +436,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
           });
           xhr.addEventListener('load', () => {
             if (xhr.status === 200) {
+              console.log(`Upload success for ${file.name}`);
               setUploadProgress(prev =>
                 prev.map(p =>
                   p.fileName === file.name
@@ -438,6 +446,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
               );
               resolve();
             } else {
+              console.error(`Upload error for ${file.name}: status ${xhr.status}`);
               setUploadProgress(prev =>
                 prev.map(p =>
                   p.fileName === file.name
@@ -449,6 +458,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
             }
           });
           xhr.addEventListener('error', () => {
+            console.error(`Upload error for ${file.name}: network error`);
             setUploadProgress(prev =>
               prev.map(p =>
                 p.fileName === file.name
@@ -458,7 +468,8 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
             );
             reject(new Error(`Upload failed for ${file.name}`));
           });
-          xhr.open('PUT', presignedData.Url);
+          xhr.open('PUT', presignedUrl);
+          // Don't set Content-Type for S3 presigned URLs - let browser handle it
           xhr.send(file);
         });
       });
@@ -472,6 +483,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       setUploadTargetFolder("");
       onRefresh();
     } catch (error) {
+      console.error('File upload error:', error);
       toast({
         title: "Error",
         description: "Failed to upload files",
@@ -480,6 +492,17 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadProgress([]), 3000);
+    }
+  };
+
+  // Add a helper function to map file extensions to S3 content types
+  const getContentType = (file: File): string => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'csv': return 'text/csv';
+      case 'json': return 'application/json';
+      case 'txt': return 'text/plain';
+      default: return 'application/octet-stream';
     }
   };
 
@@ -497,6 +520,34 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     setCurrentFolder(segments.join('/'));
     setCurrentPage(1);
     setSelectedFiles([]);
+  };
+
+  // Add this function inside the FolderFileManager component
+  const handleDownloadFile = async (s3Key: string, fileName: string) => {
+    try {
+      const response = await DatasourceService.getDownloadUrl(datasourceId, s3Key);
+      const presignedUrl = response?.PreSignedURL;
+      if (!presignedUrl) throw new Error('No presigned URL received');
+      // Trigger download
+      const downloadResp = await fetch(presignedUrl);
+      if (!downloadResp.ok) throw new Error('Failed to fetch file');
+      const blob = await downloadResp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to download file',
+        variant: 'destructive',
+      });
+      console.error('Download error:', error);
+    }
   };
 
   return (
@@ -595,7 +646,15 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+            <Dialog open={isUploadDialogOpen} onOpenChange={(open) => {
+              setIsUploadDialogOpen(open);
+              if (!open) {
+                setSelectedUploadFiles([]);
+                setUploadTargetFolder("");
+                // Optionally, reset the file input value if you use a ref
+                if (uploadInputRef.current) uploadInputRef.current.value = "";
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="cursor-pointer" disabled={isUploading || deleteMode}>
                   <Upload className="w-4 h-4 mr-2" />
@@ -606,16 +665,17 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
                 <DialogHeader>
                   <DialogTitle>Upload Files</DialogTitle>
                   <DialogDescription>
-                    Select files to upload and choose the target folder.
+                    Select up to 10 files to upload and choose the target folder.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-4 space-y-4">
+                <div className="py-4 flex flex-col gap-4">
                   <Input
                     type="file"
                     multiple
                     accept=".csv,.json,.txt"
                     onChange={handleUploadDialogFileChange}
                     disabled={isUploading}
+                    ref={uploadInputRef}
                   />
                   <div>
                     <label className="block text-sm font-medium mb-1">Target Folder</label>
@@ -632,17 +692,20 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
                     </select>
                   </div>
                   {selectedUploadFiles.length > 0 && (
-                    <div>
+                    <div className="flex flex-col gap-2">
                       <div className="font-medium mb-1">Files to upload:</div>
-                      <ul className="list-disc pl-5 text-sm">
+                      <ul className="list-disc pl-5 text-sm space-y-1">
                         {selectedUploadFiles.map(file => (
-                          <li key={file.name}>{file.name}</li>
+                          <li key={file.name} className="break-all flex items-center justify-between">
+                            <span>{file.name}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">{file.type || 'Unknown type'}</span>
+                          </li>
                         ))}
                       </ul>
                     </div>
                   )}
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex flex-row gap-2 justify-end">
                   <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)} disabled={isUploading}>
                     Cancel
                   </Button>
@@ -760,27 +823,10 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.type === 'file' && !deleteMode && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem>
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => item.s3Key && handleSelectFileOrFolder(item, true)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      {item.type === 'file' && !deleteMode && item.s3Key && (
+                        <Button variant="ghost" size="sm" onClick={() => handleDownloadFile(item.s3Key!, item.name)}>
+                          <Download className="w-4 h-4" />
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>

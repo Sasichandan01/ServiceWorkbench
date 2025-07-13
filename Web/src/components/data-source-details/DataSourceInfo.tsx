@@ -45,7 +45,12 @@ const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete, d
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-xl font-semibold">Datasource Information</CardTitle>
+        <div>
+          <p className="text-2xl font-bold">{datasource.DatasourceName}</p>
+          {datasource.Description && (
+            <p className="text-base mt-1 text-muted-foreground">{datasource.Description}</p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onEdit} disabled={deleteMode}>
             <Pencil className="h-4 w-4 mr-2" />
@@ -60,20 +65,30 @@ const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete, d
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Name</label>
-            <p className="text-sm font-semibold">{datasource.DatasourceName}</p>
-          </div>
-          <div>
             <label className="text-sm font-medium text-muted-foreground">Created By</label>
             <p className="text-sm">{datasource.CreatedBy}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Total Size</label>
-            <p className="text-sm font-semibold">{formatBytes(totalSize)}</p>
+            <label className="text-sm font-medium text-muted-foreground">Tags</label>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {datasource.Tags && datasource.Tags.length > 0 ? (
+                datasource.Tags.map((tag, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">No tags</span>
+              )}
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium text-muted-foreground">Total Files</label>
             <p className="text-sm font-semibold">{totalFiles}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Total Size</label>
+            <p className="text-sm font-semibold">{formatBytes(totalSize)}</p>
           </div>
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -86,24 +101,6 @@ const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete, d
             </div>
           </div>
         </div>
-        {datasource.Description && (
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Description</label>
-            <p className="text-sm">{datasource.Description}</p>
-          </div>
-        )}
-        {datasource.Tags && datasource.Tags.length > 0 && (
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Tags</label>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {datasource.Tags.map((tag, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

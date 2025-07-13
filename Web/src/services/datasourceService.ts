@@ -148,14 +148,23 @@ export class DatasourceService {
     return this.handleResponse<DeleteDatasourceResponse>(response);
   }
 
-  static async getPresignedUrls(datasourceId: string, files: { FileName: string; Type: string }[]): Promise<{ PreSignedURL: { FileName: string; Url: string }[] }> {
+  static async getPresignedUrls(
+    datasourceId: string,
+    files: { FileName: string; ContentType: string }[]
+  ): Promise<{ PreSignedURL: Record<string, string> }> {
     const response = await ApiClient.post(`/datasources/${datasourceId}`, { Files: files });
-    return this.handleResponse<{ PreSignedURL: { FileName: string; Url: string }[] }>(response);
+    return this.handleResponse<{ PreSignedURL: Record<string, string> }>(response);
   }
 
   static async deleteFolder(datasourceId: string, folderS3Key: string): Promise<{ Message: string }> {
     const endpoint = `/datasources/${datasourceId}?action=delete`;
     const response = await ApiClient.post(endpoint, { FilePaths: [folderS3Key] });
     return this.handleResponse<{ Message: string }>(response);
+  }
+
+  static async getDownloadUrl(datasourceId: string, s3Path: string): Promise<{ PreSignedURL: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=download`;
+    const response = await ApiClient.post(endpoint, { S3Path: s3Path });
+    return this.handleResponse<{ PreSignedURL: string }>(response);
   }
 }
