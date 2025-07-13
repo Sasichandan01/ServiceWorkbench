@@ -5,7 +5,6 @@ import { ProtectedButton } from "@/components/ui/protected-button";
 import DataSourceBreadcrumb from "@/components/DataSourceBreadcrumb";
 import DataSourcesHeader from "@/components/data-sources/DataSourcesHeader";
 import DataSourcesSummary from "@/components/data-sources/DataSourcesSummary";
-import DataSourcesFilters from "@/components/data-sources/DataSourcesFilters";
 import DataSourcesTable from "@/components/data-sources/DataSourcesTable";
 import DataSourcesEmpty from "@/components/data-sources/DataSourcesEmpty";
 import { DatasourceService, type Datasource } from "../services/datasourceService";
@@ -42,13 +41,9 @@ const DataSources = () => {
           id: ds.DatasourceId,
           name: ds.DatasourceName,
           description: ds.Description || "No description available",
-          type: ds.S3Path ? "S3" : "RDS", // Mock type based on S3Path
-          status: ds.DatasourceStatus,
-          connectionString: ds.S3Path || "connection-string",
-          lastSync: formatLastActivity(ds.LastUpdationTime),
-          records: "N/A", // Mock data
-          workspaces: [], // Mock data
-          tags: ds.Tags || []
+          tags: ds.Tags || [],
+          creationTime: formatLastActivity(ds.CreationTime),
+          lastModifiedTime: formatLastActivity(ds.LastUpdationTime),
         }));
         setDataSources(transformedDataSources);
         setTotalCount(response.Pagination?.TotalCount || transformedDataSources.length);
@@ -71,16 +66,28 @@ const DataSources = () => {
   };
 
   const formatLastActivity = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    if (!timestamp) return "Unknown";
+    // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, treat as UTC
+    let isoTimestamp = timestamp;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+      isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+    }
+    const date = new Date(isoTimestamp);
+    if (isNaN(date.getTime())) return "Unknown";
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} minutes ago`;
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 0) return "Just now";
+    const diffInMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffInMinutes < 1) {
+      return "Just now";
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
     } else if (diffInMinutes < 1440) {
-      return `${Math.floor(diffInMinutes / 60)} hours ago`;
+      const hours = Math.floor(diffInMinutes / 60);
+      return `${hours} hour${hours === 1 ? '' : 's'} ago`;
     } else {
-      return `${Math.floor(diffInMinutes / 1440)} days ago`;
+      const days = Math.floor(diffInMinutes / 1440);
+      return `${days} day${days === 1 ? '' : 's'} ago`;
     }
   };
 
@@ -115,17 +122,9 @@ const DataSources = () => {
     }
   };
 
-  const filteredDataSources = dataSources.filter(dataSource => {
-    const matchesSearch = dataSource.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         dataSource.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === "all" || dataSource.type.toLowerCase() === typeFilter;
-    return matchesSearch && matchesType;
-  });
-
   // Pagination logic
   const totalPages = Math.ceil(totalCount / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedDataSources = filteredDataSources.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedDataSources = dataSources;
 
   // Calculate data source statistics
   const totalDataSources = dataSources.length;
@@ -141,35 +140,26 @@ const DataSources = () => {
   return (
     <div className="space-y-6">
       <DataSourceBreadcrumb />
-      
       <DataSourcesHeader onCreateDataSource={handleCreateDataSource} />
-
       <DataSourcesSummary 
         totalDataSources={totalDataSources}
         connectedDataSources={connectedDataSources}
         errorDataSources={errorDataSources}
         syncingDataSources={syncingDataSources}
       />
-
-      <DataSourcesFilters 
+      <DataSourcesTable 
+        dataSources={paginatedDataSources}
+        onDataSourceClick={handleDataSourceClick}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
-        typeFilter={typeFilter}
-        setTypeFilter={setTypeFilter}
       />
-
-      {filteredDataSources.length > 0 ? (
-        <DataSourcesTable 
-          dataSources={paginatedDataSources}
-          onDataSourceClick={handleDataSourceClick}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      ) : (
+      {dataSources.length === 0 && (
         <DataSourcesEmpty 
           searchTerm={searchTerm}
-          typeFilter={typeFilter}
+          typeFilter={"all"}
           isCreateDialogOpen={isCreateDialogOpen}
           setIsCreateDialogOpen={setIsCreateDialogOpen}
         />
