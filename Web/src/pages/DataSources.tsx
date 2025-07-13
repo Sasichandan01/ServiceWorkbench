@@ -46,7 +46,7 @@ const DataSources = () => {
           lastModifiedTime: formatLastActivity(ds.LastUpdationTime),
         }));
         setDataSources(transformedDataSources);
-        setTotalCount(response.Pagination?.TotalCount || transformedDataSources.length);
+        setTotalCount(response.Pagination?.TotalCount || 0);
       } else {
         setDataSources([]);
         setTotalCount(0);
@@ -67,10 +67,16 @@ const DataSources = () => {
 
   const formatLastActivity = (timestamp: string): string => {
     if (!timestamp) return "Unknown";
-    // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, treat as UTC
     let isoTimestamp = timestamp;
+    // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, convert to ISO and treat as UTC
     if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
       isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+      // If ISO without timezone, treat as UTC
+      isoTimestamp = timestamp + 'Z';
+    } else if (!/(Z|[+-]\d{2}:?\d{2})$/.test(timestamp)) {
+      // If no timezone info, treat as UTC
+      isoTimestamp = timestamp + 'Z';
     }
     const date = new Date(isoTimestamp);
     if (isNaN(date.getTime())) return "Unknown";
@@ -95,12 +101,12 @@ const DataSources = () => {
     fetchDataSources();
   }, [currentPage, searchTerm]);
 
-  const handleCreateDataSource = async (name: string, description: string, type: string) => {
+  const handleCreateDataSource = async (name: string, tags: string[], description: string) => {
     try {
       const createData = {
         DatasourceName: name,
-        Description: description,
-        Tags: [type] // Use type as initial tag
+        Tags: tags,
+        Description: description
       };
 
       const response = await DatasourceService.createDatasource(createData);
@@ -139,13 +145,12 @@ const DataSources = () => {
 
   return (
     <div className="space-y-6">
-      <DataSourceBreadcrumb />
       <DataSourcesHeader onCreateDataSource={handleCreateDataSource} />
       <DataSourcesSummary 
         totalDataSources={totalDataSources}
-        connectedDataSources={connectedDataSources}
-        errorDataSources={errorDataSources}
-        syncingDataSources={syncingDataSources}
+        connectedDataSources={0}
+        errorDataSources={0}
+        syncingDataSources={0}
       />
       <DataSourcesTable 
         dataSources={paginatedDataSources}
