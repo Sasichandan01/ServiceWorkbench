@@ -22,11 +22,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { FolderStructure, S3File } from "@/services/datasourceService";
+import { Select } from "@/components/ui/select";
 
 interface FolderFileManagerProps {
   datasourceId: string;
   folders: FolderStructure;
   onRefresh: () => void;
+  deleteMode: boolean;
+  setDeleteMode: (val: boolean) => void;
 }
 
 interface UploadProgress {
@@ -44,7 +47,7 @@ interface DisplayItem {
   isFolder?: boolean;
 }
 
-const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManagerProps) => {
+const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDeleteMode }: FolderFileManagerProps) => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [currentFolder, setCurrentFolder] = useState<string>("");
@@ -54,6 +57,9 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
   const [isUploading, setIsUploading] = useState(false);
   const itemsPerPage = 10;
   const { toast } = useToast();
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
+  const [uploadTargetFolder, setUploadTargetFolder] = useState<string>("");
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -291,55 +297,69 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
     }
   };
 
+  // Add a helper to identify folders uniquely
+  const getFolderKey = (folderName: string) => `folder:${folderName}`;
+
   const handleDeleteSelected = async () => {
     if (selectedFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please select files to delete.",
+        description: "Please select files or folders to delete.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const deletePromises = selectedFiles.map(s3Key => 
-        DatasourceService.deleteFile(datasourceId, s3Key)
-      );
-      
+      const fileKeys = selectedFiles.filter(key => !key.startsWith('folder:'));
+      const folderNames = selectedFiles.filter(key => key.startsWith('folder:')).map(key => key.replace('folder:', ''));
+
+      const deletePromises = [
+        ...fileKeys.map(s3Key => DatasourceService.deleteFile(datasourceId, s3Key)),
+        ...folderNames.map(folderName => {
+          const s3Key = folders[folderName]?.S3Key || folderName;
+          return DatasourceService.deleteFolder(datasourceId, s3Key);
+        }),
+      ];
+
       await Promise.all(deletePromises);
-      
+
       toast({
         title: "Success",
-        description: `${selectedFiles.length} file(s) deleted successfully!`,
+        description: `${selectedFiles.length} item(s) deleted successfully!`,
       });
-      
+
       setSelectedFiles([]);
+      setDeleteMode(false);
+      setCurrentPage(1);
+      setCurrentFolder("");
       onRefresh();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete files. Please try again.",
+        description: "Failed to delete items. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const handleSelectAll = (checked: boolean) => {
-    const fileItems = paginatedItems.filter(item => item.type === 'file' && item.s3Key);
+    const selectableItems = paginatedItems.filter(item => item.type === 'file' ? item.s3Key : true);
     if (checked) {
-      const newSelections = fileItems.map(item => item.s3Key!).filter(s3Key => !selectedFiles.includes(s3Key));
+      const newSelections = selectableItems.map(item => item.type === 'file' ? item.s3Key! : getFolderKey(item.name)).filter(key => !selectedFiles.includes(key));
       setSelectedFiles([...selectedFiles, ...newSelections]);
     } else {
-      const fileS3Keys = fileItems.map(item => item.s3Key!);
-      setSelectedFiles(selectedFiles.filter(s3Key => !fileS3Keys.includes(s3Key)));
+      const itemKeys = selectableItems.map(item => item.type === 'file' ? item.s3Key! : getFolderKey(item.name));
+      setSelectedFiles(selectedFiles.filter(key => !itemKeys.includes(key)));
     }
   };
 
-  const handleSelectFile = (s3Key: string, checked: boolean) => {
+  const handleSelectFileOrFolder = (item: DisplayItem, checked: boolean) => {
+    const key = item.type === 'file' ? item.s3Key! : getFolderKey(item.name);
     if (checked) {
-      setSelectedFiles([...selectedFiles, s3Key]);
+      setSelectedFiles([...selectedFiles, key]);
     } else {
-      setSelectedFiles(selectedFiles.filter(key => key !== s3Key));
+      setSelectedFiles(selectedFiles.filter(k => k !== key));
     }
   };
 
@@ -362,6 +382,105 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
     return <FileText className="w-5 h-5 text-muted-foreground" />;
   };
 
+  const exitDeleteMode = () => {
+    setDeleteMode(false);
+    setSelectedFiles([]);
+  };
+
+  // New upload dialog logic
+  const handleUploadDialogFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setSelectedUploadFiles(Array.from(event.target.files));
+    }
+  };
+
+  const handleUploadFiles = async () => {
+    if (selectedUploadFiles.length === 0) return;
+    setIsUploading(true);
+    setUploadProgress(selectedUploadFiles.map(file => ({ fileName: file.name, progress: 0, status: 'uploading' })));
+    try {
+      // Step 1: Get presigned URLs
+      const fileData = selectedUploadFiles.map(file => ({
+        FileName: file.name,
+        Type: file.name.split('.').pop()?.toLowerCase() || ''
+      }));
+      const response = await DatasourceService.getPresignedUrls(datasourceId, fileData);
+      // Step 2: Upload files to S3 with progress tracking
+      const uploadPromises = selectedUploadFiles.map(async (file) => {
+        const presignedData = response.PreSignedURL.find(p => p.FileName === file.name);
+        if (!presignedData) {
+          throw new Error(`No presigned URL found for ${file.name}`);
+        }
+        return new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percentComplete = (e.loaded / e.total) * 100;
+              setUploadProgress(prev =>
+                prev.map(p =>
+                  p.fileName === file.name
+                    ? { ...p, progress: percentComplete }
+                    : p
+                )
+              );
+            }
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+              setUploadProgress(prev =>
+                prev.map(p =>
+                  p.fileName === file.name
+                    ? { ...p, progress: 100, status: 'completed' }
+                    : p
+                )
+              );
+              resolve();
+            } else {
+              setUploadProgress(prev =>
+                prev.map(p =>
+                  p.fileName === file.name
+                    ? { ...p, status: 'error' }
+                    : p
+                )
+              );
+              reject(new Error(`Upload failed for ${file.name}`));
+            }
+          });
+          xhr.addEventListener('error', () => {
+            setUploadProgress(prev =>
+              prev.map(p =>
+                p.fileName === file.name
+                  ? { ...p, status: 'error' }
+                  : p
+              )
+            );
+            reject(new Error(`Upload failed for ${file.name}`));
+          });
+          xhr.open('PUT', presignedData.Url);
+          xhr.send(file);
+        });
+      });
+      await Promise.all(uploadPromises);
+      toast({
+        title: "Success",
+        description: `${selectedUploadFiles.length} file(s) uploaded successfully`,
+      });
+      setIsUploadDialogOpen(false);
+      setSelectedUploadFiles([]);
+      setUploadTargetFolder("");
+      onRefresh();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upload files",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setTimeout(() => setUploadProgress([]), 3000);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -369,7 +488,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
           <div>
             <CardTitle className="flex items-center gap-2">
               {currentFolder && (
-                <Button variant="ghost" size="sm" onClick={handleBackToRoot}>
+                <Button variant="ghost" size="sm" onClick={handleBackToRoot} disabled={deleteMode}>
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               )}
@@ -388,7 +507,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
           <div className="flex gap-2">
             <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" disabled={deleteMode}>
                   <FolderPlus className="w-4 h-4 mr-2" />
                   Create Folder
                 </Button>
@@ -418,29 +537,67 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            <input
-              type="file"
-              multiple
-              accept=".csv,.json,.txt"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="file-upload"
-              disabled={isUploading}
-            />
-            <label htmlFor="file-upload">
-              <Button className="cursor-pointer" disabled={isUploading}>
-                <Upload className="w-4 h-4 mr-2" />
-                {isUploading ? "Uploading..." : "Upload Files"}
-              </Button>
-            </label>
-            
-            {selectedFiles.length > 0 && (
-              <Button variant="destructive" onClick={handleDeleteSelected}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete ({selectedFiles.length})
-              </Button>
-            )}
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="cursor-pointer" disabled={isUploading || deleteMode}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Files
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Upload Files</DialogTitle>
+                  <DialogDescription>
+                    Select files to upload and choose the target folder.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <Input
+                    type="file"
+                    multiple
+                    accept=".csv,.json,.txt"
+                    onChange={handleUploadDialogFileChange}
+                    disabled={isUploading}
+                  />
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Target Folder</label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={uploadTargetFolder}
+                      onChange={e => setUploadTargetFolder(e.target.value)}
+                      disabled={isUploading}
+                    >
+                      <option value="">Root</option>
+                      {Object.keys(folders).filter(f => f !== 'Root').map(folderName => (
+                        <option key={folderName} value={folderName}>{folderName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedUploadFiles.length > 0 && (
+                    <div>
+                      <div className="font-medium mb-1">Files to upload:</div>
+                      <ul className="list-disc pl-5 text-sm">
+                        {selectedUploadFiles.map(file => (
+                          <li key={file.name}>{file.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)} disabled={isUploading}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUploadFiles} disabled={isUploading || selectedUploadFiles.length === 0}>
+                    {isUploading ? "Uploading..." : "Upload"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button variant="destructive" onClick={() => setDeleteMode(true)} disabled={deleteMode}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
           </div>
         </div>
         
@@ -471,21 +628,37 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
         )}
       </CardHeader>
       <CardContent>
+        {deleteMode && (
+          <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded p-2">
+            <span className="text-red-700 font-medium">Select items to delete</span>
+            <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={selectedFiles.length === 0}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Confirm Delete ({selectedFiles.length})
+            </Button>
+            <Button variant="outline" size="sm" onClick={exitDeleteMode}>
+              Cancel
+            </Button>
+          </div>
+        )}
         {currentItems.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 pb-4 border-b">
-              <Checkbox 
-                id="select-all"
-                checked={
-                  paginatedItems.filter(item => item.type === 'file').length > 0 &&
-                  paginatedItems.filter(item => item.type === 'file' && item.s3Key).every(item => selectedFiles.includes(item.s3Key!))
-                }
-                onCheckedChange={handleSelectAll}
-              />
-              <label htmlFor="select-all" className="text-sm font-medium">
-                Select All Files ({paginatedItems.filter(item => item.type === 'file').length} files)
-              </label>
-            </div>
+            {deleteMode && (
+              <div className="flex items-center space-x-2 pb-4 border-b">
+                <Checkbox 
+                  id="select-all"
+                  checked={
+                    paginatedItems.filter(item => (item.type === 'file' ? item.s3Key : true)).length > 0 &&
+                    paginatedItems.filter(item => (item.type === 'file' ? item.s3Key : true)).every(item =>
+                      selectedFiles.includes(item.type === 'file' ? item.s3Key! : getFolderKey(item.name))
+                    )
+                  }
+                  onCheckedChange={handleSelectAll}
+                />
+                <label htmlFor="select-all" className="text-sm font-medium">
+                  Select All ({paginatedItems.length} items)
+                </label>
+              </div>
+            )}
             
             <Table>
               <TableHeader>
@@ -499,20 +672,21 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
               </TableHeader>
               <TableBody>
                 {paginatedItems.map((item, index) => (
-                  <TableRow key={startIndex + index} className="hover:bg-muted/50">
+                  <TableRow key={startIndex + index} className={`hover:bg-muted/50 ${deleteMode ? 'opacity-100' : ''}`}>
                     <TableCell>
-                      {item.type === 'file' && item.s3Key && (
-                        <Checkbox 
+                      {deleteMode && ((item.type === 'file' && item.s3Key) || item.type === 'folder') ? (
+                        <Checkbox
                           id={`item-${index}`}
-                          checked={selectedFiles.includes(item.s3Key)}
-                          onCheckedChange={(checked) => handleSelectFile(item.s3Key!, checked as boolean)}
+                          checked={selectedFiles.includes(item.type === 'file' ? item.s3Key! : getFolderKey(item.name))}
+                          onCheckedChange={(checked) => handleSelectFileOrFolder(item, checked as boolean)}
                         />
-                      )}
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <div 
-                        className={`flex items-center space-x-3 ${item.type === 'folder' ? 'cursor-pointer hover:text-primary' : ''}`}
-                        onClick={item.type === 'folder' ? () => handleFolderClick(item.name) : undefined}
+                        className={`flex items-center space-x-3 ${item.type === 'folder' ? (deleteMode ? '' : 'cursor-pointer hover:text-primary') : ''}`}
+                        onClick={deleteMode ? undefined : (item.type === 'folder' ? () => handleFolderClick(item.name) : undefined)}
+                        style={deleteMode ? { pointerEvents: 'none', opacity: 0.6 } : {}}
                       >
                         {getFileIcon(item)}
                         <span className="font-medium">{item.name}</span>
@@ -528,7 +702,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.type === 'file' && (
+                      {item.type === 'file' && !deleteMode && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -542,7 +716,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh }: FolderFileManag
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={() => item.s3Key && handleSelectFile(item.s3Key, true)}
+                              onClick={() => item.s3Key && handleSelectFileOrFolder(item, true)}
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete

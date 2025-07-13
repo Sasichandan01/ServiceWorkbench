@@ -15,6 +15,7 @@ const DataSourceDetails = () => {
   const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(false);
 
   const fetchDataSource = useCallback(async () => {
     if (!id) return;
@@ -73,6 +74,7 @@ const DataSourceDetails = () => {
         totalSize={dataSource.TotalSize}
         onEdit={() => setEditDialogOpen(true)}
         onDelete={() => setDeleteDialogOpen(true)}
+        deleteMode={deleteMode}
       />
 
       {dataSource.Folders && (
@@ -80,6 +82,8 @@ const DataSourceDetails = () => {
           datasourceId={dataSource.Datasource.DatasourceId}
           folders={dataSource.Folders}
           onRefresh={fetchDataSource}
+          deleteMode={deleteMode}
+          setDeleteMode={setDeleteMode}
         />
       )}
 

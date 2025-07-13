@@ -19,6 +19,7 @@ interface DataSourceInfoProps {
   totalSize?: number;
   onEdit: () => void;
   onDelete: () => void;
+  deleteMode?: boolean;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -30,7 +31,7 @@ const formatBytes = (bytes?: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete }: DataSourceInfoProps) => {
+const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete, deleteMode }: DataSourceInfoProps) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -46,11 +47,11 @@ const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete }:
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle className="text-xl font-semibold">Datasource Information</CardTitle>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
+          <Button variant="outline" size="sm" onClick={onEdit} disabled={deleteMode}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit
           </Button>
-          <Button variant="destructive" size="sm" onClick={onDelete}>
+          <Button variant="destructive" size="sm" onClick={onDelete} disabled={deleteMode}>
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>

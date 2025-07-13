@@ -9,6 +9,7 @@ export interface S3File {
 
 export interface FolderStructure {
   [key: string]: {
+    S3Key?: string;
     Files: S3File[];
   };
 }
@@ -125,12 +126,14 @@ export class DatasourceService {
   }
 
   static async createFolder(datasourceId: string, folderName: string): Promise<{ Message: string }> {
-    const response = await ApiClient.post(`/datasources/${datasourceId}/folders`, { folderName });
+    const endpoint = `/datasources/${datasourceId}?action=folder`;
+    const response = await ApiClient.post(endpoint, { Folder: folderName });
     return this.handleResponse<{ Message: string }>(response);
   }
 
   static async deleteFile(datasourceId: string, s3Key: string): Promise<{ Message: string }> {
-    const response = await ApiClient.delete(`/datasources/${datasourceId}/files/${encodeURIComponent(s3Key)}`);
+    const endpoint = `/datasources/${datasourceId}?action=delete`;
+    const response = await ApiClient.post(endpoint, { FilePaths: [s3Key] });
     return this.handleResponse<{ Message: string }>(response);
   }
 
@@ -147,5 +150,11 @@ export class DatasourceService {
   static async getPresignedUrls(datasourceId: string, files: { FileName: string; Type: string }[]): Promise<{ PreSignedURL: { FileName: string; Url: string }[] }> {
     const response = await ApiClient.post(`/datasources/${datasourceId}`, { Files: files });
     return this.handleResponse<{ PreSignedURL: { FileName: string; Url: string }[] }>(response);
+  }
+
+  static async deleteFolder(datasourceId: string, folderS3Key: string): Promise<{ Message: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=delete`;
+    const response = await ApiClient.post(endpoint, { FilePaths: [`${folderS3Key.endsWith('/') ? folderS3Key : folderS3Key + '/'}`] });
+    return this.handleResponse<{ Message: string }>(response);
   }
 }
