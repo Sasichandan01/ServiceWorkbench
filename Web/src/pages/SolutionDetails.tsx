@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import SolutionInformation from "@/components/SolutionInformation";
 import ArchitectureDiagram from "@/components/ArchitectureDiagram";
 import RunHistory from "@/components/RunHistory";
 import { Play, Brain } from "lucide-react";
+import { SolutionService } from "../services/solutionService";
+import { WorkspaceService } from "../services/workspaceService";
 
 interface RunHistoryItem {
   id: number;
@@ -26,24 +28,40 @@ const SolutionDetails = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Mock solution data - in a real app, this would come from an API
-  const solutionData = {
-    id: solutionId,
-    name: "Customer Segmentation",
-    description: "Advanced ML model for customer segmentation based on behavioral patterns and purchase history",
-    type: "ML Model",
-    status: "Development",
-    owner: "Sarah Chen",
-    created: "2024-01-15",
-    lastModified: "Just now",
-    version: "v1.0.0",
-    totalRuns: 0,
-  };
+  const [solution, setSolution] = useState<any>(null);
+  const [workspaceName, setWorkspaceName] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const workspaceName = "Analytics Team";
+  // Fetch solution and workspace name on mount
+  useEffect(() => {
+    if (!workspaceId || !solutionId) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      SolutionService.getSolution(workspaceId, solutionId),
+      WorkspaceService.getWorkspace(workspaceId)
+    ])
+      .then(([solutionData, workspaceData]) => {
+        setSolution(solutionData);
+        setWorkspaceName(workspaceData.WorkspaceName);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message || "Failed to load solution details.");
+        setLoading(false);
+      });
+  }, [workspaceId, solutionId]);
 
-  // Mock run history data - empty for new solution
-  const [allRunHistory] = useState<RunHistoryItem[]>([]);
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500">Loading solution details...</div>;
+  }
+  if (error) {
+    return <div className="p-8 text-center text-red-500">{error}</div>;
+  }
+  if (!solution) {
+    return <div className="p-8 text-center text-gray-500">Solution not found.</div>;
+  }
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -67,7 +85,7 @@ const SolutionDetails = () => {
     navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`);
   };
 
-  const isNewSolution = solutionData.totalRuns === 0;
+  const isNewSolution = !solution.LastUpdationTime && !solution.SolutionStatus;
 
   return (
     <div className="space-y-6">
@@ -75,14 +93,14 @@ const SolutionDetails = () => {
       <SolutionBreadcrumb 
         workspaceName={workspaceName}
         workspaceId={workspaceId}
-        solutionName={solutionData.name}
+        solutionName={solution.SolutionName}
       />
 
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{solutionData.name}</h1>
-          <p className="text-gray-600 mt-1">{solutionData.description}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{solution.SolutionName}</h1>
+          <p className="text-gray-600 mt-1">{solution.Description}</p>
         </div>
         <div className="flex items-center space-x-3">
           {isNewSolution && (
@@ -99,16 +117,17 @@ const SolutionDetails = () => {
       </div>
 
       {/* Overview Cards */}
-      <SolutionOverviewCards solutionData={solutionData} />
+      <SolutionOverviewCards solutionData={solution} />
 
       {/* Solution Information */}
-      <SolutionInformation solutionData={solutionData} getStatusBadgeClass={getStatusBadgeClass} />
+      <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
 
       {/* Architecture Diagram - only show if not a new solution */}
       {!isNewSolution && <ArchitectureDiagram />}
 
       {/* Run History - only show if not a new solution */}
-      {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />}
+      {/* You may want to fetch and show real run history here */}
+      {/* {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />} */}
 
       {/* Generate Solution Card - show for new solutions */}
       {isNewSolution && (

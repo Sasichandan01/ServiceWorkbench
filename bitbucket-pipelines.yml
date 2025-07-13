@@ -392,6 +392,8 @@ definitions:
         LAYER_ZIP_DIR="layer_zips"
         ZIP_NAME="layer.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
+        REGION="us-east-1"
+        LAYER_NAME="ServiceWorkbenchLambdaLayer"
 
         mkdir -p "$LAYER_ZIP_DIR"
         # trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
@@ -399,6 +401,7 @@ definitions:
         TEMP_LAYER_DIR="/tmp/layer_temp"
         PYTHON_DIR="${TEMP_LAYER_DIR}/python"
 
+        rm -rf "$TEMP_LAYER_DIR"
         mkdir -p "$PYTHON_DIR"
 
         echo "Copying all files and folders from $BASE_DIR to $PYTHON_DIR"
@@ -424,6 +427,19 @@ definitions:
           echo "[ERROR] Upload to S3 failed"
           exit 1
         }
+
+        echo "Publishing new Lambda Layer version..."
+        PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
+          --layer-name "$LAYER_NAME" \
+          --description "Updated layer from CI script" \
+          --content S3Bucket="$DEST_BUCKET",S3Key="layer/${ZIP_NAME}" \
+          --compatible-runtimes python3.8 python3.9 python3.10 \
+          --region "$REGION") || {
+            echo "[ERROR] Failed to publish layer"
+            exit 1
+          }
+
+        NEW_LAYER_ARN=$(echo "$PUBLISH_OUTPUT" | jq -r '.LayerVersionArn')
 
         echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
 
@@ -663,9 +679,9 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
       - step: *build_and_deploy_ui
 
     wb-abhishek:

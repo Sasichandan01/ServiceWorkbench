@@ -843,6 +843,13 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: ["GET", "PUT", "POST", "DELETE"]
+            AllowedOrigins: ["*"]
+            ExposedHeaders: ["ETag"]
+            MaxAge: 3000
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -982,9 +989,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: DatasourceId
           AttributeType: S
+        - AttributeName: DatasourceName
+          AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
       KeySchema:
         - AttributeName: DatasourceId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CreatedBy-DatasourceName-index
+          KeySchema:
+            - AttributeName: CreatedBy
+              KeyType: HASH
+            - AttributeName: DatasourceName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1210,6 +1230,7 @@ Resources:
           USER_TABLE_NAME: !Ref UserTable
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           MISC_BUCKET: !Ref MiscBucket
+          ROLES_TABLE: !Ref RolesTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1241,6 +1262,7 @@ Resources:
         Variables:
           DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
           DATASOURCE_BUCKET: !Ref DatasourceBucket
+          ROLES_TABLE: !Ref RolesTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:

@@ -54,3 +54,29 @@ Thumbs.db
 # Python
 __pycache__/
 
+Web/.vite/deps/_metadata.json
+Web/.vite/deps/@reduxjs_toolkit.js
+Web/.vite/deps/@reduxjs_toolkit.js.map
+Web/.vite/deps/@tanstack_react-query.js
+Web/.vite/deps/@tanstack_react-query.js.map
+Web/.vite/deps/chunk-2CLD7BNN.js
+Web/.vite/deps/chunk-2CLD7BNN.js.map
+Web/.vite/deps/chunk-PV7ZWGTI.js
+Web/.vite/deps/chunk-PV7ZWGTI.js.map
+Web/.vite/deps/chunk-WOOG5QLI.js
+Web/.vite/deps/chunk-WOOG5QLI.js.map
+Web/.vite/deps/class-variance-authority.js
+Web/.vite/deps/class-variance-authority.js.map
+Web/.vite/deps/lucide-react.js
+Web/.vite/deps/lucide-react.js.map
+Web/.vite/deps/package.json
+Web/.vite/deps/react_jsx-dev-runtime.js
+Web/.vite/deps/react_jsx-dev-runtime.js.map
+Web/.vite/deps/react-dom_client.js
+Web/.vite/deps/react-dom_client.js.map
+Web/.vite/deps/react-redux.js
+Web/.vite/deps/react-redux.js.map
+Web/.vite/deps/react-router-dom.js
+Web/.vite/deps/react-router-dom.js.map
+Web/.vite/deps/react.js
+Web/.vite/deps/react.js.map

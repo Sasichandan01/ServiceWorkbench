@@ -61,9 +61,14 @@ export interface DeleteWorkspaceResponse {
 export class WorkspaceService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let errorMsg = '';
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      } catch {
+        errorMsg = await response.text();
+      }
+      throw new Error(errorMsg);
     }
     return response.json();
   };
@@ -95,8 +100,17 @@ export class WorkspaceService {
     return this.handleResponse<CreateWorkspaceResponse>(response);
   }
 
-  static async getWorkspace(workspaceId: string): Promise<Workspace> {
-    const response = await ApiClient.get(`/workspaces/${workspaceId}`);
+  static async getWorkspace(
+    workspaceId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<Workspace> {
+    const searchParams = new URLSearchParams();
+    const limit = params?.limit ?? 10;
+    const offset = params?.offset ?? 1;
+    searchParams.append('limit', limit.toString());
+    searchParams.append('offset', offset.toString());
+    const endpoint = `/workspaces/${workspaceId}?${searchParams.toString()}`;
+    const response = await ApiClient.get(endpoint);
     return this.handleResponse<Workspace>(response);
   }
 

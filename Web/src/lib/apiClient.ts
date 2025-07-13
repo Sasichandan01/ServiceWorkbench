@@ -78,4 +78,21 @@ export class ApiClient {
   static async delete(endpoint: string, options: Omit<ApiClientOptions, 'method'> = {}): Promise<Response> {
     return this.request(endpoint, { ...options, method: 'DELETE' });
   }
+
+  static async postFormData(endpoint: string, formData: FormData, options: Omit<ApiClientOptions, 'method' | 'body'> = {}): Promise<Response> {
+    const token = this.getAuthToken();
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    // Don't set Content-Type for FormData - let browser set it with boundary
+    return this.request(endpoint, {
+      ...options,
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+  }
 }
