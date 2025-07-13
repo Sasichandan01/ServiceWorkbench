@@ -11,7 +11,7 @@ from collections import defaultdict
 
 VALID_DATASOURCE_SORT_KEYS = [
     'CreationTime', 'DatasourceId', 'DatasourceName',
-    'CreatedBy', 'DatasourceStatus', 'LastUpdatedBy', 'LastUpdationTime'
+    'CreatedBy', 'LastUpdatedBy', 'LastUpdationTime'
 ]
 
 LOGGER = logging.getLogger()
@@ -120,8 +120,8 @@ def get_all_datasources(query_params):
         {
             "DatasourceId": item.get("DatasourceId"),
             "DatasourceName": item.get("DatasourceName"),
+            "Description": item.get("Description"),
             "CreatedBy": item.get("CreatedBy"),
-            "DatasourceStatus": item.get("DatasourceStatus"),
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
             "LastUpdatedBy": item.get("LastUpdatedBy"),
@@ -157,8 +157,7 @@ def create_datasource(body):
         "DatasourceName": body.get("DatasourceName"),
         "Tags": body.get("Tags", []),
         "Description": body.get("Description", ""),
-        "DatasourceStatus": "ACTIVE",
-        "CreatedBy": "SYSTEM",  # Replace with actual user identity if available
+        "CreatedBy": "SYSTEM",
         "CreationTime": now,
         "LastUpdatedBy": "SYSTEM",
         "LastUpdationTime": now,
