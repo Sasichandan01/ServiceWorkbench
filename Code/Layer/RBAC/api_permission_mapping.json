@@ -45,5 +45,14 @@
     "/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs":{
         "GET": ["workspaces.view","solutions.view","executions.view"],
         "POST": ["Workspaces.manage","solutions.manage","executions.manage"]
+    },
+    "/datasources": {
+        "GET": ["datasources.view"],
+        "POST": ["datasources.manage"]
+    },
+    "/datasources/{datasource_id}": {
+        "GET": ["datasources.view"],
+        "PUT": ["datasources.manage"],
+        "DELETE": ["datasources.fullaccess"]
     }
 }
