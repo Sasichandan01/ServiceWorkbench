@@ -4,7 +4,7 @@ import os
 import logging
 from boto3.dynamodb.conditions import Key
 from Utils.utils import paginate_list
-from Layers.RBAC.rbac import is_user_action_valid, return_response
+from RBAC.rbac import is_user_action_valid, return_response
 from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']

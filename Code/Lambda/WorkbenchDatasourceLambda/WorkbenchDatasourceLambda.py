@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import datetime
 from Utils.utils import paginate_list
-from Layers.RBAC.rbac import is_user_action_valid, return_response
+from RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
 
 
