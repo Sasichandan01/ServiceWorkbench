@@ -1210,6 +1210,7 @@ Resources:
           USER_TABLE_NAME: !Ref UserTable
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           MISC_BUCKET: !Ref MiscBucket
+          ROLES_TABLE: !Ref RolesTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1241,6 +1242,7 @@ Resources:
         Variables:
           DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
           DATASOURCE_BUCKET: !Ref DatasourceBucket
+          ROLES_TABLE: !Ref RolesTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:

@@ -18,10 +18,13 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
+ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
+table = dynamodb.Table(ROLES_TABLE)
+
 
 def response(status_code, body):
     return {
@@ -33,6 +36,13 @@ def response(status_code, body):
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
+        
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
@@ -129,7 +139,7 @@ def create_datasource(body):
 
     datasource_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
-    s3_path = f"datasources/{datasource_id}/"
+    s3_path = f"{datasource_id}/"
 
     # Create a "folder" in S3 by uploading a zero-byte object
     try:
@@ -166,7 +176,7 @@ def get_datasource(datasource_id, query_params=None):
     if not item:
         return response(404, {"message": "Datasource not found"})
 
-    s3_prefix = f"datasources/{datasource_id}/"
+    s3_prefix = f"{datasource_id}/"
     grouped_files = defaultdict(lambda: {"Files": []})
 
     try:
@@ -246,7 +256,7 @@ def delete_datasource(datasource_id):
     # Proceed with deletion
     datasource_table.delete_item(Key={"DatasourceId": datasource_id})
     
-    s3_prefix = f"datasources/{datasource_id}/"
+    s3_prefix = f"{datasource_id}/"
     s3_client.delete_object(Bucket=DATASOURCE_BUCKET, Key=s3_prefix)
     LOGGER.info("Deleted S3 folder: %s", s3_prefix)
     return response(200, {"Message": "Datasource deleted successfully"})
@@ -270,7 +280,7 @@ def generate_presigned_url(datasource_id, body=None):
                 LOGGER.info("Invalid file object: %s", file_obj)
                 continue
 
-            object_key = f"datasources/{datasource_id}/{file_name}"
+            object_key = f"{datasource_id}/{file_name}"
 
             presigned_url = s3_client.generate_presigned_url(
                 "put_object",

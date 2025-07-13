@@ -15,9 +15,11 @@ LOGGER.setLevel(logging.INFO)
 # Environment variable and client setup
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 MISC_BUCKET = os.environ.get("MISC_BUCKET")
+ROLES_TABLE = os.environ.get("ROLES_TABLE")
 
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
+table = dynamodb.Table(ROLES_TABLE)
 
 
 def response(status_code, body):
@@ -52,6 +54,12 @@ def lambda_handler(event, context):
     """
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
         # Check for S3 trigger (presence of 'Records' with 's3' key)
         if "Records" in event and event["Records"][0].get("eventSource") == "aws:s3":
             return update_profile_image_on_s3_upload(event, context)
