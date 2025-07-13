@@ -129,7 +129,7 @@ def create_datasource(body):
 
     datasource_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
-    s3_path = f"datasources/{datasource_id}/"
+    s3_path = f"{datasource_id}/"
 
     # Create a "folder" in S3 by uploading a zero-byte object
     try:
@@ -166,7 +166,7 @@ def get_datasource(datasource_id, query_params=None):
     if not item:
         return response(404, {"message": "Datasource not found"})
 
-    s3_prefix = f"datasources/{datasource_id}/"
+    s3_prefix = f"{datasource_id}/"
     grouped_files = defaultdict(lambda: {"Files": []})
 
     try:
@@ -246,7 +246,7 @@ def delete_datasource(datasource_id):
     # Proceed with deletion
     datasource_table.delete_item(Key={"DatasourceId": datasource_id})
     
-    s3_prefix = f"datasources/{datasource_id}/"
+    s3_prefix = f"{datasource_id}/"
     s3_client.delete_object(Bucket=DATASOURCE_BUCKET, Key=s3_prefix)
     LOGGER.info("Deleted S3 folder: %s", s3_prefix)
     return response(200, {"Message": "Datasource deleted successfully"})
@@ -270,7 +270,7 @@ def generate_presigned_url(datasource_id, body=None):
                 LOGGER.info("Invalid file object: %s", file_obj)
                 continue
 
-            object_key = f"datasources/{datasource_id}/{file_name}"
+            object_key = f"{datasource_id}/{file_name}"
 
             presigned_url = s3_client.generate_presigned_url(
                 "put_object",
