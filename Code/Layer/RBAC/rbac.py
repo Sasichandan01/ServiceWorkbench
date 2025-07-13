@@ -73,6 +73,7 @@ def is_user_action_valid(
     LOGGER.info("Role permissions: %r", role_perms)
     for perm in api_perms:
         try:
+            perm = perm.strip().lower()
             key, req_level = perm.split(".", 1)
             req_rank = LEVEL_RANK.get(req_level, 0)
         except ValueError:
