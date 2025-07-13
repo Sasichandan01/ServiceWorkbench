@@ -3,11 +3,9 @@ import boto3
 import os
 import logging
 import uuid
-from datetime import datetime
-from Utils.utils import paginate_list
-from RBAC.rbac import is_user_action_valid, return_response
+from datetime import datetime, timezone
+from Utils.utils import paginate_list, return_response
 from collections import defaultdict
-
 
 VALID_DATASOURCE_SORT_KEYS = [
     'CreationTime', 'DatasourceId', 'DatasourceName',
@@ -19,42 +17,31 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
-ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
-table = dynamodb.Table(ROLES_TABLE)
 
-
-def response(status_code, body):
-    return {
-        "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(body)
-    }
+# def response(status_code, body):
+#     return {
+#         "statusCode": status_code,
+#         "headers": {"Content-Type": "application/json"},
+#         "body": json.dumps(body)
+#     }
 
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
-        
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
         path_params = event.get("pathParameters") or {}
-        resource = event.get("resource", "")
-
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
-        if not valid:
-            return return_response(403, {"Error": msg})
+        user_id = event.get("requestContext", {}).get("authorizer", {}).get("user_id", "SYSTEM")
 
         try:
             body = json.loads(event.get("body") or "{}")
         except json.JSONDecodeError:
-            return response(400, {"message": "Invalid JSON in request body"})
+            return return_response(400, {"message": "Invalid JSON in request body"})
 
         # Route: GET /datasources
         if http_method == "GET" and path == "/datasources":
@@ -62,7 +49,7 @@ def lambda_handler(event, context):
 
         # Route: POST /datasources
         if http_method == "POST" and path == "/datasources":
-            return create_datasource(body)
+            return create_datasource(body, user_id)
 
         # Route: GET /datasources/{datasource_id}
         if http_method == "GET" and "datasource_id" in path_params:
@@ -70,21 +57,29 @@ def lambda_handler(event, context):
 
         # Route: PUT /datasources/{datasource_id}
         if http_method == "PUT" and "datasource_id" in path_params:
-            action = query_params.get("action")
-            LOGGER.info("Action: %s", action)
-            if action == "generate_presigned_url":
-                return generate_presigned_url(path_params["datasource_id"],body)
-            return update_datasource(path_params["datasource_id"], body)
+            return update_datasource(path_params["datasource_id"], body, user_id)
+        
+        # Route: POST /datasources/{datasource_id}
+        if http_method == "POST" and "datasource_id" in path_params:
+            action = query_params.get("action", "")
+            if action == "folder":
+                return create_folder(path_params["datasource_id"], body, user_id)
+            elif action == "delete":
+                file_paths = body.get("FilePaths")
+                return delete_datasource_files(path_params["datasource_id"], file_paths)
+            elif action == "download":
+                return generate_presigned_download_url(path_params["datasource_id"], body)
+            return generate_presigned_url(path_params["datasource_id"], body)
 
         # Route: DELETE /datasources/{datasource_id}
         if http_method == "DELETE" and "datasource_id" in path_params:
             return delete_datasource(path_params["datasource_id"])
 
-        return response(404, {"message": "Route not found"})
+        return return_response(404, {"message": "Route not found"})
 
     except Exception as e:
         LOGGER.error("Unhandled error: %s", e, exc_info=True)
-        return response(500, {"message": "Internal server error"})
+        return return_response(500, {"message": "Internal server error"})
 
 
 def get_all_datasources(query_params):
@@ -120,12 +115,12 @@ def get_all_datasources(query_params):
         {
             "DatasourceId": item.get("DatasourceId"),
             "DatasourceName": item.get("DatasourceName"),
-            "Description": item.get("Description"),
             "CreatedBy": item.get("CreatedBy"),
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
             "LastUpdatedBy": item.get("LastUpdatedBy"),
             "LastUpdationTime": item.get("LastUpdationTime"),
+            "Description": item.get("Description", ""),
             "Tags": item.get("Tags", [])
         }
         for item in items
@@ -136,14 +131,26 @@ def get_all_datasources(query_params):
     LOGGER.info("Paginated result: %s", result1)
     return result1
 
-def create_datasource(body):
+def create_datasource(body,user_id):
+    LOGGER.info("Creating Datasource: %s", body)
     # Validate required fields
     if not body.get("DatasourceName"):
-        return response(400, {"message": "Datasource Name is not Provided"})
+        return return_response(400, {"message": "Datasource Name is not Provided"})
+    
+    DatasourceName = body.get("DatasourceName")
+    # Check index(CreatedBy-DatasourceName-index) if datasource already exists
+    response = datasource_table.query(
+        IndexName="CreatedBy-DatasourceName-index",
+        KeyConditionExpression="CreatedBy = :user_id AND DatasourceName = :DatasourceName",
+        ExpressionAttributeValues={":user_id": user_id, ":DatasourceName": DatasourceName}
+    )
+    if response["Count"] > 0:
+        LOGGER.info("Datasource already exists: %s", DatasourceName)
+        return return_response(400, {"message": "Datasource already exists"})
 
     datasource_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
-    s3_path = f"{datasource_id}/"
+    now = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    s3_path = f"{datasource_id}/" 
 
     # Create a "folder" in S3 by uploading a zero-byte object
     try:
@@ -151,23 +158,23 @@ def create_datasource(body):
         s3_client.put_object(Bucket=DATASOURCE_BUCKET, Key=s3_path)
     except Exception as e:
         LOGGER.error("Failed to create S3 folder: %s", e, exc_info=True)
-        return response(500, {"message": "Failed to create S3 folder"})
+        return return_response(500, {"message": "Failed to create S3 folder"})
 
     item = {
         "DatasourceId": datasource_id,
         "DatasourceName": body.get("DatasourceName"),
         "Tags": body.get("Tags", []),
         "Description": body.get("Description", ""),
-        "CreatedBy": "SYSTEM",
+        "CreatedBy": user_id,
         "CreationTime": now,
-        "LastUpdatedBy": "SYSTEM",
+        "LastUpdatedBy": user_id,
         "LastUpdationTime": now,
         "S3Path": s3_path
     }
 
     datasource_table.put_item(Item=item)
 
-    return response(201, {
+    return return_response(201, {
         "Message": "Datasource created successfully",
         "DatasourceId": datasource_id,
         "S3Path": s3_path
@@ -177,25 +184,46 @@ def get_datasource(datasource_id, query_params=None):
     result = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     item = result.get("Item")
     if not item:
-        return response(404, {"message": "Datasource not found"})
+        return return_response(404, {"message": "Datasource not found"})
 
-    s3_prefix = f"{datasource_id}/"
+    s3_prefix = f"datasources/{datasource_id}/"
     grouped_files = defaultdict(lambda: {"Files": []})
+    total_size = 0
 
     try:
         s3_objects = s3_client.list_objects_v2(Bucket=DATASOURCE_BUCKET, Prefix=s3_prefix)
         contents = s3_objects.get("Contents", [])
+        LOGGER.info("S3 Objects: %s", contents)
         
         for obj in contents:
             key = obj["Key"]
             if key.endswith("/"):
-                continue  # skip folder marker
+                continue
 
             relative_path = key[len(s3_prefix):]
             parts = relative_path.split("/")
 
-            folder = parts[0] if len(parts) > 1 else "Root"
-            file_name = parts[-1]
+            if len(parts) > 1:
+                folder = parts[0]
+                file_name = parts[-1]
+            else:
+                folder = "Root"
+                file_name = relative_path
+            
+            # Special case: .keep handling
+            if file_name == ".keep":
+                # We'll decide later if this folder has other files or not
+                if "HasKeep" not in grouped_files[folder]:
+                    grouped_files[folder]["HasKeep"] = True
+                    grouped_files[folder]["KeepKey"] = key
+                continue
+
+            size = obj["Size"]
+            total_size += size
+
+            if "S3Key" not in grouped_files[folder]:
+                grouped_files[folder]["S3Key"] = key.rsplit('/', 1)[0] if folder != "Root" else f"{datasource_id}"
+
 
             grouped_files[folder]["Files"].append({
                 "FileName": file_name,
@@ -204,28 +232,39 @@ def get_datasource(datasource_id, query_params=None):
                 "Size": obj["Size"]
             })
 
+        # Post-processing: handle folders with only .keep
+        for folder, data in grouped_files.items():
+            if not data["Files"]:  # no real files
+                if data.get("HasKeep") and data.get("KeepKey"):
+                    data["S3Key"] = data["KeepKey"].rsplit("/", 1)[0]
+
+                # Remove keys used only internally
+                data.pop("HasKeep", None)
+                data.pop("KeepKey", None)
+
     except Exception as e:
         LOGGER.error("Failed to list S3 objects: %s", e, exc_info=True)
 
     # Combine datasource metadata + grouped files
     result = {
         "Datasource": item,
-        "Folders": grouped_files
+        "Folders": grouped_files,
+        "TotalSize": total_size
     }
+    LOGGER.info("Result: %s", result)
+    return return_response(200, result)
 
-    return response(200, result)
-
-def update_datasource(datasource_id, body):
+def update_datasource(datasource_id, body, user_id):
     # Check if datasource exists
     result = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     item = result.get("Item")
 
     if not item:
-        return response(404, {"message": "Datasource not found"})
+        return return_response(404, {"message": "Datasource not found"})
 
     # Proceed with update
     if not body:
-        return response(400, {"message": "Changes not mentioned."})
+        return return_response(400, {"message": "Changes not mentioned."})
 
     update_expression = "SET "
     expression_attrs = {}
@@ -237,8 +276,8 @@ def update_datasource(datasource_id, body):
             expression_attrs[f":{field.lower()}"] = body[field]
 
     update_expression += "LastUpdationTime = :lastUpdationTime, LastUpdatedBy = :lastUpdatedBy"
-    expression_attrs[":lastUpdationTime"] = datetime.utcnow().isoformat()
-    expression_attrs[":lastUpdatedBy"] = "SYSTEM"
+    expression_attrs[":lastUpdationTime"] = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    expression_attrs[":lastUpdatedBy"] = user_id
 
     datasource_table.update_item(
         Key={"DatasourceId": datasource_id},
@@ -246,7 +285,7 @@ def update_datasource(datasource_id, body):
         ExpressionAttributeValues=expression_attrs
     )
 
-    return response(200, {"Message": "Datasource updated successfully"})
+    return return_response(200, {"Message": "Datasource updated successfully"})
 
 def delete_datasource(datasource_id):
     # Check if datasource exists
@@ -254,24 +293,54 @@ def delete_datasource(datasource_id):
     item = result.get("Item")
 
     if not item:
-        return response(404, {"message": "Datasource not found"})
+        return return_response(404, {"message": "Datasource not found"})
 
-    # Proceed with deletion
+    # Delete item from DynamoDB
     datasource_table.delete_item(Key={"DatasourceId": datasource_id})
-    
+    LOGGER.info("Deleted DynamoDB entry for datasource: %s", datasource_id)
+
+    # Delete all S3 objects under the datasource prefix
     s3_prefix = f"{datasource_id}/"
-    s3_client.delete_object(Bucket=DATASOURCE_BUCKET, Key=s3_prefix)
-    LOGGER.info("Deleted S3 folder: %s", s3_prefix)
-    return response(200, {"Message": "Datasource deleted successfully"})
+    try:
+        LOGGER.info("Deleting all S3 objects with prefix: %s", s3_prefix)
+        s3_objects = s3_client.list_objects_v2(Bucket=DATASOURCE_BUCKET, Prefix=s3_prefix)
+
+        while s3_objects.get("KeyCount", 0) > 0:
+            objects_to_delete = [{"Key": obj["Key"]} for obj in s3_objects.get("Contents", [])]
+
+            if objects_to_delete:
+                delete_response = s3_client.delete_objects(
+                    Bucket=DATASOURCE_BUCKET,
+                    Delete={"Objects": objects_to_delete}
+                )
+                LOGGER.info("Deleted objects: %s", delete_response.get("Deleted", []))
+
+            # Continue if paginated results
+            if s3_objects.get("IsTruncated"):
+                continuation_token = s3_objects.get("NextContinuationToken")
+                s3_objects = s3_client.list_objects_v2(
+                    Bucket=DATASOURCE_BUCKET,
+                    Prefix=s3_prefix,
+                    ContinuationToken=continuation_token
+                )
+            else:
+                break
+
+    except Exception as e:
+        LOGGER.error("Failed to delete S3 objects: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to delete S3 files"})
+
+    return return_response(200, {"Message": "Datasource and all associated files deleted successfully"})
 
 def generate_presigned_url(datasource_id, body=None):
+    LOGGER.info("Generating presigned URL for datasource: %s", datasource_id)
     if not DATASOURCE_BUCKET:
         LOGGER.info("S3 bucket not configured")
-        return response(500, {"message": "S3 bucket not configured"})
+        return return_response(500, {"message": "S3 bucket not configured"})
 
     if not body or not isinstance(body.get("Files"), list):
         LOGGER.info("Invalid request body: %s", body)
-        return response(400, {"message": "Missing or invalid 'Files' list in request body"})
+        return return_response(400, {"message": "Missing or invalid 'Files' list in request body"})
 
     try:
         result = {}
@@ -283,22 +352,118 @@ def generate_presigned_url(datasource_id, body=None):
                 LOGGER.info("Invalid file object: %s", file_obj)
                 continue
 
-            object_key = f"{datasource_id}/{file_name}"
+            object_key = f"datasources/{datasource_id}/{file_name}"
 
             presigned_url = s3_client.generate_presigned_url(
                 "put_object",
                 Params={
                     "Bucket": DATASOURCE_BUCKET,
-                    "Key": object_key
+                    "Key": object_key,
+                    'ContentType': content_type
                 },
                 ExpiresIn=3600
             )
 
             result[file_name] = presigned_url
             LOGGER.info("Generated presigned URL for %s: %s", file_name, presigned_url)
+            LOGGER.info("Result: %s", result)
 
-        return response(200, {"UploadURLs": result})
+        return return_response(200, {"PreSignedURL": result})
 
     except Exception as e:
         LOGGER.error("Failed to generate multiple pre-signed URLs: %s", e, exc_info=True)
-        return response(500, {"message": "Failed to generate presigned URLs"})
+        return return_response(500, {"message": "Failed to generate presigned URLs"})
+
+def create_folder(datasource_id, body, user_id):
+    LOGGER.info("Creating folder for datasource: %s", datasource_id)
+    if not body.get("Folder"):
+        return return_response(400, {"message": "Folder Name is not Provided"})
+
+    folder_name = body.get("Folder")
+    s3_prefix = f"datasources/{datasource_id}/{folder_name}/"
+
+    try:
+        LOGGER.info("Creating S3 folder: %s", s3_prefix)
+        s3_client.put_object(
+            Bucket=DATASOURCE_BUCKET,
+            Key=f"{s3_prefix}.keep",
+            Body=b"",
+            ContentType="application/octet-stream"
+        )
+        return return_response(201, {"Message": "Folder created successfully"})
+    except Exception as e:
+        LOGGER.error("Failed to create S3 folder: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to create S3 folder"})
+
+def delete_datasource_files(datasource_id, full_keys):
+    """
+    Delete multiple files under a datasource folder in S3.
+    file_paths: list of relative paths (e.g., ['docs/a.md', 'index.md'])
+    """
+    if not full_keys or not isinstance(full_keys, list):
+        return return_response(400, {"Message": "full_keys must be a non-empty list"})
+
+    expanded_keys = []
+
+    for key in full_keys:
+        # If it's a folder path, list all its contents
+        folder_prefix = key if key.endswith("/") else key + "/"
+
+        response = s3_client.list_objects_v2(Bucket=DATASOURCE_BUCKET, Prefix=folder_prefix)
+        contents = response.get("Contents", [])
+
+        if contents:
+            expanded_keys.extend([{"Key": obj["Key"]} for obj in contents])
+        else:
+            # Either it's a file or an empty folder (with .keep), try deleting directly
+            expanded_keys.append({"Key": key})
+
+    try:
+        response = s3_client.delete_objects(
+            Bucket=DATASOURCE_BUCKET,
+            Delete={"Objects": expanded_keys}
+        )
+
+        deleted = [obj["Key"] for obj in response.get("Deleted", [])]
+        errors = response.get("Errors", [])
+
+        result = {
+            "Deleted": deleted,
+            "Errors": errors
+        }
+
+        return return_response(200, result)
+
+    except Exception as e:
+        LOGGER.error("Failed to delete files: %s", e, exc_info=True)
+        return return_response(500, {"Message": "Error deleting files from S3"})
+
+def generate_presigned_download_url(datasource_id, body):
+    """
+    Generate a pre-signed URL to download a single file from S3.
+
+    Expects: { "S3Key": "datasources/{datasource_id}/path/to/file.ext" }
+    """
+    LOGGER.info("Generating presigned download URL for datasource: %s", datasource_id)
+    if not DATASOURCE_BUCKET:
+        return return_response(500, {"message": "S3 bucket not configured"})
+
+    s3_key = body.get("S3Path")
+    if not s3_key:
+        return return_response(400, {"message": "Missing S3Key in request body"})
+
+    # Optional: Validate the key belongs to the correct datasource
+    if not s3_key.startswith(f"datasources/{datasource_id}/"):
+        return return_response(400, {"message": "S3Key does not belong to the specified datasource"})
+
+    try:
+        presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": DATASOURCE_BUCKET, "Key": s3_key},
+            ExpiresIn=3600
+        )
+        LOGGER.info("Generated presigned download URL for %s: %s", s3_key, presigned_url)
+        return return_response(200, {"PreSignedURL": presigned_url})
+    except Exception as e:
+        LOGGER.error("Failed to generate presigned download URL: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to generate presigned download URL"})

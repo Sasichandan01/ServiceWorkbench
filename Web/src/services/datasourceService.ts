@@ -1,5 +1,19 @@
 import { ApiClient } from '../lib/apiClient';
 
+export interface S3File {
+  FileName: string;
+  S3Key: string;
+  LastModified: string;
+  Size: number;
+}
+
+export interface FolderStructure {
+  [key: string]: {
+    S3Key?: string;
+    Files: S3File[];
+  };
+}
+
 export interface Datasource {
   DatasourceId: string;
   DatasourceName: string;
@@ -11,6 +25,12 @@ export interface Datasource {
   LastUpdationTime: string;
   Tags?: string[];
   Description?: string;
+}
+
+export interface DatasourceDetails {
+  Datasource: Datasource;
+  Folders: FolderStructure;
+  TotalSize?: number;
 }
 
 export interface DatasourceListResponse {
@@ -89,9 +109,33 @@ export class DatasourceService {
     return this.handleResponse<CreateDatasourceResponse>(response);
   }
 
-  static async getDatasource(datasourceId: string): Promise<Datasource> {
+  static async getDatasource(datasourceId: string): Promise<DatasourceDetails> {
     const response = await ApiClient.get(`/datasources/${datasourceId}`);
-    return this.handleResponse<Datasource>(response);
+    return this.handleResponse<DatasourceDetails>(response);
+  }
+
+  static async uploadFile(datasourceId: string, file: File, folder?: string): Promise<{ Message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (folder) {
+      formData.append('folder', folder);
+    }
+    
+    const response = await ApiClient.postFormData(`/datasources/${datasourceId}/upload`, formData);
+    return this.handleResponse<{ Message: string }>(response);
+  }
+
+  static async createFolder(datasourceId: string, folderName: string): Promise<{ Message: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=folder`;
+    const response = await ApiClient.post(endpoint, { Folder: folderName });
+    return this.handleResponse<{ Message: string }>(response);
+  }
+
+  static async deleteFile(datasourceId: string, s3Key: string | string[]): Promise<{ Message: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=delete`;
+    const filePaths = Array.isArray(s3Key) ? s3Key : [s3Key];
+    const response = await ApiClient.post(endpoint, { FilePaths: filePaths });
+    return this.handleResponse<{ Message: string }>(response);
   }
 
   static async updateDatasource(datasourceId: string, data: UpdateDatasourceRequest): Promise<UpdateDatasourceResponse> {
@@ -102,5 +146,25 @@ export class DatasourceService {
   static async deleteDatasource(datasourceId: string): Promise<DeleteDatasourceResponse> {
     const response = await ApiClient.delete(`/datasources/${datasourceId}`);
     return this.handleResponse<DeleteDatasourceResponse>(response);
+  }
+
+  static async getPresignedUrls(
+    datasourceId: string,
+    files: { FileName: string; ContentType: string }[]
+  ): Promise<{ PreSignedURL: Record<string, string> }> {
+    const response = await ApiClient.post(`/datasources/${datasourceId}`, { Files: files });
+    return this.handleResponse<{ PreSignedURL: Record<string, string> }>(response);
+  }
+
+  static async deleteFolder(datasourceId: string, folderS3Key: string): Promise<{ Message: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=delete`;
+    const response = await ApiClient.post(endpoint, { FilePaths: [folderS3Key] });
+    return this.handleResponse<{ Message: string }>(response);
+  }
+
+  static async getDownloadUrl(datasourceId: string, s3Path: string): Promise<{ PreSignedURL: string }> {
+    const endpoint = `/datasources/${datasourceId}?action=download`;
+    const response = await ApiClient.post(endpoint, { S3Path: s3Path });
+    return this.handleResponse<{ PreSignedURL: string }>(response);
   }
 }

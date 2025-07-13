@@ -14,8 +14,6 @@ interface DataSourceBreadcrumbProps {
 }
 
 const DataSourceBreadcrumb = ({ dataSourceName }: DataSourceBreadcrumbProps) => {
-  const { id } = useParams();
-
   return (
     <Breadcrumb>
       <BreadcrumbList>
