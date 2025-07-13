@@ -40,6 +40,7 @@ export interface CreateSolutionRequest {
 
 export interface CreateSolutionResponse {
   Message: string;
+  SolutionId?: string;
 }
 
 export interface UpdateSolutionRequest {
@@ -60,9 +61,14 @@ export interface DeleteSolutionResponse {
 export class SolutionService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let errorMsg = '';
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      } catch {
+        errorMsg = await response.text();
+      }
+      throw new Error(errorMsg);
     }
     return response.json();
   };
@@ -72,21 +78,17 @@ export class SolutionService {
     params?: {
       limit?: number;
       offset?: number;
-      filter?: string;
+      filterby?: string;
     }
   ): Promise<SolutionListResponse> {
     const searchParams = new URLSearchParams();
-    
-    if (params?.limit) {
-      searchParams.append('limit', params.limit.toString());
+    const limit = params?.limit ?? 10;
+    const offset = params?.offset ?? 1;
+    searchParams.append('limit', limit.toString());
+    searchParams.append('offset', offset.toString());
+    if (params?.filterby) {
+      searchParams.append('filterby', params.filterby);
     }
-    if (params?.offset) {
-      searchParams.append('offset', params.offset.toString());
-    }
-    if (params?.filter) {
-      searchParams.append('filter', params.filter);
-    }
-
     const endpoint = `/workspaces/${workspaceId}/solutions${searchParams.toString() ? `?${searchParams}` : ''}`;
     const response = await ApiClient.get(endpoint);
     return this.handleResponse<SolutionListResponse>(response);
