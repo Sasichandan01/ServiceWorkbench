@@ -641,9 +641,9 @@ pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *deploy
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *deploy
       - step: *build_and_deploy_ui
 
     wb-abhishek:
