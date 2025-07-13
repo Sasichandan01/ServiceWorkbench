@@ -1003,6 +1003,8 @@ Resources:
               KeyType: HASH
             - AttributeName: DatasourceName
               KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
