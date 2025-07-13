@@ -24,7 +24,7 @@ interface User {
   name: string;
   email: string;
   role: string;
-  status: 'active' | 'inactive' | 'suspended';
+  status?: 'active' | 'inactive' | 'suspended';
   lastLogin: string;
   workspaces: number;
   createdAt: string;
@@ -69,10 +69,12 @@ const UserProfileDialog = ({ user }: UserProfileDialogProps) => {
                   <Shield className="w-3 h-3 mr-1" />
                   {user.role}
                 </Badge>
-                <Badge className={user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                  <Activity className="w-3 h-3 mr-1" />
-                  {user.status}
-                </Badge>
+                {user.status && (
+                  <Badge className={user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                    <Activity className="w-3 h-3 mr-1" />
+                    {user.status}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>

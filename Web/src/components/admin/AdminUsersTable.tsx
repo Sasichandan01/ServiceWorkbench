@@ -50,26 +50,25 @@ import { ProtectedButton } from "@/components/ui/protected-button";
 import UserProfileDialog from "./UserProfileDialog";
 import UserPermissionsDialog from "./UserPermissionsDialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserService, type User as ApiUser } from "../../services/userService";
+import { UserService } from "../../services/userService";
 
-interface LocalUser {
+// Remove status from LocalUser
+type LocalUser = {
   id: string;
   name: string;
   email: string;
   role: string;
-  status: 'active' | 'inactive' | 'suspended';
   lastLogin: string;
   workspaces: number;
   createdAt: string;
-}
+};
 
 const AdminUsersTable = () => {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUser, setSelectedUser] = useState<LocalUser | null>(null);
+  // Remove selectedUser state and UserProfileDialog rendering
   const [currentPage, setCurrentPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<LocalUser[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -95,9 +94,8 @@ const AdminUsersTable = () => {
           name: user.Username,
           email: user.Email,
           role: Array.isArray(user.Roles) ? user.Roles[0] : user.Roles as string,
-          status: "active", // Mock status since not in API
-          lastLogin: "Unknown", // Mock data since not in API
-          workspaces: Math.floor(Math.random() * 5) + 1, // Mock data
+          lastLogin: (user as any).LastLoginTime || "Unknown",
+          workspaces: Math.floor(Math.random() * 5) + 1, // Mock data for workspaces if not in API
           createdAt: new Date().toISOString().split('T')[0] // Mock data
         }));
         setUsers(transformedUsers);
@@ -124,73 +122,32 @@ const AdminUsersTable = () => {
     fetchUsers();
   }, [currentPage, searchTerm]);
 
-  // Remove the hardcoded mock data
-  const mockUsers: LocalUser[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john.doe@example.com",
-      role: "Admin",
-      status: "active",
-      lastLogin: "2 hours ago",
-      workspaces: 5,
-      createdAt: "2024-01-15"
-    },
-    {
-      id: "2", 
-      name: "Jane Smith",
-      email: "jane.smith@example.com",
-      role: "Editor",
-      status: "active",
-      lastLogin: "1 day ago",
-      workspaces: 3,
-      createdAt: "2024-02-10"
-    },
-    {
-      id: "3",
-      name: "Bob Johnson",
-      email: "bob.johnson@example.com", 
-      role: "Viewer",
-      status: "inactive",
-      lastLogin: "1 week ago",
-      workspaces: 1,
-      createdAt: "2024-03-01"
-    }
-  ];
+  // Remove mockUsers and any code that expects a 'status' property on user objects
 
+  // Remove status filter from filteredUsers
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === "all" || user.role.toLowerCase() === roleFilter;
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
+    // Remove status filter
+    return matchesSearch && matchesRole;
   });
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
-      case 'inactive':
-        return <Badge variant="secondary">Inactive</Badge>;
-      case 'suspended':
-        return <Badge className="bg-red-100 text-red-800">Suspended</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   const getRoleBadge = (role: string) => {
-    const colors = {
-      'Admin': 'bg-purple-100 text-purple-800',
-      'Editor': 'bg-blue-100 text-blue-800', 
-      'Viewer': 'bg-gray-100 text-gray-800'
+    const colorMap: Record<string, string> = {
+      Admin: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
+      Editor: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+      Viewer: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
     };
-    return <Badge className={colors[role as keyof typeof colors] || 'bg-gray-100 text-gray-800'}>{role}</Badge>;
+    return (
+      <Badge className={colorMap[role] || 'bg-gray-100 text-gray-800 hover:bg-gray-200'}>
+        {role}
+      </Badge>
+    );
   };
 
   return (
@@ -227,17 +184,6 @@ const AdminUsersTable = () => {
               <SelectItem value="viewer">Viewer</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Users Table */}
@@ -245,63 +191,50 @@ const AdminUsersTable = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Workspaces</TableHead>
                 <TableHead>Last Login</TableHead>
-                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Loading users...</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : paginatedUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No users found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <Avatar>
-                        <AvatarFallback className="bg-blue-600 text-white">
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8">
+                    <div className="flex items-center justify-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading users...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : paginatedUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                    No users found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <Avatar>
+                          <AvatarFallback className="bg-blue-600 text-white">
+                            {user.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>{getStatusBadge(user.status)}</TableCell>
-                  <TableCell>{user.workspaces}</TableCell>
-                  <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
-                  <TableCell>
-                  <div className="flex items-center space-x-2">
-                      <UserProfileDialog user={user} />
-                      <UserPermissionsDialog user={user} />
-                    </div>
-                  </TableCell>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
                   </TableRow>
-                  ))
-                )}
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
-
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center mt-4">
