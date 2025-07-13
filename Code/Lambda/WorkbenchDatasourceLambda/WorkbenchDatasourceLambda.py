@@ -4,7 +4,7 @@ import os
 import logging
 import uuid
 from datetime import datetime, timezone
-from Utils.utils import paginate_list, return_response
+from Utils.utils import paginate_list, return_response, log_activity
 from collections import defaultdict
 
 VALID_DATASOURCE_SORT_KEYS = [
@@ -20,14 +20,8 @@ DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
+ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
-
-# def response(status_code, body):
-#     return {
-#         "statusCode": status_code,
-#         "headers": {"Content-Type": "application/json"},
-#         "body": json.dumps(body)
-#     }
 
 def lambda_handler(event, context):
     try:
@@ -66,14 +60,14 @@ def lambda_handler(event, context):
                 return create_folder(path_params["datasource_id"], body, user_id)
             elif action == "delete":
                 file_paths = body.get("FilePaths")
-                return delete_datasource_files(path_params["datasource_id"], file_paths)
+                return delete_datasource_files(path_params["datasource_id"], file_paths, user_id)
             elif action == "download":
-                return generate_presigned_download_url(path_params["datasource_id"], body)
-            return generate_presigned_url(path_params["datasource_id"], body)
+                return generate_presigned_download_url(path_params["datasource_id"], body, user_id)
+            return generate_presigned_url(path_params["datasource_id"], user_id, body)
 
         # Route: DELETE /datasources/{datasource_id}
         if http_method == "DELETE" and "datasource_id" in path_params:
-            return delete_datasource(path_params["datasource_id"])
+            return delete_datasource(path_params["datasource_id"], user_id)
 
         return return_response(404, {"message": "Route not found"})
 
@@ -173,6 +167,7 @@ def create_datasource(body,user_id):
     }
 
     datasource_table.put_item(Item=item)
+    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
 
     return return_response(201, {
         "Message": "Datasource created successfully",
@@ -285,9 +280,14 @@ def update_datasource(datasource_id, body, user_id):
         ExpressionAttributeValues=expression_attrs
     )
 
+    name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+    DatasourceName = name_item.get("Item").get("DatasourceName")
+
+    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", DatasourceName, datasource_id, user_id, "UPDATE DATASOURCE")
+
     return return_response(200, {"Message": "Datasource updated successfully"})
 
-def delete_datasource(datasource_id):
+def delete_datasource(datasource_id, user_id):
     # Check if datasource exists
     result = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     item = result.get("Item")
@@ -295,12 +295,15 @@ def delete_datasource(datasource_id):
     if not item:
         return return_response(404, {"message": "Datasource not found"})
 
+    name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+    Datasourcename = name_item.get("Item").get("DatasourceName")
+
     # Delete item from DynamoDB
     datasource_table.delete_item(Key={"DatasourceId": datasource_id})
     LOGGER.info("Deleted DynamoDB entry for datasource: %s", datasource_id)
 
     # Delete all S3 objects under the datasource prefix
-    s3_prefix = f"{datasource_id}/"
+    s3_prefix = f"datasources/{datasource_id}/"
     try:
         LOGGER.info("Deleting all S3 objects with prefix: %s", s3_prefix)
         s3_objects = s3_client.list_objects_v2(Bucket=DATASOURCE_BUCKET, Prefix=s3_prefix)
@@ -330,9 +333,12 @@ def delete_datasource(datasource_id):
         LOGGER.error("Failed to delete S3 objects: %s", e, exc_info=True)
         return return_response(500, {"message": "Failed to delete S3 files"})
 
+    
+    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE")
+
     return return_response(200, {"Message": "Datasource and all associated files deleted successfully"})
 
-def generate_presigned_url(datasource_id, body=None):
+def generate_presigned_url(datasource_id, user_id, body=None):
     LOGGER.info("Generating presigned URL for datasource: %s", datasource_id)
     if not DATASOURCE_BUCKET:
         LOGGER.info("S3 bucket not configured")
@@ -368,6 +374,11 @@ def generate_presigned_url(datasource_id, body=None):
             LOGGER.info("Generated presigned URL for %s: %s", file_name, presigned_url)
             LOGGER.info("Result: %s", result)
 
+        name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+        Datasourcename = name_item.get("Item").get("DatasourceName")
+
+        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "UPLOAD FILE IN DATASOURCE")
+
         return return_response(200, {"PreSignedURL": result})
 
     except Exception as e:
@@ -390,12 +401,17 @@ def create_folder(datasource_id, body, user_id):
             Body=b"",
             ContentType="application/octet-stream"
         )
+
+        name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+        Datasourcename = name_item.get("Item").get("DatasourceName")
+
+        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "CREATE FOLDER IN DATASOURCE")
         return return_response(201, {"Message": "Folder created successfully"})
     except Exception as e:
         LOGGER.error("Failed to create S3 folder: %s", e, exc_info=True)
         return return_response(500, {"message": "Failed to create S3 folder"})
 
-def delete_datasource_files(datasource_id, full_keys):
+def delete_datasource_files(datasource_id, full_keys, user_id):
     """
     Delete multiple files under a datasource folder in S3.
     file_paths: list of relative paths (e.g., ['docs/a.md', 'index.md'])
@@ -432,13 +448,18 @@ def delete_datasource_files(datasource_id, full_keys):
             "Errors": errors
         }
 
+        name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+        Datasourcename = name_item.get("Item").get("DatasourceName")
+
+        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE FILE")
+
         return return_response(200, result)
 
     except Exception as e:
         LOGGER.error("Failed to delete files: %s", e, exc_info=True)
         return return_response(500, {"Message": "Error deleting files from S3"})
 
-def generate_presigned_download_url(datasource_id, body):
+def generate_presigned_download_url(datasource_id, body, user_id):
     """
     Generate a pre-signed URL to download a single file from S3.
 
@@ -463,6 +484,11 @@ def generate_presigned_download_url(datasource_id, body):
             ExpiresIn=3600
         )
         LOGGER.info("Generated presigned download URL for %s: %s", s3_key, presigned_url)
+
+        name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
+        Datasourcename = name_item.get("Item").get("DatasourceName")
+
+        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DOWNLOAD FILE IN DATASOURCE")
         return return_response(200, {"PreSignedURL": presigned_url})
     except Exception as e:
         LOGGER.error("Failed to generate presigned download URL: %s", e, exc_info=True)
