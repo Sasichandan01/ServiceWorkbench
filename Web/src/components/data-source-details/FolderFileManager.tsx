@@ -313,16 +313,9 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     try {
       const fileKeys = selectedFiles.filter(key => !key.startsWith('folder:'));
       const folderNames = selectedFiles.filter(key => key.startsWith('folder:')).map(key => key.replace('folder:', ''));
-
-      const deletePromises = [
-        ...fileKeys.map(s3Key => DatasourceService.deleteFile(datasourceId, s3Key)),
-        ...folderNames.map(folderName => {
-          const s3Key = folders[folderName]?.S3Key || folderName;
-          return DatasourceService.deleteFolder(datasourceId, s3Key);
-        }),
-      ];
-
-      await Promise.all(deletePromises);
+      const folderKeys = folderNames.map(folderName => folders[folderName]?.S3Key || folderName);
+      const allKeys = [...fileKeys, ...folderKeys];
+      await DatasourceService.deleteFile(datasourceId, allKeys);
 
       toast({
         title: "Success",
@@ -390,7 +383,16 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
   // New upload dialog logic
   const handleUploadDialogFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      setSelectedUploadFiles(Array.from(event.target.files));
+      const files = Array.from(event.target.files);
+      if (files.length > 10) {
+        toast({
+          title: "Error",
+          description: "Maximum 10 files can be uploaded at once",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSelectedUploadFiles(files);
     }
   };
 
@@ -481,28 +483,84 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     }
   };
 
+  // Helper to get breadcrumb segments from currentFolder
+  const getBreadcrumbSegments = () => {
+    if (!currentFolder) return [];
+    return currentFolder.split('/').filter(Boolean);
+  };
+
+  const breadcrumbSegments = getBreadcrumbSegments();
+
+  // Helper to handle breadcrumb click
+  const handleBreadcrumbClick = (index: number) => {
+    const segments = breadcrumbSegments.slice(0, index + 1);
+    setCurrentFolder(segments.join('/'));
+    setCurrentPage(1);
+    setSelectedFiles([]);
+  };
+
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {currentFolder && (
-                <Button variant="ghost" size="sm" onClick={handleBackToRoot} disabled={deleteMode}>
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
               Files & Objects
-              {currentFolder && (
-                <span className="text-muted-foreground">/ {currentFolder}</span>
-              )}
             </CardTitle>
             <CardDescription>
-              {currentFolder 
-                ? `Managing files in ${currentFolder} folder`
-                : "Manage files and folders in your datasource"
-              }
+              {currentFolder
+                ? `Managing files in ${breadcrumbSegments[breadcrumbSegments.length - 1]} folder`
+                : "Manage files and folders in your datasource"}
             </CardDescription>
+            {currentFolder && (
+              <div className="flex items-center mt-2 gap-2 text-sm text-muted-foreground">
+                <Button variant="ghost" size="icon" className="p-0 h-6 w-6" onClick={handleBackToRoot}>
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                {/* Breadcrumbs with truncation */}
+                {(() => {
+                  const maxSegments = 4;
+                  const segs = breadcrumbSegments;
+                  if (segs.length <= maxSegments) {
+                    return segs.map((seg, idx) => (
+                      <span key={idx} className="flex items-center">
+                        {idx > 0 && <span className="mx-1">/</span>}
+                        <button
+                          className={`hover:underline ${idx === segs.length - 1 ? 'font-semibold text-primary' : ''}`}
+                          onClick={() => handleBreadcrumbClick(idx)}
+                          disabled={idx === segs.length - 1}
+                        >
+                          {seg}
+                        </button>
+                      </span>
+                    ));
+                  } else {
+                    // Truncate middle segments
+                    return (
+                      <>
+                        <span className="flex items-center">
+                          <button className="hover:underline" onClick={() => handleBreadcrumbClick(0)}>{segs[0]}</button>
+                          <span className="mx-1">/</span>
+                        </span>
+                        <span className="mx-1">...</span>
+                        {segs.slice(-3).map((seg, idx) => (
+                          <span key={idx + segs.length - 3} className="flex items-center">
+                            {idx > 0 && <span className="mx-1">/</span>}
+                            <button
+                              className={`hover:underline ${idx === 2 ? 'font-semibold text-primary' : ''}`}
+                              onClick={() => handleBreadcrumbClick(segs.length - 3 + idx)}
+                              disabled={idx === 2}
+                            >
+                              {seg}
+                            </button>
+                          </span>
+                        ))}
+                      </>
+                    );
+                  }
+                })()}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
@@ -772,31 +830,6 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
                 : "Upload your first files to get started"
               }
             </p>
-            <div className="flex gap-2 justify-center">
-              <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <FolderPlus className="w-4 h-4 mr-2" />
-                    Create Folder
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
-              <label htmlFor="file-upload-empty">
-                <input
-                  type="file"
-                  multiple
-                  accept=".csv,.json,.txt"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="file-upload-empty"
-                  disabled={isUploading}
-                />
-                <Button className="cursor-pointer">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Files
-                </Button>
-              </label>
-            </div>
           </div>
         )}
       </CardContent>

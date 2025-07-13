@@ -131,9 +131,10 @@ export class DatasourceService {
     return this.handleResponse<{ Message: string }>(response);
   }
 
-  static async deleteFile(datasourceId: string, s3Key: string): Promise<{ Message: string }> {
+  static async deleteFile(datasourceId: string, s3Key: string | string[]): Promise<{ Message: string }> {
     const endpoint = `/datasources/${datasourceId}?action=delete`;
-    const response = await ApiClient.post(endpoint, { FilePaths: [s3Key] });
+    const filePaths = Array.isArray(s3Key) ? s3Key : [s3Key];
+    const response = await ApiClient.post(endpoint, { FilePaths: filePaths });
     return this.handleResponse<{ Message: string }>(response);
   }
 
@@ -154,7 +155,7 @@ export class DatasourceService {
 
   static async deleteFolder(datasourceId: string, folderS3Key: string): Promise<{ Message: string }> {
     const endpoint = `/datasources/${datasourceId}?action=delete`;
-    const response = await ApiClient.post(endpoint, { FilePaths: [`${folderS3Key.endsWith('/') ? folderS3Key : folderS3Key + '/'}`] });
+    const response = await ApiClient.post(endpoint, { FilePaths: [folderS3Key] });
     return this.handleResponse<{ Message: string }>(response);
   }
 }
