@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import datetime
 from Utils.utils import paginate_list
+from Layers.RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
 
 
@@ -36,17 +37,19 @@ def response(status_code, body):
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        valid, msg = is_user_action_valid(user_id, role, resource, method, table)
-        if not valid:
-            return return_response(403, {"Error": msg})
         
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
         path_params = event.get("pathParameters") or {}
+        resource = event.get("resource", "")
+
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get("body") or "{}")
