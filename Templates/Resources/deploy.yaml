@@ -1157,7 +1157,10 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Scan
                   - dynamodb:Query
-                Resource: !GetAtt DatasourcesTable.Arn
+                Resource: 
+                  - !GetAtt DatasourcesTable.Arn
+                  - !GetAtt ActivityLogsTable.Arn
+                  - !Sub "${DatasourcesTable.Arn}/index/CreatedBy-DatasourceName-index"
 
         - PolicyName: S3Access
           PolicyDocument:
@@ -1263,6 +1266,7 @@ Resources:
           DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
           DATASOURCE_BUCKET: !Ref DatasourceBucket
           ROLES_TABLE: !Ref RolesTable
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
