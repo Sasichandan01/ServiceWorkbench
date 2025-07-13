@@ -125,7 +125,8 @@ def get_all_datasources(query_params):
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
             "LastUpdatedBy": item.get("LastUpdatedBy"),
-            "LastUpdationTime": item.get("LastUpdationTime")
+            "LastUpdationTime": item.get("LastUpdationTime"),
+            "Tags": item.get("Tags", [])
         }
         for item in items
     ]
