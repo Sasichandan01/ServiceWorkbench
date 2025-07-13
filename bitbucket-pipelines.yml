@@ -371,7 +371,7 @@ definitions:
         ZIP_NAME="layer.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
         REGION="us-east-1"
-        LAYER_NAME="WorkbenchCommonLayer"
+        LAYER_NAME="ServiceWorkbenchLambdaLayer"
 
         mkdir -p "$LAYER_ZIP_DIR"
         # trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
