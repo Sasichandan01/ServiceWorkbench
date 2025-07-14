@@ -5,10 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from Utils.utils import paginate_list, return_response, log_activity
-from RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
-from FGAC.fgac import create_datasource_fgac, check_datasource_access
-from boto3.dynamodb.conditions import Key, Attr
 
 VALID_DATASOURCE_SORT_KEYS = [
     'CreationTime', 'DatasourceId', 'DatasourceName',
@@ -20,45 +17,29 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
-ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
 ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
-activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
-resource_access_table = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
-table = dynamodb.Table(ROLES_TABLE)
-
 
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
-        
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
         path_params = event.get("pathParameters") or {}
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        resource = event.get("resource", "")
-
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        role = auth.get("role")
-        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
-        if not valid:
-            return return_response(403, {"Error": msg})
+        user_id = event.get("requestContext", {}).get("authorizer", {}).get("user_id", "SYSTEM")
 
         try:
             body = json.loads(event.get("body") or "{}")
         except json.JSONDecodeError:
-            return return_response(400, {"Error": "Invalid JSON in request body"})
+            return return_response(400, {"message": "Invalid JSON in request body"})
 
         # Route: GET /datasources
         if http_method == "GET" and path == "/datasources":
-            return get_all_datasources(query_params, user_id)
+            return get_all_datasources(query_params)
 
         # Route: POST /datasources
         if http_method == "POST" and path == "/datasources":
@@ -66,7 +47,7 @@ def lambda_handler(event, context):
 
         # Route: GET /datasources/{datasource_id}
         if http_method == "GET" and "datasource_id" in path_params:
-            return get_datasource(path_params["datasource_id"], user_id)
+            return get_datasource(path_params["datasource_id"])
 
         # Route: PUT /datasources/{datasource_id}
         if http_method == "PUT" and "datasource_id" in path_params:
@@ -95,13 +76,12 @@ def lambda_handler(event, context):
         return return_response(500, {"message": "Internal server error"})
 
 
-def get_all_datasources(query_params, user_id):
+def get_all_datasources(query_params):
     """
     Retrieve all datasources with pagination support and sorting.
 
     Args:
         query_params (dict): Query string parameters including limit, offset, sortBy, and sortOrder.
-        user_id (str): The user ID to filter datasources by access.
 
     Returns:
         dict: HTTP response with datasources data.
@@ -109,7 +89,7 @@ def get_all_datasources(query_params, user_id):
     LOGGER.info("Getting all Datasources")
 
     try:
-        limit = max(1, int(query_params.get("limit") or 10))
+        limit = max(1, int(query_params.get("limit") or 5))
     except (ValueError, TypeError):
         limit = 5
 
@@ -121,44 +101,14 @@ def get_all_datasources(query_params, user_id):
     sort_by = query_params.get("sortBy") or "DatasourceName"
     sort_order = query_params.get("sortOrder") or "asc"
 
-    # Get all datasources the user has access to from resource_access_table
-    resource_access_response = resource_access_table.scan(
-        FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
-        ProjectionExpression='AccessKey'
-    )
-    
-    # resource_access_response = resource_access_table.query(
-    #     KeyConditionExpression=Key('Id').begins_with(f"{user_id}#"),
-    #     ProjectionExpression='AccessKey'
-    # )
-    # Extract datasource IDs from access keys (format: DATASOURCE#datasource_id)
-
-    print(resource_access_response)
-
-    datasource_ids = []
-    for item in resource_access_response.get('Items', []):
-        access_key = item.get('AccessKey', '')
-        if access_key.startswith('DATASOURCE#'):
-            datasource_id = access_key.split('#')[1]
-            datasource_ids.append(datasource_id)
-    
-    # Get datasource details for all accessible datasources
-    datasource_items = []
-    for datasource_id in datasource_ids:
-        response = datasource_table.get_item(
-            Key={'DatasourceId': datasource_id},
-            ProjectionExpression='DatasourceId, DatasourceName, CreatedBy, DatasourceStatus, S3Path, CreationTime, LastUpdatedBy, LastUpdationTime'
-        )
-        item = response.get('Item')
-        if item:
-            datasource_items.append(item)
+    scan_response = datasource_table.scan()
+    items = scan_response.get("Items", [])
 
     # Simplify items before pagination
     simplified_items = [
         {
             "DatasourceId": item.get("DatasourceId"),
             "DatasourceName": item.get("DatasourceName"),
-            "Description": item.get("Description"),
             "CreatedBy": item.get("CreatedBy"),
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
@@ -167,7 +117,7 @@ def get_all_datasources(query_params, user_id):
             "Description": item.get("Description", ""),
             "Tags": item.get("Tags", [])
         }
-        for item in datasource_items
+        for item in items
     ]
 
     LOGGER.info("Limit and Offset values: %s, %s", limit, offset)
@@ -219,31 +169,13 @@ def create_datasource(body,user_id):
     datasource_table.put_item(Item=item)
     log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
 
-    # Log the activity
-    log_activity(
-        activity_logs_table,
-        resource_type="Datasource",
-        resource_name=body.get("DatasourceName"),
-        resource_id=datasource_id,
-        user_id=user_id,
-        action="CREATE_DATASOURCE"
-    )
-
-    # Create FGAC access for the creator
-    create_datasource_fgac(resource_access_table, user_id, "owner", datasource_id)
-
     return return_response(201, {
         "Message": "Datasource created successfully",
         "DatasourceId": datasource_id,
         "S3Path": s3_path
     })
 
-def get_datasource(datasource_id, user_id):
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-
+def get_datasource(datasource_id, query_params=None):
     result = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     item = result.get("Item")
     if not item:
@@ -323,19 +255,11 @@ def update_datasource(datasource_id, body, user_id):
     item = result.get("Item")
 
     if not item:
-        return return_response(404, {"Error": "Datasource not found"})
-
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    if access_type not in ['editor', 'owner']:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
+        return return_response(404, {"message": "Datasource not found"})
 
     # Proceed with update
     if not body:
-        return return_response(400, {"Error": "Changes not mentioned."})
+        return return_response(400, {"message": "Changes not mentioned."})
 
     update_expression = "SET "
     expression_attrs = {}
@@ -369,16 +293,7 @@ def delete_datasource(datasource_id, user_id):
     item = result.get("Item")
 
     if not item:
-        return return_response(404, {"Error": "Datasource not found"})
-
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    # Only allow owner permissions to delete datasource
-    if access_type != 'owner':
-        return return_response(403, {"Error": "Not authorized to perform this action"})
+        return return_response(404, {"message": "Datasource not found"})
 
     name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     Datasourcename = name_item.get("Item").get("DatasourceName")
@@ -427,20 +342,12 @@ def generate_presigned_url(datasource_id, user_id, body=None):
     LOGGER.info("Generating presigned URL for datasource: %s", datasource_id)
     if not DATASOURCE_BUCKET:
         LOGGER.info("S3 bucket not configured")
-        return return_response(500, {"Error": "S3 bucket not configured"})
-
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    if access_type not in ['editor', 'owner']:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
+        return return_response(500, {"message": "S3 bucket not configured"})
 
     if not body or not isinstance(body.get("Files"), list):
         LOGGER.info("Invalid request body: %s", body)
-        return return_response(400, {"Error": "Missing or invalid 'Files' list in request body"})
-    
+        return return_response(400, {"message": "Missing or invalid 'Files' list in request body"})
+
     try:
         result = {}
         for file_obj in body["Files"]:
@@ -480,15 +387,6 @@ def generate_presigned_url(datasource_id, user_id, body=None):
 
 def create_folder(datasource_id, body, user_id):
     LOGGER.info("Creating folder for datasource: %s", datasource_id)
-    
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    if access_type not in ['editor', 'owner']:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
     if not body.get("Folder"):
         return return_response(400, {"message": "Folder Name is not Provided"})
 
@@ -518,15 +416,6 @@ def delete_datasource_files(datasource_id, full_keys, user_id):
     Delete multiple files under a datasource folder in S3.
     file_paths: list of relative paths (e.g., ['docs/a.md', 'index.md'])
     """
-
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    if access_type not in ['owner']:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-
     if not full_keys or not isinstance(full_keys, list):
         return return_response(400, {"Message": "full_keys must be a non-empty list"})
 
@@ -577,16 +466,6 @@ def generate_presigned_download_url(datasource_id, body, user_id):
     Expects: { "S3Key": "datasources/{datasource_id}/path/to/file.ext" }
     """
     LOGGER.info("Generating presigned download URL for datasource: %s", datasource_id)
-    
-    # Check user's access to the datasource
-    access_type = check_datasource_access(resource_access_table, user_id, datasource_id)
-    if not access_type:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-    
-    if access_type not in ['read_only','editor', 'owner']:
-        return return_response(403, {"Error": "Not authorized to perform this action"})
-
-    
     if not DATASOURCE_BUCKET:
         return return_response(500, {"message": "S3 bucket not configured"})
 
