@@ -7,7 +7,7 @@ from Utils.utils import paginate_list,  return_response
 from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
-VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
+VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
 # Setup logger
 LOGGER = logging.getLogger()
@@ -111,7 +111,8 @@ def get_all_users(query_params):
             "Username": item.get("Username"),
             "Email": item.get("Email"),
             "Roles": item.get("Role", []),
-            "ProfileImageURL": item.get("ProfileImage")
+            "ProfileImageURL": item.get("ProfileImage"),
+            "LastLoginTime": item.get("LastLoginTime", "")
         } for item in items
     ]
     paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
@@ -149,6 +150,7 @@ def get_user_profile(user_id):
     LOGGER.info("Getting User Profile for %s", user_id)
     res = user_table.get_item(Key={"UserId": user_id})
     item = res.get("Item")
+    LOGGER.info("Item: %s", item)
 
     if not item:
         return return_response(404, {"message": "User not found"})
@@ -319,32 +321,33 @@ def update_user_roles(user_id, body):
 
     new_role = body.get("Role")
     if not new_role:
-        return response(400, {"message": "Role is required"})
+        return return_response(400, {"message": "Role is required"})
 
     try:
         # Fetch the current roles
         result = user_table.get_item(Key={"UserId": user_id})
         user = result.get("Item")
         if not user:
-            return response(404, {"message": "User not found"})
+            return return_response(404, {"message": "User not found"})
 
         current_roles = user.get("Role", [])
         if not isinstance(current_roles, list):
             current_roles = [current_roles]
 
         if new_role in current_roles:
-            return response(200, {"message": f"Role '{new_role}' already assigned"})
+            return return_response(200, {"message": f"Role '{new_role}' already assigned"})
 
         updated_roles = current_roles + [new_role]
 
         user_table.update_item(
             Key={"UserId": user_id},
-            UpdateExpression="SET Role = :roles",
+            UpdateExpression="SET #r = :roles",
+            ExpressionAttributeNames={"#r": "Role"},
             ExpressionAttributeValues={":roles": updated_roles}
         )
 
-        return response(200, {"message": f"Role '{new_role}' added successfully"})
+        return return_response(200, {"message": f"Role '{new_role}' added successfully"})
 
     except Exception as e:
         LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
-        return response(500, {"message": "Error updating user roles"})
+        return return_response(500, {"message": "Error updating user roles"})
