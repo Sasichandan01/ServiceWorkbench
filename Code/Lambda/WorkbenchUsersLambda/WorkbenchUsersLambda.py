@@ -3,7 +3,8 @@ import boto3
 import os
 import logging
 from boto3.dynamodb.conditions import Key
-from Utils.utils import paginate_list
+from Utils.utils import paginate_list,  return_response
+from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
@@ -14,29 +15,12 @@ LOGGER.setLevel(logging.INFO)
 
 # Environment variable and client setup
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-PROFILE_IMAGE_BUCKET = os.environ.get("PROFILE_IMAGE_BUCKET")
+MISC_BUCKET = os.environ.get("MISC_BUCKET")
+ROLES_TABLE = os.environ.get("ROLES_TABLE")
 
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
-
-
-def response(status_code, body):
-    """
-    Helper method to format HTTP responses.
-
-    Args:
-        status_code (int): HTTP status code.
-        body (dict): Response body.
-
-    Returns:
-        dict: Formatted API Gateway response.
-    """
-    return {
-        "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(body)
-    }
-
+table = dynamodb.Table(ROLES_TABLE)
 
 def lambda_handler(event, context):
     """
@@ -60,11 +44,19 @@ def lambda_handler(event, context):
         path = event.get('path', '')
         query_params = event.get('queryStringParameters') or {}
         path_params = event.get('pathParameters') or {}
+        resource = event.get('resource', '')
+
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get('body') or "{}")
         except json.JSONDecodeError:
-            return response(400, {"message": "Invalid JSON in request body"})
+            return return_response(400, {"message": "Invalid JSON in request body"})
 
         # Route: GET /users
         if http_method == 'GET' and path == '/users':
@@ -81,14 +73,16 @@ def lambda_handler(event, context):
 
             if action == 'profile_image':
                 return get_profile_image_upload_url(user_id, body)
+            elif action == 'role':
+                return update_user_roles(user_id, body)
             else:
                 return update_user_details(user_id, body)
 
-        return response(404, {"message": "Route not found"})
+        return return_response(404, {"message": "Route not found"})
 
     except Exception as e:
         LOGGER.error("Error processing request: %s", e, exc_info=True)
-        return response(500, {"message": "Internal server error"})
+        return return_response(500, {"message": "Internal server error"})
 
 def get_all_users(query_params):
     """
@@ -139,7 +133,7 @@ def get_all_users(query_params):
     }
 
     LOGGER.info("result: %s", formatted_response)
-    return response(200, formatted_response)
+    return return_response(200, formatted_response)
 
 
 def get_user_profile(user_id):
@@ -157,9 +151,9 @@ def get_user_profile(user_id):
     item = res.get("Item")
 
     if not item:
-        return response(404, {"message": "User not found"})
+        return return_response(404, {"message": "User not found"})
 
-    return response(200, item)
+    return return_response(200, item)
 
 
 def update_user_details(user_id, body):
@@ -176,7 +170,7 @@ def update_user_details(user_id, body):
     LOGGER.info("Updating User Details for %s", user_id)
     username = body.get("Username")
     if not username:
-        return response(400, {"message": "Username is required"})
+        return return_response(400, {"message": "Username is required"})
 
     last_updated_time = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -189,7 +183,7 @@ def update_user_details(user_id, body):
         }
     )
 
-    return response(200, {"message": "User details updated"})
+    return return_response(200, {"message": "User details updated"})
 
 def get_profile_image_upload_url(user_id, body):
     """
@@ -205,8 +199,8 @@ def get_profile_image_upload_url(user_id, body):
     """
     LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
 
-    if not PROFILE_IMAGE_BUCKET:
-        return response(500, {"message": "S3 bucket not configured"})
+    if not MISC_BUCKET:
+        return return_response(500, {"message": "S3 bucket not configured"})
 
     file_name = user_id
 
@@ -226,7 +220,7 @@ def get_profile_image_upload_url(user_id, body):
         
     content_type = allowed_types.get(extension)
     if not content_type:
-        return response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
+        return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
 
     object_key = f"profile-images/{user_id}/{file_name}"
     s3_client = boto3.client("s3")
@@ -235,7 +229,7 @@ def get_profile_image_upload_url(user_id, body):
         presigned_url = s3_client.generate_presigned_url(
             "put_object",
             Params={
-                "Bucket": PROFILE_IMAGE_BUCKET,
+                "Bucket": MISC_BUCKET,
                 "Key": object_key,
                 "ContentType": content_type
             },
@@ -244,15 +238,15 @@ def get_profile_image_upload_url(user_id, body):
 
         # object_url = f"https://{s3_bucket}.s3.amazonaws.com/{object_key}"
 
-        return response(200, {
+        return return_response(200, {
             "message": "Pre-signed URL generated",
-            "UploadURL": presigned_url
+            "PreSignedURL": presigned_url
             # "ImageURL": object_url
         })
 
     except Exception as e:
         LOGGER.error("Failed to generate pre-signed URL: %s", e, exc_info=True)
-        return response(500, {"message": "Error generating pre-signed URL"})
+        return return_response(500, {"message": "Error generating pre-signed URL"})
 
 def update_profile_image_on_s3_upload(event, context):
     """
@@ -309,3 +303,48 @@ def update_profile_image_on_s3_upload(event, context):
             "statusCode": 500,
             "body": json.dumps({"message": "Failed to update profile image URL"})
         }
+
+def update_user_roles(user_id, body):
+    """
+    Appends a role to the user's existing list of roles.
+
+    Args:
+        user_id (str): Unique identifier for the user.
+        body (dict): JSON body containing the 'Role'.
+
+    Returns:
+        dict: HTTP response confirming update.
+    """
+    LOGGER.info("Updating roles for user: %s", user_id)
+
+    new_role = body.get("Role")
+    if not new_role:
+        return response(400, {"message": "Role is required"})
+
+    try:
+        # Fetch the current roles
+        result = user_table.get_item(Key={"UserId": user_id})
+        user = result.get("Item")
+        if not user:
+            return response(404, {"message": "User not found"})
+
+        current_roles = user.get("Role", [])
+        if not isinstance(current_roles, list):
+            current_roles = [current_roles]
+
+        if new_role in current_roles:
+            return response(200, {"message": f"Role '{new_role}' already assigned"})
+
+        updated_roles = current_roles + [new_role]
+
+        user_table.update_item(
+            Key={"UserId": user_id},
+            UpdateExpression="SET Role = :roles",
+            ExpressionAttributeValues={":roles": updated_roles}
+        )
+
+        return response(200, {"message": f"Role '{new_role}' added successfully"})
+
+    except Exception as e:
+        LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
+        return response(500, {"message": "Error updating user roles"})

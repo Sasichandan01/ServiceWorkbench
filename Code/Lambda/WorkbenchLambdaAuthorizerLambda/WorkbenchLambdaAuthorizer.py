@@ -68,6 +68,7 @@ def verify_jwt_token(token):
     try:
         headers = jwt.get_unverified_headers(token)
         kid = headers["kid"]
+        LOGGER.info(f"Headers: {headers}")
         key_index = next((i for i, key in enumerate(jwks) if key["kid"] == kid), None)
         if key_index is None:
             raise Exception("Public key not found in JWKS")
@@ -123,8 +124,10 @@ def lambda_handler(event, context):
 
         access_token = auth_header.split(" ")[1]
         claims = verify_jwt_token(access_token)
+        LOGGER.info(f"Claims: {claims}")
 
         user = COGNITO_CLIENT.get_user(AccessToken=access_token)
+        LOGGER.info(f"User: {user}")
         user_id = user["Username"]
         attributes = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
         email = attributes.get("email")
@@ -143,11 +146,14 @@ def lambda_handler(event, context):
             LOGGER.error(f"User not found: {user_id}")
             return generate_policy("unauthorized", "Deny", method_arn)
 
-        role = item.get("Role")
-        LOGGER.info(f"Authenticated user: {user_id}, role: {role}")
+        attributess = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
+        custom_role = attributess.get("custom:Role")
+        # role = item.get("Role",[])
+        LOGGER.info(f"Authenticated user: {user_id}, role: {custom_role}")
 
         return generate_policy(user_id, "Allow", method_arn, {
-            "role": role,
+            # "role": json.dumps(role),
+            'role': custom_role,
             "user_id": user_id,
             "email": email
         })
