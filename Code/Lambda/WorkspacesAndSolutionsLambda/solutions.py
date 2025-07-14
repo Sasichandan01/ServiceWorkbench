@@ -5,7 +5,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
 from Utils.utils import log_activity, paginate_list,return_response
-from FGAC.fgac import create_solution_fgac
+from FGAC.fgac import create_solution_fgac, check_solution_access
 from boto3.dynamodb.conditions import Key, Attr
 
 DYNAMO_DB = boto3.resource('dynamodb')
@@ -29,9 +29,9 @@ RESOURCE_ACCESS_TABLE = DYNAMO_DB.Table(RESOURCE_ACCESS_TABLE_NAME)
 
 def list_solutions(workspace_id, params,user_id):
     filter_by = params.get('filterBy', '').strip().lower()
-    sort_order = params.get('sortBy', 'SolutionName')
+    sort_order = params.get('sortBy')
     limit = int(params.get('limit', 10))
-    offset = int(params.get('offset', 0))
+    offset = int(params.get('offset', 1))
 
     if sort_order and sort_order not in ['asc', 'desc']:
             return return_response(400, {"Error": "Invalid sort_by parameter. Must be 'asc' or 'desc'."})
@@ -56,13 +56,11 @@ def list_solutions(workspace_id, params,user_id):
         }
 
     resource_access_response = RESOURCE_ACCESS_TABLE.scan(
-        FilterExpression=Key('Id').begins_with(f"{user_id}#"),
+        FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
         ProjectionExpression='AccessKey'
     )
-
     print(resource_access_response)
     
-    # Extract solution IDs from access keys (format: solution#{workspace_id}#{solution_id})
     solution_ids = []
     for item in resource_access_response.get('Items', []):
         access_key = item.get('AccessKey', '')
@@ -74,7 +72,6 @@ def list_solutions(workspace_id, params,user_id):
             
     print(solution_ids)
     
-    # Get solution details for all accessible solutions in this workspace
     items = []
     for solution_id in solution_ids:
         response = SOLUTIONS_TABLE.get_item(
@@ -89,19 +86,13 @@ def list_solutions(workspace_id, params,user_id):
     if filter_by:
         items = [item for item in items if filter_by in item.get('SolutionName', '').lower()]
 
-    # if sort_by == 'SolutionName':
-    #     items = sorted(items, key=lambda x: x.get(sort_by, ''))
-    # # else:
-    # #     items = sorted(items, key=lambda x: x.get(sort_by, ''),reverse="decending")
-
-    # # items = sorted(items, key=lambda x: x.get(sort_by, ''))
-
     print(items)
 
     solutions = [{
         "SolutionId": item.get("SolutionId"),
         "SolutionName": item.get("SolutionName"),
         "Description": item.get("Description"),
+        "Tags": item.get("Tags", []),
         "CreatedBy": item.get("CreatedBy"),
         "CreationTime": item.get("CreationTime"),
         "LastUpdatedBy": item.get("LastUpdatedBy"),
@@ -126,6 +117,17 @@ def create_solution(workspace_id, body, user_id):
     solution_name = body.get("SolutionName")
     if not solution_name:
         return return_response(400, {"Message": "SolutionName is required"})
+    
+    description=body.get("Description")
+    if not description:
+        return return_response(400, {"Message": "Description is required"})
+    
+    tags = body.get("Tags", [])
+    if not isinstance(tags, list):
+        return return_response(400, {"Message": "Tags must be a list"})
+    
+    if len(tags) == 0:
+        return return_response(400, {"Message": "At least one tag is required"})
 
     # Query for existing solutions with the same name in this workspace
     response = SOLUTIONS_TABLE.query(
@@ -146,7 +148,8 @@ def create_solution(workspace_id, body, user_id):
         "WorkspaceId": workspace_id,
         "SolutionId": solution_id,
         "SolutionName": solution_name,
-        "Description": body.get("Description"),
+        "Description": description,
+        "Tag":tags,
         "CreatedBy": user_id,
         "CreationTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         "LastUpdatedBy": user_id,
@@ -173,6 +176,10 @@ def create_solution(workspace_id, body, user_id):
 
 def get_solution(workspace_id, solution_id, params,user_id):
 
+    access_type = check_solution_access(RESOURCE_ACCESS_TABLE, user_id, workspace_id, solution_id)
+    if not access_type:
+        return return_response(403, {"Error": "Not authorized to perform this action"})
+
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
         return {
@@ -194,10 +201,17 @@ def get_solution(workspace_id, solution_id, params,user_id):
             "statusCode": 404, 
             "body": json.dumps({"Message": "Solution not found"})
         }
-
+    
     return return_response(200,item)
 
 def update_solution(workspace_id, solution_id, body,user_id):
+
+    access_type = check_solution_access(RESOURCE_ACCESS_TABLE, user_id, workspace_id, solution_id)
+    if not access_type:
+        return return_response(403, {"Error": "Not authorized to perform this action"})
+    
+    if access_type not in ['editor', 'owner']:
+        return return_response(403, {"Error": "Not authorized to perform this action"})
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
@@ -205,7 +219,7 @@ def update_solution(workspace_id, solution_id, body,user_id):
             "statusCode": 404,
             "body": json.dumps({"Message": "Workspace not found"})
         }
-
+    
     response=SOLUTIONS_TABLE.get_item(Key={"WorkspaceId": workspace_id, "SolutionId": solution_id})
     if not response.get("Item"):
         return {
@@ -271,6 +285,13 @@ def update_solution(workspace_id, solution_id, body,user_id):
     return return_response(200,{"Message": "Solution updated"})
 
 def delete_solution(workspace_id, solution_id,user_id):
+
+    access_type = check_solution_access(RESOURCE_ACCESS_TABLE, user_id, workspace_id, solution_id)
+    if not access_type:
+        return return_response(403, {"Error": "Not authorized to perform this action"})
+    
+    if access_type != 'owner':
+        return return_response(403, {"Error": "Not authorized to perform this action"})
 
     response=WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
