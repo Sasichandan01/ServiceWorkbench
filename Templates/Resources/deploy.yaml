@@ -1409,7 +1409,7 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - { FunctionName: !Ref ChatLambdaFunction }
+        - {FunctionName: !Ref ChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
@@ -1422,7 +1422,7 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - { FunctionName: !Ref ChatLambdaFunction }
+        - {FunctionName: !Ref ChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
@@ -1435,7 +1435,7 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - { FunctionName: !Ref ChatLambdaFunction }
+        - {FunctionName: !Ref ChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
@@ -1486,7 +1486,7 @@ Resources:
         - route.request.header.Authorization
       AuthorizerUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - { FunctionName: !Ref LambdaAuthorizerFunction }
+        - {FunctionName: !Ref LambdaAuthorizerFunction}
 
   WebSocketStage:
     Type: AWS::ApiGatewayV2::Stage
