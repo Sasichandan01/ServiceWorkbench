@@ -87,7 +87,7 @@ definitions:
             --template-file "$TEMPLATE_FILE" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}" \
             --s3-bucket "${S3_BUCKET}" \
             --s3-prefix "cf/${BRANCH_NAME}" \
             --no-fail-on-empty-changeset || {
