@@ -774,6 +774,15 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowLogsAndGlueAccess
+                Effect: Allow
+                Action:
+                  - bedrock:Invoke
+                Resource: '*'         
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
