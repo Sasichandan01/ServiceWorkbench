@@ -701,6 +701,14 @@ definitions:
           - echo "Updating Lambda functions for current branch..."
           - *authenticate
           - *update_branch_specific_lambdas
+    
+    - step: &update_cftemplates
+        name: Upload CloudFormation Templates
+        oidc: true
+        script:
+          - echo "Uploading CloudFormation templates to S3..."
+          - *authenticate
+          - *upload_cf_templates
 
 pipelines:
   branches:
@@ -708,7 +716,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *upload_cf_templates
+      - step: *update_cftemplates
       - step: *deploy
       - step: *build_and_deploy_ui
 
@@ -716,7 +724,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *upload_cf_templates
+      - step: *update_cftemplates
       - step: *deploy
       - step: *build_and_deploy_ui
       
@@ -724,7 +732,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *upload_cf_templates
+      - step: *update_cftemplates
       - step: *deploy
       - step: *build_and_deploy_ui
 
@@ -732,7 +740,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *upload_cf_templates
+      - step: *update_cftemplates
       - step: *deploy
       - step: *build_and_deploy_ui
 
