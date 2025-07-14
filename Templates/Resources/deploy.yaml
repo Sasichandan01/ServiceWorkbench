@@ -437,6 +437,7 @@ Resources:
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          USERS_TABLE: !Ref UserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
