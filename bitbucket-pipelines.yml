@@ -782,7 +782,7 @@ pipelines:
       - step: *lint_and_validate
       - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
-      - step: *upload_cf_templates
+      - step: *update_cftemplates
       - step: *deploy
       - step: *deploy_infra_stack
       - step: *build_and_deploy_ui
