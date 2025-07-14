@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from Utils.utils import paginate_list, return_response, log_activity
+from RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
 from FGAC.fgac import create_datasource_fgac, check_datasource_access
 from boto3.dynamodb.conditions import Key, Attr
@@ -19,6 +20,7 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
+ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
@@ -26,10 +28,13 @@ ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 resource_access_table = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+table = dynamodb.Table(ROLES_TABLE)
+
 
 def lambda_handler(event, context):
     try:
         LOGGER.info("Received event: %s", json.dumps(event))
+        
         http_method = event.get("httpMethod")
         path = event.get("path", "")
         query_params = event.get("queryStringParameters") or {}
@@ -37,6 +42,14 @@ def lambda_handler(event, context):
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         role = auth.get("role")
+        resource = event.get("resource", "")
+
+        auth = event.get("requestContext", {}).get("authorizer", {})
+        user_id = auth.get("user_id")
+        role = auth.get("role")
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get("body") or "{}")
@@ -145,6 +158,7 @@ def get_all_datasources(query_params, user_id):
         {
             "DatasourceId": item.get("DatasourceId"),
             "DatasourceName": item.get("DatasourceName"),
+            "Description": item.get("Description"),
             "CreatedBy": item.get("CreatedBy"),
             "S3Path": item.get("S3Path"),
             "CreationTime": item.get("CreationTime"),
