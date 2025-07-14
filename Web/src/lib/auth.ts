@@ -1,4 +1,5 @@
-import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand } from "@aws-sdk/client-cognito-identity-provider";
+
+import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand, ResendConfirmationCodeCommand, GlobalSignOutCommand } from "@aws-sdk/client-cognito-identity-provider";
 
 // AWS Cognito configuration from environment variables
 const COGNITO_CONFIG = {
@@ -61,6 +62,24 @@ export const signIn = async (data: SignInData) => {
 
   try {
     const response = await cognitoClient.send(command);
+    
+    // Store tokens in localStorage if authentication is successful
+    if (response.AuthenticationResult) {
+      const { AccessToken, RefreshToken, IdToken } = response.AuthenticationResult;
+      
+      if (AccessToken) {
+        localStorage.setItem('accessToken', AccessToken);
+      }
+      if (RefreshToken) {
+        localStorage.setItem('refreshToken', RefreshToken);
+      }
+      if (IdToken) {
+        localStorage.setItem('idToken', IdToken);
+      }
+      
+      console.log("Tokens stored successfully");
+    }
+    
     return response;
   } catch (error) {
     console.error("Sign in error:", error);
@@ -82,4 +101,58 @@ export const confirmSignUp = async (username: string, confirmationCode: string) 
     console.error("Confirm sign up error:", error);
     throw error;
   }
+};
+
+export const resendConfirmationCode = async (username: string) => {
+  const command = new ResendConfirmationCodeCommand({
+    ClientId: COGNITO_CONFIG.clientId,
+    Username: username,
+  });
+
+  try {
+    const response = await cognitoClient.send(command);
+    return response;
+  } catch (error) {
+    console.error("Resend confirmation code error:", error);
+    throw error;
+  }
+};
+
+export const signOut = async (accessToken: string) => {
+  const command = new GlobalSignOutCommand({
+    AccessToken: accessToken,
+  });
+
+  try {
+    const response = await cognitoClient.send(command);
+    
+    // Clear all auth-related data from localStorage
+    clearAllAuthData();
+    
+    return response;
+  } catch (error) {
+    console.error("Sign out error:", error);
+    
+    // Even if the API call fails, clear all local storage
+    clearAllAuthData();
+    
+    throw error;
+  }
+};
+
+export const clearAllAuthData = () => {
+  // Clear tokens
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('idToken');
+  
+  // Clear any other auth-related data
+  localStorage.removeItem('userInfo');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userPermissions');
+  
+  // Clear session storage as well
+  sessionStorage.clear();
+  
+  console.log("All auth data cleared from browser");
 };

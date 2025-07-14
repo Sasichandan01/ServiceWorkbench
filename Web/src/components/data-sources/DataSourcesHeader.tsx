@@ -1,22 +1,24 @@
 
 import { Button } from "@/components/ui/button";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
 interface DataSourcesHeaderProps {
-  onCreateDataSource: (name: string, description: string, type: string) => void;
+  onCreateDataSource: (name: string, tags: string[], description: string) => void;
 }
 
 const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [dataSourceName, setDataSourceName] = useState("");
   const [dataSourceDescription, setDataSourceDescription] = useState("");
-  const [dataSourceType, setDataSourceType] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const { toast } = useToast();
 
   const handleCreateDataSource = () => {
@@ -38,16 +40,16 @@ const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
       return;
     }
 
-    if (!dataSourceType) {
+    if (tags.length === 0) {
       toast({
         title: "Error",
-        description: "Data source type is required.",
+        description: "At least one tag is required.",
         variant: "destructive",
       });
       return;
     }
 
-    onCreateDataSource(dataSourceName, dataSourceDescription, dataSourceType);
+    onCreateDataSource(dataSourceName, tags, dataSourceDescription);
     resetForm();
     setIsCreateDialogOpen(false);
   };
@@ -55,7 +57,8 @@ const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
   const resetForm = () => {
     setDataSourceName("");
     setDataSourceDescription("");
-    setDataSourceType("");
+    setTagsInput("");
+    setTags([]);
   };
 
   return (
@@ -66,10 +69,14 @@ const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
       </div>
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogTrigger asChild>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <ProtectedButton 
+            resource="datasources" 
+            action="manage"
+            onClick={() => setIsCreateDialogOpen(true)}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Add Data Source
-          </Button>
+          </ProtectedButton>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -100,16 +107,39 @@ const DataSourcesHeader = ({ onCreateDataSource }: DataSourcesHeaderProps) => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="dataSourceType">Type <span className="text-red-500">*</span></Label>
-              <Select value={dataSourceType} onValueChange={setDataSourceType} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select data source type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="S3">S3</SelectItem>
-                  <SelectItem value="DynamoDB">DynamoDB</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="dataSourceTags">Tags <span className="text-red-500">*</span></Label>
+              <Input
+                id="dataSourceTags"
+                placeholder="Type a tag and press Enter"
+                value={tagsInput}
+                onChange={e => setTagsInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newTag = tagsInput.trim();
+                    if (newTag && !tags.includes(newTag)) {
+                      setTags([...tags, newTag]);
+                    }
+                    setTagsInput("");
+                  }
+                }}
+                required
+              />
+              <div className="flex flex-wrap gap-1 mt-1">
+                {tags.map((tag, idx) => (
+                  <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center">
+                    {tag}
+                    <button
+                      type="button"
+                      className="ml-1 text-blue-800 hover:text-red-600 focus:outline-none"
+                      onClick={() => setTags(tags.filter((t, i) => i !== idx))}
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

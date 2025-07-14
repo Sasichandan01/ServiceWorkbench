@@ -5,7 +5,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Database, CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 interface DataSource {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   type: string;
@@ -15,17 +15,21 @@ interface DataSource {
   records: string;
   workspaces: string[];
   tags: string[];
+  creationTime: string;
+  lastModifiedTime: string;
 }
 
 interface DataSourcesTableProps {
   dataSources: DataSource[];
-  onDataSourceClick: (id: number) => void;
+  onDataSourceClick: (id: string | number) => void;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
 }
 
-const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPages, onPageChange }: DataSourcesTableProps) => {
+const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPages, onPageChange, searchTerm, setSearchTerm }: DataSourcesTableProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Connected": return "default";
@@ -71,70 +75,65 @@ const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPa
     }
   };
 
+  // Filter data sources by search term
+  const filteredDataSources = dataSources.filter(ds =>
+    ds.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ds.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>All Data Sources</CardTitle>
         <CardDescription>
-          {dataSources.length} data source{dataSources.length !== 1 ? 's' : ''} on this page
+          {filteredDataSources.length} data source{filteredDataSources.length !== 1 ? 's' : ''} on this page
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Search Bar */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search data sources by name or description..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring focus:border-blue-300"
+          />
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data Source</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Records</TableHead>
-              <TableHead className="text-center">Workspaces</TableHead>
-              <TableHead>Last Sync</TableHead>
+              <TableHead>Data Source Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Tags</TableHead>
+              <TableHead>Creation Time</TableHead>
+              <TableHead>Last Modified Time</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {dataSources.map((dataSource) => (
-              <TableRow key={dataSource.id} className={`${getRowColor(dataSource.status)} cursor-pointer`}>
+            {filteredDataSources.map((dataSource) => (
+              <TableRow key={dataSource.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onDataSourceClick(dataSource.id)}>
                 <TableCell>
-                  <div 
-                    className="flex items-center space-x-3"
-                    onClick={() => onDataSourceClick(dataSource.id)}
-                  >
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Database className="w-5 h-5 text-blue-600" />
+                  <div className="font-medium text-gray-900 hover:text-blue-600">
+                    {dataSource.name}
+                  </div>
+                </TableCell>
+                <TableCell>{dataSource.description}</TableCell>
+                <TableCell>
+                  {dataSource.tags && dataSource.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {dataSource.tags.map((tag: string, idx: number) => (
+                        <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
-                    <div>
-                      <div className="font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                        {dataSource.name}
-                      </div>
-                      <div className="text-sm text-gray-500 truncate max-w-xs">
-                        {dataSource.description}
-                      </div>
-                    </div>
-                  </div>
+                  ) : (
+                    <span className="text-gray-400">No tags</span>
+                  )}
                 </TableCell>
-                <TableCell>
-                  <Badge className={`${getTypeColor(dataSource.type)} transition-colors cursor-pointer`}>
-                    {dataSource.type}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className={`flex items-center space-x-1 ${getStatusTextColor(dataSource.status)}`}>
-                    {getStatusIcon(dataSource.status)}
-                    <span className="font-medium">{dataSource.status}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className="font-medium">{dataSource.records}</span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className="font-medium">{dataSource.workspaces.length}</span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{dataSource.lastSync}</span>
-                  </div>
-                </TableCell>
+                <TableCell>{dataSource.creationTime}</TableCell>
+                <TableCell>{dataSource.lastModifiedTime}</TableCell>
               </TableRow>
             ))}
           </TableBody>

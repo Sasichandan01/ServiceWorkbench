@@ -5,5 +5,54 @@
     "/users/{user_id}": {
         "GET": ["users.view"],
         "PUT": ["users.manage"]
+    },
+    "/roles": {
+        "GET": ["roles.view"],
+        "POST": ["roles.manage"]
+    },
+    "/roles/{role_name}": {
+        "GET": ["roles.view"],
+        "PUT": ["roles.manage"],
+        "DELETE": ["roles.fullaccess"]
+    },
+    "/workspaces": {
+        "GET": ["workspaces.view"],
+        "POST": ["workspaces.manage"]
+    },
+    "/workspaces/{workspace_id}": {
+        "GET": ["workspaces.view"],
+        "PUT": ["workspaces.manage"],
+        "DELETE": ["workspaces.fullaccess"]
+    },
+    "/workspaces/{workspace_id}/solutions": {
+        "GET": ["workspaces.view","solutions.view"],
+        "POST": ["workspaces.manage","solutions.manage"]
+    },
+    "/workspaces/{workspace_id}/solutions/{solution_id}": {
+        "GET": ["workspaces.view","solutions.view"],
+        "PUT": ["workspaces.manage","solutions.manage"],
+        "DELETE": ["workspaces.fullaccess","solutions.fullaccess"]
+    },
+    "/workspaces/{workspace_id}/solutions/{solution_id}/executions": {
+        "GET": ["workspaces.view","solutions.view","executions.view"],
+        "POST": ["workspaces.manage","solutions.manage","executions.manage"]
+    },
+    "/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}": {
+        "GET": ["workspaces.view","solutions.view","executions.view"],
+        "PUT": ["workspaces.manage","solutions.manage","executions.manage"],
+        "DELETE": ["workspaces.fullaccess","solutions.fullaccess","executions.fullaccess"]
+    },
+    "/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs":{
+        "GET": ["workspaces.view","solutions.view","executions.view"],
+        "POST": ["workspaces.manage","solutions.manage","executions.manage"]
+    },
+    "/datasources": {
+        "GET": ["datasources.view"],
+        "POST": ["datasources.manage"]
+    },
+    "/datasources/{datasource_id}": {
+        "GET": ["datasources.view"],
+        "PUT": ["datasources.manage"],
+        "DELETE": ["datasources.fullaccess"]
     }
 }

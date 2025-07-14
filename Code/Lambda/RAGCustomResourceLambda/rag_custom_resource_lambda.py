@@ -381,3 +381,7 @@ def lambda_handler(event, context):
             "FAILED", 
             reason=f"Unhandled exception: {str(e)}"
         )
+<<<<<<< HEAD
+=======
+    
+>>>>>>> develop

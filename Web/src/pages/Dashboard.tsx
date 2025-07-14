@@ -1,5 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ProtectedContent } from "@/components/ui/protected-content";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
@@ -45,34 +47,28 @@ const Dashboard = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Monitor your workspaces, data sources, and costs</p>
+          <h1 className="text-3xl font-bold text-gray-900">Cost Dashboard</h1>
+          <p className="text-gray-600">Monitor your costs and get optimization insights</p>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-              <div className="flex items-center text-xs text-gray-600 mt-1">
-                {stat.changeType === 'positive' ? (
-                  <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
-                ) : (
-                  <ArrowDownRight className="w-3 h-3 text-red-500 mr-1" />
-                )}
-                {stat.change}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Monthly Cost Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Monthly Cost
+            </CardTitle>
+            <DollarSign className="h-4 w-4 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">$2,847</div>
+            <div className="flex items-center text-xs text-gray-600 mt-1">
+              <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
+              -12% from last month
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cost Dashboard */}

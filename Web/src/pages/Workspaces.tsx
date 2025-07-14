@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
+import { ProtectedButton } from "@/components/ui/protected-button";
 import { 
   Users, 
   Plus, 
@@ -19,17 +20,21 @@ import {
   FolderOpen,
   Calendar,
   Archive,
-  X
+  X,
+  Loader2
 } from "lucide-react";
+import { WorkspaceService, type Workspace as ApiWorkspace } from "../services/workspaceService";
 
-interface Workspace {
-  id: number;
+interface LocalWorkspace {
+  id: string;
   name: string;
   status: string;
   members: number;
   projects: number;
   lastActivity: string;
   owner: string;
+  description: string;
+  type: string;
 }
 
 const Workspaces = () => {
@@ -39,59 +44,91 @@ const Workspaces = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
   const [workspaceDescription, setWorkspaceDescription] = useState("");
+  const [workspaceType, setWorkspaceType] = useState("Standard");
   const [currentTag, setCurrentTag] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
   const { toast } = useToast();
 
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([
-    {
-      id: 1,
-      name: "Analytics Team",
-      status: "Active",
-      members: 8,
-      projects: 12,
-      lastActivity: "2 hours ago",
-      owner: "Sarah Chen"
-    },
-    {
-      id: 2,
-      name: "ML Research Lab",
-      status: "Active",
-      members: 15,
-      projects: 7,
-      lastActivity: "30 minutes ago",
-      owner: "Dr. Martinez"
-    },
-    {
-      id: 3,
-      name: "Customer Insights",
-      status: "Active",
-      members: 6,
-      projects: 18,
-      lastActivity: "1 day ago",
-      owner: "Mike Johnson"
-    },
-    {
-      id: 4,
-      name: "Development Sandbox",
-      status: "Default",
-      members: 2,
-      projects: 5,
-      lastActivity: "4 hours ago",
-      owner: "Alex Kim"
-    },
-    {
-      id: 5,
-      name: "Legacy Projects",
-      status: "Archived",
-      members: 3,
-      projects: 25,
-      lastActivity: "2 weeks ago",
-      owner: "Jennifer Wu"
+  const fetchWorkspaces = async () => {
+    setLoading(true);
+    try {
+      const searchParams: any = {
+        limit: itemsPerPage,
+        offset: currentPage,
+      };
+
+      if (searchTerm.trim()) {
+        searchParams.filter = searchTerm.trim();
+      }
+
+      const response = await WorkspaceService.getWorkspaces(searchParams);
+      
+      if (response && response.Workspaces && Array.isArray(response.Workspaces)) {
+        const transformedWorkspaces: LocalWorkspace[] = response.Workspaces.map(ws => ({
+          id: ws.WorkspaceId,
+          name: ws.WorkspaceName,
+          status: ws.WorkspaceStatus,
+          members: Math.floor(Math.random() * 15) + 1, // Mock data
+          projects: Math.floor(Math.random() * 20) + 1, // Mock data
+          lastActivity: formatLastActivity(ws.LastUpdationTime),
+          owner: ws.CreatedBy,
+          description: ws.Description,
+          type: ws.WorkspaceType
+        }));
+        setWorkspaces(transformedWorkspaces);
+        setTotalCount(response.Pagination?.TotalCount || transformedWorkspaces.length);
+      } else {
+        setWorkspaces([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch workspaces. Please try again.",
+        variant: "destructive"
+      });
+      setWorkspaces([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const formatLastActivity = (timestamp: string): string => {
+    if (!timestamp) return "Unknown";
+    // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, treat as UTC
+    let isoTimestamp = timestamp;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+      isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+    }
+    const date = new Date(isoTimestamp);
+    if (isNaN(date.getTime())) return "Unknown";
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 0) return "Just now";
+    const diffInMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffInMinutes < 1) {
+      return "Just now";
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
+    } else if (diffInMinutes < 1440) {
+      const hours = Math.floor(diffInMinutes / 60);
+      return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    } else {
+      const days = Math.floor(diffInMinutes / 1440);
+      return `${days} day${days === 1 ? '' : 's'} ago`;
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [currentPage, searchTerm]);
 
   const filteredWorkspaces = workspaces.filter(workspace => {
     const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -126,7 +163,7 @@ const Workspaces = () => {
     }
   };
 
-  const handleWorkspaceClick = (workspaceId: number) => {
+  const handleWorkspaceClick = (workspaceId: string) => {
     navigate(`/workspaces/${workspaceId}`);
   };
 
@@ -148,7 +185,7 @@ const Workspaces = () => {
     }
   };
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     if (!workspaceName.trim()) {
       toast({
         title: "Error",
@@ -167,6 +204,15 @@ const Workspaces = () => {
       return;
     }
 
+    if (!workspaceType || workspaceType === "" || workspaceType === undefined) {
+      toast({
+        title: "Error",
+        description: "Workspace type is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (tags.length === 0) {
       toast({
         title: "Error",
@@ -176,40 +222,41 @@ const Workspaces = () => {
       return;
     }
 
-    const newWorkspace: Workspace = {
-      id: Math.max(...workspaces.map(w => w.id)) + 1,
-      name: workspaceName,
-      status: "Active",
-      members: 1,
-      projects: 0,
-      lastActivity: "Just now",
-      owner: "You"
-    };
+    try {
+      const createData = {
+        WorkspaceName: workspaceName,
+        Description: workspaceDescription,
+        Tags: tags,
+        WorkspaceType: workspaceType
+      };
 
-    setWorkspaces([newWorkspace, ...workspaces]);
+      const response = await WorkspaceService.createWorkspace(createData);
 
-    console.log("Creating workspace:", {
-      name: workspaceName,
-      description: workspaceDescription,
-      tags: tags
-    });
+      toast({
+        title: "Success",
+        description: `Workspace "${workspaceName}" created successfully!`,
+      });
 
-    toast({
-      title: "Success",
-      description: `Workspace "${workspaceName}" created successfully!`,
-    });
-
-    // Reset form
-    setWorkspaceName("");
-    setWorkspaceDescription("");
-    setTags([]);
-    setCurrentTag("");
-    setIsCreateDialogOpen(false);
+      // Reset form
+      resetForm();
+      setIsCreateDialogOpen(false);
+      
+      // Refresh workspaces list
+      await fetchWorkspaces();
+    } catch (error) {
+      console.error('Error creating workspace:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create workspace. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const resetForm = () => {
     setWorkspaceName("");
     setWorkspaceDescription("");
+    setWorkspaceType("Standard");
     setTags([]);
     setCurrentTag("");
   };
@@ -224,10 +271,14 @@ const Workspaces = () => {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <ProtectedButton 
+              resource="workspaces" 
+              action="manage"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create Workspace
-            </Button>
+            </ProtectedButton>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
@@ -258,29 +309,41 @@ const Workspaces = () => {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags <span className="text-red-500">*</span></Label>
-                <Input
-                  id="tags"
-                  placeholder="Add a tag and press Enter"
-                  value={currentTag}
-                  onChange={(e) => setCurrentTag(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                />
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                        {tag}
-                        <X 
-                          className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                          onClick={() => handleRemoveTag(tag)}
-                        />
-                      </Badge>
-                    ))}
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Workspace Type <span className="text-red-500">*</span></Label>
+                    <Select value={workspaceType} onValueChange={setWorkspaceType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workspace type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Public">Public</SelectItem>
+                        <SelectItem value="Private">Private</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tags">Tags <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="tags"
+                      placeholder="Add a tag and press Enter"
+                      value={currentTag}
+                      onChange={(e) => setCurrentTag(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                    />
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {tags.map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                            {tag}
+                            <X 
+                              className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                              onClick={() => handleRemoveTag(tag)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
             </div>
             <DialogFooter>
               <Button 
@@ -355,35 +418,6 @@ const Workspaces = () => {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search workspaces..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="default">Default</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Workspaces Table */}
       <Card>
         <CardHeader>
@@ -393,19 +427,46 @@ const Workspaces = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Search Bar inside All Workspaces */}
+          <div className="mb-4 flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Search workspaces..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Workspace</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead className="text-center">Members</TableHead>
-                <TableHead className="text-center">Projects</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Last Activity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedWorkspaces.map((workspace) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <div className="flex items-center justify-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading workspaces...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredWorkspaces.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    No workspaces found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedWorkspaces.map((workspace) => (
                 <TableRow 
                   key={workspace.id} 
                   className={`${getRowColor(workspace.status)} cursor-pointer`}
@@ -424,24 +485,17 @@ const Workspaces = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
-                      <span>{workspace.status}</span>
+                    <div className="font-medium text-gray-900">{workspace.owner}</div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                      <span>{workspace.type}</span>
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-gray-900">{workspace.owner}</div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium">{workspace.members}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <FolderOpen className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium">{workspace.projects}</span>
-                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
+                      <span>{workspace.status}</span>
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
@@ -450,12 +504,13 @@ const Workspaces = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
           
-          {totalPages > 1 && (
-            <div className="mt-4">
+          {Math.ceil(totalCount / itemsPerPage) > 1 && (
+            <div className="flex justify-center mt-4">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
@@ -464,7 +519,7 @@ const Workspaces = () => {
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -476,9 +531,9 @@ const Workspaces = () => {
                     </PaginationItem>
                   ))}
                   <PaginationItem>
-                    <PaginationNext 
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                     <PaginationNext 
+                      onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
+                      className={currentPage === Math.ceil(totalCount / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
                 </PaginationContent>
