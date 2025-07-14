@@ -37,6 +37,11 @@ Parameters:
     Default: "2025-07-02T00:00:00Z"
     Description: Trigger date for deployment, used for versioning
 
+  pWebSocketStage:
+    Type: String
+    Default: "prod"
+    Description: "Stage name for websocket api"
+
 Resources:
 
   # S3 Bucket for artifacts
@@ -767,6 +772,34 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ChatLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-ChatLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowLogsAndGlueAccess
+                Effect: Allow
+                Action:
+                  - bedrock:Invoke
+                Resource: '*'         
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   LambdaAuthorizerFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -1294,6 +1327,37 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ChatLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-ChatLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt ChatLambdaRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      Environment:
+        Variables:
+          WEBSOCKET_URL: !Ref WebSocketApi
+          WEBSOCKET_STAGE: !Ref pWebSocketStage
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/workbenchchatlambda/WorkbenchChat.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   ShareLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -1408,6 +1472,129 @@ Resources:
             TextField: "content"
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
+
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${pPrefix}-Workbench-WebSocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  IntegrationAnalysis:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - {FunctionName: !Ref ChatLambdaFunction}
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+
+  IntegrationConnect:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - {FunctionName: !Ref ChatLambdaFunction}
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+
+  IntegrationDisconnect:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - {FunctionName: !Ref ChatLambdaFunction}
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+      
+  RouteConnect:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref WebSocketAuthorizer
+      Target: !Join ["/", ["integrations", !Ref IntegrationConnect]]
+
+  RouteDisconnect:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref IntegrationDisconnect]]
+
+  RouteAnalysis:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: analysis
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref IntegrationAnalysis]]
+
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - RouteConnect
+      - RouteDisconnect
+      - RouteAnalysis
+    Properties:
+      ApiId: !Ref WebSocketApi
+  
+  WebSocketAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: !Sub "${pPrefix}-WebSocketAuthorizer"
+      ApiId: !Ref WebSocketApi
+      AuthorizerType: REQUEST
+      IdentitySource:
+        - route.request.header.Authorization
+      AuthorizerUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - {FunctionName: !Ref LambdaAuthorizerFunction}
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: !Ref pWebSocketStage
+      AutoDeploy: true
+      DeploymentId: !Ref Deployment
+      ApiId: !Ref WebSocketApi
+      DefaultRouteSettings:
+        DataTraceEnabled: false
+        DetailedMetricsEnabled: false
+        LoggingLevel: OFF
+
+  AuthorizerLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaAuthorizerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+        - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+        - WebSocketApi: !Ref WebSocketApi
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ChatLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
 
   WorkbenchLambdaAuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
