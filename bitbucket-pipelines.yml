@@ -391,8 +391,8 @@ definitions:
             aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
 
 
-            # S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
-            S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+            # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
 
             # Get all .py files in the category
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
