@@ -510,7 +510,7 @@ const Workspaces = () => {
           </Table>
           
           {Math.ceil(totalCount / itemsPerPage) > 1 && (
-            <div className="mt-4">
+            <div className="flex justify-center mt-4">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>

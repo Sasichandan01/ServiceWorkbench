@@ -5,7 +5,7 @@ import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, Conf
 const COGNITO_CONFIG = {
   userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
   clientId: import.meta.env.VITE_COGNITO_CLIENT_ID, 
-  region: import.meta.env.VITE_COGNITO_REGION || "us-east-1",
+  region: import.meta.env.VITE_COGNITO_REGION
 };
 
 const cognitoClient = new CognitoIdentityProviderClient({

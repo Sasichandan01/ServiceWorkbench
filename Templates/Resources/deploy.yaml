@@ -843,6 +843,13 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: ["GET", "PUT", "POST", "DELETE"]
+            AllowedOrigins: ["*"]
+            ExposedHeaders: ["ETag"]
+            MaxAge: 3000
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -870,8 +877,7 @@ Resources:
         Bucket: !Ref pArtifactsBucketName
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
-      TracingEnabled: true
-      AlwaysDeploy: true
+      AlwaysDeploy: True
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -982,9 +988,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: DatasourceId
           AttributeType: S
+        - AttributeName: DatasourceName
+          AttributeType: S
+        - AttributeName: CreatedBy
+          AttributeType: S
       KeySchema:
         - AttributeName: DatasourceId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CreatedBy-DatasourceName-index
+          KeySchema:
+            - AttributeName: CreatedBy
+              KeyType: HASH
+            - AttributeName: DatasourceName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1137,7 +1156,10 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Scan
                   - dynamodb:Query
-                Resource: !GetAtt DatasourcesTable.Arn
+                Resource: 
+                  - !GetAtt DatasourcesTable.Arn
+                  - !GetAtt ActivityLogsTable.Arn
+                  - !Sub "${DatasourcesTable.Arn}/index/CreatedBy-DatasourceName-index"
 
         - PolicyName: S3Access
           PolicyDocument:
@@ -1210,6 +1232,7 @@ Resources:
           USER_TABLE_NAME: !Ref UserTable
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           MISC_BUCKET: !Ref MiscBucket
+          ROLES_TABLE: !Ref RolesTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1241,6 +1264,8 @@ Resources:
         Variables:
           DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
           DATASOURCE_BUCKET: !Ref DatasourceBucket
+          ROLES_TABLE: !Ref RolesTable
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1255,6 +1280,41 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: lambda/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ShareLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Share Lambda Function"
+      FunctionName: !Sub "${pPrefix}-ShareLambdaFunction"
+      Handler: ShareLambda.lambda_handler
+      Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
+      Runtime: python3.13
+      Timeout: 900
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          SOLUTIONS_TABLE: !Ref SolutionsTable
+          WORKSPACES_TABLE: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          ROLES_TABLE: !Ref RolesTable
+          USER_TABLE_NAME: !Ref UserTable
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/sharelambda/ShareLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1280,6 +1340,14 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref DatasourcesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
+  ShareLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ShareLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*

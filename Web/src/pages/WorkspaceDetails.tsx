@@ -89,19 +89,17 @@ const WorkspaceDetails = () => {
   const [allSolutions, setAllSolutions] = useState<any[]>([]);
   const [solutionsLoading, setSolutionsLoading] = useState(true);
   const [solutionsError, setSolutionsError] = useState<string | null>(null);
+  const [solutionsTotalCount, setSolutionsTotalCount] = useState(0);
 
   // Users: keep mock for now
   const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([]);
 
-  // Fetch workspace details and solutions on mount/id change
-  useEffect(() => {
+  // Add a function to refetch workspace details
+  const fetchWorkspaceDetails = () => {
     if (!id) return;
     setWorkspaceLoading(true);
     setWorkspaceError(null);
-    setSolutionsLoading(true);
-    setSolutionsError(null);
-
-    WorkspaceService.getWorkspace(id)
+    WorkspaceService.getWorkspace(id, { limit: 10, offset: 1 })
       .then((data) => {
         setWorkspace({
           id: data.WorkspaceId,
@@ -111,12 +109,13 @@ const WorkspaceDetails = () => {
           owner: data.CreatedBy,
           created: data.CreationTime,
           members: data.Users?.Pagination?.TotalCount || 0,
-          solutions: 0, // Update if you have solutions count elsewhere
-          dataSources: 0, // Update if you have data sources count elsewhere
-          monthlyCost: 0, // Update if you have cost info
+          solutions: 0,
+          dataSources: 0,
+          monthlyCost: 0,
+          type: data.WorkspaceType,
+          tags: data.Tags || [],
         });
         setWorkspaceStatus(data.WorkspaceStatus || "Active");
-        // Map API users to WorkspaceUser interface
         const apiUsers = data.Users?.Users || [];
         setAllUsers(
           apiUsers.map((u: any, idx: number) => ({
@@ -133,28 +132,33 @@ const WorkspaceDetails = () => {
         setWorkspaceError("Failed to load workspace details.");
         setWorkspaceLoading(false);
       });
+  };
 
-    SolutionService.getSolutions(id)
+  // Fetch solutions from API
+  const fetchSolutions = (search: string, page: number) => {
+    setSolutionsLoading(true);
+    setSolutionsError(null);
+    SolutionService.getSolutions(id, {
+      limit: 10,
+      offset: page,
+      filterby: search.trim() ? search : undefined,
+    })
       .then((data) => {
         setAllSolutions(data.Solutions || []);
+        setSolutionsTotalCount(data.Pagination?.TotalCount || 0);
         setSolutionsLoading(false);
       })
       .catch((err) => {
         setSolutionsError("Failed to load solutions.");
         setSolutionsLoading(false);
       });
-  }, [id]);
+  };
 
-  // Filter and paginate solutions
-  const filteredSolutions = allSolutions.filter(solution =>
-    solution.name.toLowerCase().includes(solutionsSearch.toLowerCase()) ||
-    solution.type.toLowerCase().includes(solutionsSearch.toLowerCase())
-  );
-  const totalSolutionsPages = Math.ceil(filteredSolutions.length / itemsPerPage);
-  const paginatedSolutions = filteredSolutions.slice(
-    (solutionsPage - 1) * itemsPerPage,
-    solutionsPage * itemsPerPage
-  );
+  // Fetch workspace details on mount, search, or page change
+  useEffect(() => {
+    fetchWorkspaceDetails();
+    fetchSolutions(solutionsSearch, solutionsPage);
+  }, [id, solutionsSearch, solutionsPage]);
 
   // Filter and paginate users
   const filteredUsers = allUsers.filter(user =>
@@ -236,7 +240,7 @@ const WorkspaceDetails = () => {
     setWorkspaceStatus("Inactive");
   };
 
-  const handleCreateSolution = () => {
+  const handleCreateSolution = async () => {
     if (!newSolutionName.trim()) {
       toast({
         title: "Error",
@@ -255,28 +259,32 @@ const WorkspaceDetails = () => {
       return;
     }
 
-    // Create new solution
-    const newSolution: Solution = {
-      id: allSolutions.length + 1,
-      name: newSolutionName,
-      status: "Development",
-      lastModified: "Just now",
-      type: "ML Model"
-    };
-
-    setAllSolutions(prev => [...prev, newSolution]);
-
-    toast({
-      title: "Success",
-      description: "Solution created successfully!",
-    });
-
-    // Navigate to the new solution page
-    navigate(`/workspaces/${id}/solutions/${newSolution.id}`);
-
-    setNewSolutionName("");
-    setNewSolutionDescription("");
-    setIsCreateSolutionDialogOpen(false);
+    try {
+      const response = await SolutionService.createSolution(id, {
+        SolutionName: newSolutionName,
+        Description: newSolutionDescription,
+      });
+      toast({
+        title: "Success",
+        description: "Solution created successfully!",
+      });
+      setIsCreateSolutionDialogOpen(false);
+      setNewSolutionName("");
+      setNewSolutionDescription("");
+      // Navigate to the new solution details page if SolutionId is returned
+      if (response && response.SolutionId) {
+        navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
+      } else {
+        // fallback: refresh solutions list
+        fetchSolutions("", 1);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create solution.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSolutionClick = (solutionId: number) => {
@@ -305,8 +313,12 @@ const WorkspaceDetails = () => {
           workspaceName={workspace?.name || "Loading..."}
           workspaceId={workspace?.id}
           workspaceStatus={workspaceStatus}
+          workspaceDescription={workspace?.description || ""}
+          workspaceType={workspace?.type || "Public"}
+          workspaceTags={workspace?.tags || []}
           onWorkspaceDeleted={handleWorkspaceDeleted}
           onWorkspaceStatusChange={(newStatus) => setWorkspaceStatus(newStatus)}
+          onWorkspaceUpdated={fetchWorkspaceDetails}
         />
       </div>
 
@@ -416,7 +428,7 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={workspaceStatus === 'Inactive'}>
                   <Plus className="w-4 h-4 mr-2" />
                   Create Solution
                 </Button>
@@ -436,6 +448,7 @@ const WorkspaceDetails = () => {
                       placeholder="Enter solution name"
                       value={newSolutionName}
                       onChange={(e) => setNewSolutionName(e.target.value)}
+                      disabled={workspaceStatus === 'Inactive'}
                     />
                   </div>
                   <div className="space-y-2">
@@ -446,6 +459,7 @@ const WorkspaceDetails = () => {
                       value={newSolutionDescription}
                       onChange={(e) => setNewSolutionDescription(e.target.value)}
                       rows={3}
+                      disabled={workspaceStatus === 'Inactive'}
                     />
                   </div>
                 </div>
@@ -453,7 +467,7 @@ const WorkspaceDetails = () => {
                   <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateSolution}>
+                  <Button onClick={handleCreateSolution} disabled={workspaceStatus === 'Inactive'}>
                     Create Solution
                   </Button>
                 </DialogFooter>
@@ -481,46 +495,56 @@ const WorkspaceDetails = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Solution Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Last Modified</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {solutionsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       Loading solutions...
                     </TableCell>
                   </TableRow>
                 ) : solutionsError ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-red-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-red-500">
                       {solutionsError}
                     </TableCell>
                   </TableRow>
-                ) : paginatedSolutions.length === 0 ? (
+                ) : allSolutions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedSolutions.map((solution) => (
+                  allSolutions.map((solution) => (
                     <TableRow 
-                      key={solution.id} 
+                      key={solution.SolutionId} 
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => handleSolutionClick(solution.id)}
+                      onClick={() => handleSolutionClick(solution.SolutionId)}
                     >
                       <TableCell>
-                        <div className="font-medium text-gray-900">{solution.name}</div>
+                        <div className="font-medium text-gray-900">{solution.SolutionName}</div>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solution.status)}`}>
-                          {solution.status}
-                        </span>
+                        <div className="text-gray-700 text-sm line-clamp-2">{solution.Description}</div>
                       </TableCell>
-                      <TableCell className="text-gray-600">{solution.lastModified}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
+                            solution.Tags.map((tag: string, idx: number) => (
+                              <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">No tags</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-600">{solution.LastUpdationTime}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -528,7 +552,7 @@ const WorkspaceDetails = () => {
             </Table>
 
             {/* Solutions Pagination */}
-            {totalSolutionsPages > 1 && (
+            {solutionsTotalCount > 10 && (
               <div className="flex justify-center">
                 <Pagination>
                   <PaginationContent>
@@ -538,7 +562,7 @@ const WorkspaceDetails = () => {
                         className={solutionsPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
-                    {[...Array(totalSolutionsPages)].map((_, i) => (
+                    {Array.from({ length: Math.ceil(solutionsTotalCount / 10) }, (_, i) => (
                       <PaginationItem key={i + 1}>
                         <PaginationLink
                           onClick={() => setSolutionsPage(i + 1)}
@@ -551,8 +575,8 @@ const WorkspaceDetails = () => {
                     ))}
                     <PaginationItem>
                       <PaginationNext 
-                        onClick={() => setSolutionsPage(Math.min(totalSolutionsPages, solutionsPage + 1))}
-                        className={solutionsPage === totalSolutionsPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        onClick={() => setSolutionsPage(Math.min(Math.ceil(solutionsTotalCount / 10), solutionsPage + 1))}
+                        className={solutionsPage === Math.ceil(solutionsTotalCount / 10) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
                   </PaginationContent>
