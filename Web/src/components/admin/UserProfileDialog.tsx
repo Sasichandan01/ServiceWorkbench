@@ -56,6 +56,7 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
   const [uploading, setUploading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
   const [managingRoles, setManagingRoles] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -63,12 +64,7 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
       const userData = await UserService.getUser(userId);
       setUser(userData);
       setEditedUsername(userData.Username);
-
-      // Fetch available roles for role management
-      if (!isOwnProfile) {
-        const rolesData = await RoleService.getRoles();
-        setAvailableRoles(rolesData.Roles || []);
-      }
+      // Remove roles API call from here
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast({
@@ -78,6 +74,22 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch roles only when the roles tab is activated
+  const fetchRolesIfNeeded = async () => {
+    if (!isOwnProfile && availableRoles.length === 0) {
+      try {
+        const rolesData = await RoleService.getRoles();
+        setAvailableRoles(rolesData.Roles || []);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch roles. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -177,7 +189,7 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     try {
       await RoleService.assignRole({
         UserId: userId,
-        RoleName: selectedRole
+        Role: selectedRole
       });
       
       // Update user roles locally
@@ -242,9 +254,10 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     return Array.isArray(user.Roles) ? user.Roles : [user.Roles];
   };
 
+  // Update getAvailableRolesToAssign to filter out roles the user already has (by 'Role')
   const getAvailableRolesToAssign = () => {
     const userRoles = getUserRoles();
-    return availableRoles.filter(role => !userRoles.includes(role.RoleName));
+    return availableRoles.filter(role => role.Role && !userRoles.includes(role.Role));
   };
 
   return (
@@ -270,7 +283,12 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
             <span>Loading user data...</span>
           </div>
         ) : user ? (
-          <Tabs defaultValue="profile" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={async (tab) => {
+            setActiveTab(tab);
+            if (tab === "roles") {
+              await fetchRolesIfNeeded();
+            }
+          }} className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -498,8 +516,8 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
                             </SelectTrigger>
                             <SelectContent>
                               {getAvailableRolesToAssign().map(role => (
-                                <SelectItem key={role.RoleName} value={role.RoleName}>
-                                  {role.RoleName}
+                                <SelectItem key={role.Role} value={role.Role}>
+                                  {role.Role}
                                 </SelectItem>
                               ))}
                             </SelectContent>

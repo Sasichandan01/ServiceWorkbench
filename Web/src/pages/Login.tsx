@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Cloud } from "lucide-react";
+import { Cloud, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { signUp, signIn } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,8 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,15 +169,49 @@ const Login = () => {
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" name="password" type="password" placeholder="Enter your password" required />
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    style={{ background: "none", border: "none", padding: 0 }}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
 
                 {!isLogin && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <Input id="confirm-password" name="confirm-password" type="password" placeholder="Confirm your password" required />
+                    <Input
+                      id="confirm-password"
+                      name="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      style={{ background: "none", border: "none", padding: 0 }}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 )}
 

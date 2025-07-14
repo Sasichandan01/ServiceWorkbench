@@ -1,9 +1,10 @@
 import { ApiClient } from '../lib/apiClient';
 
 export interface Role {
-  RoleName: string;
-  Description: string;
-  Permissions: string[];
+  Role?: string;
+  RoleName?: string;
+  Description?: string;
+  Permissions?: string[];
 }
 
 export interface RoleListResponse {
@@ -17,7 +18,7 @@ export interface RoleListResponse {
 
 export interface AssignRoleRequest {
   UserId: string;
-  RoleName: string;
+  Role: string;
 }
 
 export interface RemoveRoleRequest {
@@ -68,7 +69,9 @@ export class RoleService {
   }
 
   static async assignRole(data: AssignRoleRequest): Promise<{ Message: string }> {
-    const response = await ApiClient.post('/users/assign-role', data);
+    // Call /users/{userId}?action=role with body { Role: string }
+    const endpoint = `/users/${data.UserId}?action=role`;
+    const response = await ApiClient.post(endpoint, { Role: data.Role });
     return this.handleResponse<{ Message: string }>(response);
   }
 
