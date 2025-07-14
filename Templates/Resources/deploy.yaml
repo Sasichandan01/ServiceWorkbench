@@ -33,6 +33,11 @@ Parameters:
     Default: "2025-07-02T00:00:00Z"
     Description: Trigger date for deployment, used for versioning
 
+  pWebSocketStage:
+    Type: String
+    Default: "prod"
+    Description: "Stage name for websocket api"
+
 Resources:
 
   # S3 Bucket for artifacts
@@ -1299,7 +1304,7 @@ Resources:
       Enironment:
         Variables:
           WEBSOCKET_URL: !Ref WebSocketApi
-          WEBSOCKET_STAGE: !Ref WebSocketStage
+          WEBSOCKET_STAGE: !Ref pWebSocketStage
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1403,7 +1408,8 @@ Resources:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - { FunctionName: !Ref ChatLambdaFunction }
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
@@ -1414,20 +1420,22 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub 
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - { FunctionName: !Ref ChatLambdaFunction }
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
       PassthroughBehavior: WHEN_NO_MATCH
-      
+
   IntegrationDisconnect:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub 
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - { FunctionName: !Ref ChatLambdaFunction }
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
@@ -1477,12 +1485,13 @@ Resources:
       IdentitySource:
         - route.request.header.Authorization
       AuthorizerUri: !Sub
-        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaAuthorizerFunction}/invocations
-        
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
+        - { FunctionName: !Ref LambdaAuthorizerFunction }
+
   WebSocketStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
-      StageName: prod
+      StageName: !Ref pWebSocketStage
       AutoDeploy: true
       DeploymentId: !Ref Deployment
       ApiId: !Ref WebSocketApi
