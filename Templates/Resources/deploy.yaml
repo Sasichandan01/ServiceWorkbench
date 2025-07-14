@@ -762,6 +762,25 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ChatLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-ChatLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   LambdaAuthorizerFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -1259,6 +1278,37 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ChatLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-ChatLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt ChatLambdaRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      Enironment:
+        Variables:
+          WEBSOCKET_URL: !Ref WebSocketApi
+          WEBSOCKET_STAGE: !Ref WebSocketStage
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/workbenchdatasourcelambda/WorkbenchChatLambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1330,6 +1380,272 @@ Resources:
             TextField: "content"
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
+
+  # AuroraDataSource:
+  #   Type: AWS::Bedrock::DataSource
+  #   Properties:
+  #     KnowledgeBaseId: !Ref AuroraKnowledgeBase
+  #     Name: !Sub "${pPrefix}-Aurora-datasource"
+  #     Description: 'Data source for DynamoDB synced data'
+  #     DataSourceConfiguration:
+  #       Type: 'S3'
+  #       S3Configuration:
+  #         BucketArn: !Sub "arn:aws:s3:::${pDocumentsBucket}"  #change it
+  #         InclusionPrefixes:
+  #           - "tables"
+  #     VectorIngestionConfiguration:
+  #       ChunkingConfiguration:
+  #         ChunkingStrategy: 'FIXED_SIZE'
+  #         FixedSizeChunkingConfiguration:
+  #           MaxTokens: 300
+  #           OverlapPercentage: 20
+
+  # OpensearchDataSource:
+  #   Type: AWS::Bedrock::DataSource
+  #   Properties:
+  #     KnowledgeBaseId: !Ref VectorKnowledgeBase
+  #     Name: !Sub "${pPrefix}-Opensearch-datasource"
+  #     Description: "S3 data source for documents"
+  #     DataSourceConfiguration:
+  #       Type: S3
+  #       S3Configuration:
+  #         BucketArn: !Sub "arn:aws:s3:::${pDocumentsBucket}"  #change it
+  #         InclusionPrefixes:
+  #           - !Ref pDocumentsPrefix
+  #     VectorIngestionConfiguration:
+  #       ChunkingConfiguration:
+  #         ChunkingStrategy: FIXED_SIZE
+  #         FixedSizeChunkingConfiguration:
+  #           MaxTokens: 300
+  #           OverlapPercentage: 20
+
+  # GlueJobRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: test-glue-role
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: glue.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+  #     Policies:
+  #       - PolicyName: S3Access
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - s3:GetObject
+  #                 - s3:ListBucket
+  #                 - s3:PutObject
+  #                 - s3:DeleteObject
+  #               Resource:
+  #                 - !Sub "arn:aws:s3:::${pDocumentsBucket}/*"
+  #                 - !Sub "arn:aws:s3:::${pDocumentsBucket}"
+  #                 - !Sub "arn:aws:s3:::${pGlueScriptsBucket}/*"
+  #       - PolicyName: BedrockAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - bedrock:GetKnowledgeBase
+  #                 - bedrock:GetDataSource
+  #                 - bedrock:StartIngestionJob
+  #                 - bedrock:GetIngestionJob
+  #                 - bedrock:ListIngestionJobs
+  #               Resource:
+  #                 - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${VectorKnowledgeBase}"
+  #                 - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${AuroraKnowledgeBase}"
+  #       - PolicyName: CloudWatchAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - cloudwatch:PutMetricData
+  #               Resource: "*"
+  #       - PolicyName: LogsAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: "*"
+  #       - PolicyName: DynamoDBReadAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:DescribeTable
+  #                 - dynamodb:ListStreams
+  #                 - dynamodb:ListTables
+  #                 - dynamodb:ExportTableToPointInTime
+  #                 - dynamodb:DescribeExport
+  #               Resource: "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-${pPrefix}-*"
+
+
+  # GlueJob:
+  #   Type: AWS::Glue::Job
+  #   Properties:
+  #     Name: "test-aurora"
+  #     Role: !GetAtt GlueJobRole.Arn
+  #     Command:
+  #       Name: glueetl
+  #       ScriptLocation: !Sub "s3://${pGlueScriptsBucket}/glue_lambda_aurora.py"
+  #       PythonVersion: '3'
+  #     DefaultArguments:
+  #       '--job-language': 'python'
+  #       '--job-bookmark-option': 'job-bookmark-disable'
+  #       '--enable-metrics': 'true'
+  #       '--enable-continuous-cloudwatch-log': 'true'
+  #       '--enable-continuous-log-filter': 'true'
+  #       '--DYNAMODB_TABLE_PREFIX': "Workbench-develop"
+  #       '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
+  #       '--AURORA_DS_ID': !Ref AuroraDataSource
+  #       '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
+  #       '--OPENSEARCHDS_ID': !Ref OpensearchDataSource
+  #       '--OPENSEARCH_S3_BUCKET': !Ref pDocumentsBucket
+  #       '--OPENSEARCH_S3_PREFIX': 'webscrap'
+  #       '--AURORA_S3_BUCKET': !Ref pDocumentsBucket
+  #       '--AURORA_S3_PREFIX': "tables"
+  #       '--WAIT_FOR_SYNC': 'true'
+  #       '--AWS_REGION': !Ref AWS::Region
+  #       '--AWS_ACCOUNT_ID': !Ref AWS::AccountId
+        
+  #       "--additional-python-modules": "boto3>=1.28.32,botocore>=1.31.32,requests==2.31.0,beautifulsoup4>=4.12.3"
+  #     GlueVersion: '4.0'
+  #     MaxCapacity: 10
+  #     MaxRetries: 1
+  #     Timeout: 2880
+  #     Description: 'Sync DynamoDB tables to Knowledge Base via S3'
+
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${pPrefix}-Workbench-WebSocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  IntegrationAnalysis:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+
+  IntegrationConnect:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+      
+  IntegrationDisconnect:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ChatLambdaFunction}/invocations
+      IntegrationMethod: POST
+      ConnectionType: INTERNET
+      PayloadFormatVersion: "1.0"
+      PassthroughBehavior: WHEN_NO_MATCH
+    
+  RouteConnect:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref WebSocketAuthorizer
+      Target: !Join [ "/", [ "integrations", !Ref IntegrationConnect ] ]
+
+
+  RouteDisconnect:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join [ "/", [ "integrations", !Ref IntegrationDisconnect ] ]
+
+  RouteAnalysis:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: analysis
+      AuthorizationType: NONE
+      Target: !Join [ "/", [ "integrations", !Ref IntegrationAnalysis ] ]
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - RouteConnect
+      - RouteDisconnect
+      - RouteAnalysis
+    Properties:
+      ApiId: !Ref WebSocketApi
+  
+  WebSocketAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: ${pPrefix}-WebSocketAuthorizer
+      ApiId: !Ref WebSocketApi
+      AuthorizerType: REQUEST
+      IdentitySource:
+        - route.request.header.Authorization
+      AuthorizerUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaAuthorizerFunction}/invocations
+        
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: prod
+      AutoDeploy: true
+      DeploymentId: !Ref Deployment
+      ApiId: !Ref WebSocketApi
+      DefaultRouteSettings:
+        DataTraceEnabled: false
+        DetailedMetricsEnabled: false
+        LoggingLevel: OFF
+
+  AuthorizerLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaAuthorizerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+        - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+        - WebSocketApi: !Ref WebSocketApi
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ChatLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
 
   WorkbenchLambdaAuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
