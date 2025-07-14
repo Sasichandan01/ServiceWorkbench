@@ -1,5 +1,5 @@
 import boto3
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import os
 import logging
@@ -9,6 +9,7 @@ LOGGER.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb')
 ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+USERS_TABLE = dynamodb.Table(os.environ['USERS_TABLE'])
 
 def lambda_handler(event, context):
     """
@@ -26,7 +27,7 @@ def lambda_handler(event, context):
             'UserId': user_id,
             'Action': 'LOGIN',
             'Email': email,
-            'EventTime': datetime.utcnow().isoformat(),
+            'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             'ResourceName': 'CognitoPostAuth',
             'ResourceType': 'Cognito'
         }
@@ -34,6 +35,15 @@ def lambda_handler(event, context):
         LOGGER.info(f"Logging login for user {user_id}")
         ACTIVITY_LOGS_TABLE.put_item(Item=log_item)
         LOGGER.info(f"Login logged successfully for user {user_id}")
+
+        now_iso = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+        LOGGER.info(f"Updating LastLoginTime for user {user_id}")
+        USERS_TABLE.update_item(
+            Key={'UserId': user_id},
+            UpdateExpression='SET LastLoginTime = :login_time',
+            ExpressionAttributeValues={':login_time': now_iso}
+        )
+        LOGGER.info(f"LastLoginTime updated successfully for user {user_id}")
     except Exception as e:
         LOGGER.error(f"Error logging login: {e}")
 
