@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
-# Setup logger
+# Setup logger for test
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 

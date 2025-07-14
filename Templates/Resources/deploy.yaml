@@ -8,6 +8,10 @@ Parameters:
     Default: "develop"
     Description: Prefix for Lambda function naming
 
+  LambdaArtifactVersion:
+    Type: String
+    Description: S3 path version folder for Lambda artifacts
+
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -438,6 +442,7 @@ Resources:
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          USERS_TABLE: !Ref UserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1192,7 +1197,10 @@ Resources:
                 Resource: 
                   - !GetAtt DatasourcesTable.Arn
                   - !GetAtt ActivityLogsTable.Arn
+                  - !GetAtt RolesTable.Arn
+                  - !GetAtt ResourceAccessTable.Arn
                   - !Sub "${DatasourcesTable.Arn}/index/CreatedBy-DatasourceName-index"
+                  - !Sub "${ResourceAccessTable.Arn}/index/AccessKey-Index"
 
         - PolicyName: S3Access
           PolicyDocument:
@@ -1207,6 +1215,7 @@ Resources:
                   - s3:ListBucket
                 Resource:
                   - !Sub arn:aws:s3:::${DatasourceBucket}
+                  - !Sub arn:aws:s3:::${DatasourceBucket}/*
                   - !Sub arn:aws:s3:::${DatasourceBucket}/datasources/*
 
       ManagedPolicyArns:
@@ -1279,7 +1288,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchuserslambda/WorkbenchUsersLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserslambda/WorkbenchUsersLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1299,6 +1308,7 @@ Resources:
           DATASOURCE_BUCKET: !Ref DatasourceBucket
           ROLES_TABLE: !Ref RolesTable
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
