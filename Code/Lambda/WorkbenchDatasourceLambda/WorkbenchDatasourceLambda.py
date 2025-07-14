@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from Utils.utils import paginate_list, return_response, log_activity
+from RBAC.rbac import is_user_action_valid, return_response
 from collections import defaultdict
 
 VALID_DATASOURCE_SORT_KEYS = [
@@ -17,11 +18,13 @@ LOGGER.setLevel(logging.INFO)
 
 DATASOURCE_TABLE_NAME = os.environ['DATASOURCE_TABLE_NAME']
 DATASOURCE_BUCKET = os.environ['DATASOURCE_BUCKET']
+ROLES_TABLE = os.environ['ROLES_TABLE']
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client("s3")
 ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 datasource_table = dynamodb.Table(DATASOURCE_TABLE_NAME)
+table = dynamodb.Table(ROLES_TABLE)
 
 def lambda_handler(event, context):
     try:
@@ -31,6 +34,12 @@ def lambda_handler(event, context):
         query_params = event.get("queryStringParameters") or {}
         path_params = event.get("pathParameters") or {}
         user_id = event.get("requestContext", {}).get("authorizer", {}).get("user_id", "SYSTEM")
+        role = auth.get("role")
+        resource = event.get("resource", "")
+
+        valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
+        if not valid:
+            return return_response(403, {"Error": msg})
 
         try:
             body = json.loads(event.get("body") or "{}")

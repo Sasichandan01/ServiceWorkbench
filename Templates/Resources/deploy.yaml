@@ -8,6 +8,10 @@ Parameters:
     Default: "develop"
     Description: Prefix for Lambda function naming
 
+  LambdaArtifactVersion:
+    Type: String
+    Description: S3 path version folder for Lambda artifacts
+
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -877,8 +881,7 @@ Resources:
         Bucket: !Ref pArtifactsBucketName
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
-      TracingEnabled: true
-      AlwaysDeploy: true
+      AlwaysDeploy: True
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1247,7 +1250,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchuserslambda/WorkbenchUsersLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserslambda/WorkbenchUsersLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1285,6 +1288,41 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ShareLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Share Lambda Function"
+      FunctionName: !Sub "${pPrefix}-ShareLambdaFunction"
+      Handler: ShareLambda.lambda_handler
+      Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
+      Runtime: python3.13
+      Timeout: 900
+      Environment:
+        Variables:
+          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          SOLUTIONS_TABLE: !Ref SolutionsTable
+          WORKSPACES_TABLE: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          ROLES_TABLE: !Ref RolesTable
+          USER_TABLE_NAME: !Ref UserTable
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: lambda/sharelambda/ShareLambda.zip
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1306,6 +1344,14 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref DatasourcesLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+
+  ShareLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ShareLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
