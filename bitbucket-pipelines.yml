@@ -59,6 +59,13 @@ definitions:
         COMMIT_MSG=$(git log -1 --pretty=%B)
         echo "Latest commit message: ${COMMIT_MSG}"
 
+        if [ -f ".lambda_version" ]; then
+          export LAMBDA_VERSION=$(cat .lambda_version)
+        else
+          echo "[ERROR] Lambda version not found. Please run zip_and_upload_lambdas first."
+          exit 1
+        fi
+
         if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
@@ -372,10 +379,20 @@ definitions:
 
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
+        LAMBDA_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
+        echo "Using Lambda version: $LAMBDA_VERSION"
+        export LAMBDA_VERSION
+        echo "$LAMBDA_VERSION" > .lambda_version
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-            S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+
+            echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
+            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
+
+
+            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+
             # Get all .py files in the category
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
             if [ ${#PY_FILES[@]} -eq 0 ]; then
@@ -660,6 +677,8 @@ definitions:
           - echo "Starting deployment process..."
           - *authenticate
           - *deploy_stack
+        artifacts:
+          - .lambda_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -702,6 +721,8 @@ definitions:
           - echo "Zipping and uploading lambda files..."
           - *authenticate
           - *zip_and_upload_lambdas
+        artifacts:
+          - .lambda_version
 
     - step: &update_branch_lambdas
         name: Update Branch Lambda Functions

@@ -53,6 +53,7 @@
     "/datasources/{datasource_id}": {
         "GET": ["datasources.view"],
         "PUT": ["datasources.manage"],
-        "DELETE": ["datasources.fullaccess"]
+        "DELETE": ["datasources.fullaccess"],
+        "POST": ["datasources.manage"]
     }
 }
