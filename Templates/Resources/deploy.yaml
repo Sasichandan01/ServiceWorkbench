@@ -1479,7 +1479,7 @@ Resources:
   WebSocketAuthorizer:
     Type: AWS::ApiGatewayV2::Authorizer
     Properties:
-      Name: !Ref ${pPrefix}-WebSocketAuthorizer
+      Name: !Sub "${pPrefix}-WebSocketAuthorizer"
       ApiId: !Ref WebSocketApi
       AuthorizerType: REQUEST
       IdentitySource:
