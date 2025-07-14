@@ -741,7 +741,7 @@ definitions:
           - *authenticate
           - *upload_cf_templates
     
-    - step: &update_selected_lambdas_with_layer
+    - step: &update_selected_lambdas_with_layer_step
         name: Update Selected Lambdas with Layer
         oidc: true
         script:
@@ -757,7 +757,7 @@ pipelines:
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
-      - step: *update_selected_lambdas_with_layer
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-abhishek:
