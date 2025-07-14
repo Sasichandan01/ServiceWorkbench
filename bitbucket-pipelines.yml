@@ -63,17 +63,18 @@ definitions:
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
+          TEMPLATE_S3_URI="https://service-workbench-artifacts.s3.amazonaws.com/cf/${BRANCH_NAME}/deploy.yaml"
 
-          if [ ! -f "Templates/Resources/deploy.yaml" ]; then
-            echo "[ERROR] Templates/Resources/deploy.yaml not found"
-            exit 1
-          fi
+          # if [ ! -f "Templates/Resources/deploy.yaml" ]; then
+          #   echo "[ERROR] Templates/Resources/deploy.yaml not found"
+          #   exit 1
+          # fi
 
           chmod +x Scripts/swagger-replacement.sh
           ./Scripts/swagger-replacement.sh "${BRANCH_NAME}"
           
           aws cloudformation deploy \
-            --template-file Templates/Resources/deploy.yaml \
+            --template-url "$TEMPLATE_S3_URI" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
             --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -100,22 +101,48 @@ definitions:
           exit 1
         fi
 
-        if [ ! -f "Templates/Resources/infra.yaml" ]; then
-          echo "[ERROR] Templates/Resources/infra.yaml not found"
-          exit 1
-        fi
+        # if [ ! -f "Templates/Resources/infra.yaml" ]; then
+        #   echo "[ERROR] Templates/Resources/infra.yaml not found"
+        #   exit 1
+        # fi
 
         STACK_NAME="${BRANCH_NAME}-infra"
+        TEMPLATE_S3_URI="https://service-workbench-artifacts.s3.amazonaws.com/cf/${BRANCH_NAME}/infra.yaml"
         echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
-          --template-file Templates/Resources/infra.yaml \
+          --template-url "$TEMPLATE_S3_URI" \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
           --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
+
+    - script: &upload_cf_templates
+        |
+        set -e
+        echo "Uploading CloudFormation templates to S3..."
+        
+        CF_S3_BUCKET="service-workbench-artifacts"
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+
+        for TEMPLATE in Templates/Resources/deploy.yaml Templates/Resources/infra.yaml; do
+          if [ -f "$TEMPLATE" ]; then
+            FILE_NAME=$(basename "$TEMPLATE")
+            S3_KEY="cf/${BRANCH_NAME}/${FILE_NAME}"
+            echo "Uploading $TEMPLATE to s3://${CF_S3_BUCKET}/${S3_KEY}"
+            aws s3 cp "$TEMPLATE" "s3://${CF_S3_BUCKET}/${S3_KEY}" || {
+              echo "[ERROR] Failed to upload $TEMPLATE"
+              exit 1
+            }
+          else
+            echo "[WARN] Template not found: $TEMPLATE"
+          fi
+        done
+
+        echo "CloudFormation templates uploaded successfully."
+
 
     - script: &build_ui
         |
