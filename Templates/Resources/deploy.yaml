@@ -8,6 +8,10 @@ Parameters:
     Default: "develop"
     Description: Prefix for Lambda function naming
 
+  LambdaArtifactVersion:
+    Type: String
+    Description: S3 path version folder for Lambda artifacts
+
   ApiName:
     Type: String
     Default: WorkbenchAPI
@@ -1246,7 +1250,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchuserslambda/WorkbenchUsersLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserslambda/WorkbenchUsersLambda.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
