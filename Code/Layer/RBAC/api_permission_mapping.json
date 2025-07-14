@@ -17,34 +17,34 @@
     },
     "/workspaces": {
         "GET": ["workspaces.view"],
-        "POST": ["Workspaces.manage"]
+        "POST": ["workspaces.manage"]
     },
     "/workspaces/{workspace_id}": {
         "GET": ["workspaces.view"],
-        "PUT": ["Workspaces.manage"],
-        "DELETE": ["Workspaces.fullaccess"]
+        "PUT": ["workspaces.manage"],
+        "DELETE": ["workspaces.fullaccess"]
     },
     "/workspaces/{workspace_id}/solutions": {
         "GET": ["workspaces.view","solutions.view"],
-        "POST": ["Workspaces.manage","solutions.manage"]
+        "POST": ["workspaces.manage","solutions.manage"]
     },
     "/workspaces/{workspace_id}/solutions/{solution_id}": {
         "GET": ["workspaces.view","solutions.view"],
-        "PUT": ["Workspaces.manage","solutions.manage"],
-        "DELETE": ["Workspaces.fullaccess","solutions.fullaccess"]
+        "PUT": ["workspaces.manage","solutions.manage"],
+        "DELETE": ["workspaces.fullaccess","solutions.fullaccess"]
     },
     "/workspaces/{workspace_id}/solutions/{solution_id}/executions": {
         "GET": ["workspaces.view","solutions.view","executions.view"],
-        "POST": ["Workspaces.manage","solutions.manage","executions.manage"]
+        "POST": ["workspaces.manage","solutions.manage","executions.manage"]
     },
     "/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}": {
         "GET": ["workspaces.view","solutions.view","executions.view"],
-        "PUT": ["Workspaces.manage","solutions.manage","executions.manage"],
-        "DELETE": ["Workspaces.fullaccess","solutions.fullaccess","executions.fullaccess"]
+        "PUT": ["workspaces.manage","solutions.manage","executions.manage"],
+        "DELETE": ["workspaces.fullaccess","solutions.fullaccess","executions.fullaccess"]
     },
     "/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs":{
         "GET": ["workspaces.view","solutions.view","executions.view"],
-        "POST": ["Workspaces.manage","solutions.manage","executions.manage"]
+        "POST": ["workspaces.manage","solutions.manage","executions.manage"]
     },
     "/datasources": {
         "GET": ["datasources.view"],
