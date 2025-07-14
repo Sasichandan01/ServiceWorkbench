@@ -13,6 +13,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { useToast } from "@/hooks/use-toast";
 import WorkspaceSettings from "@/components/WorkspaceSettings";
 import WorkspaceBreadcrumb from "@/components/WorkspaceBreadcrumb";
+import UserProfileDialog from "@/components/admin/UserProfileDialog";
 import { 
   Users, 
   Plus, 
@@ -128,8 +129,8 @@ const WorkspaceDetails = () => {
         );
         setWorkspaceLoading(false);
       })
-      .catch((err) => {
-        setWorkspaceError("Failed to load workspace details.");
+      .catch((err: any) => {
+        setWorkspaceError(err.message);
         setWorkspaceLoading(false);
       });
   };
@@ -148,8 +149,8 @@ const WorkspaceDetails = () => {
         setSolutionsTotalCount(data.Pagination?.TotalCount || 0);
         setSolutionsLoading(false);
       })
-      .catch((err) => {
-        setSolutionsError("Failed to load solutions.");
+      .catch((err: any) => {
+        setSolutionsError(err.message);
         setSolutionsLoading(false);
       });
   };
@@ -281,7 +282,7 @@ const WorkspaceDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create solution.",
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -693,6 +694,7 @@ const WorkspaceDetails = () => {
                     <TableCell className="text-gray-600">{user.joinedDate}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
+                        <UserProfileDialog userId={user.id.toString()} />
                         <Button variant="ghost" size="sm" disabled={workspaceStatus === "Inactive"}>
                           <Settings className="w-4 h-4" />
                         </Button>

@@ -24,8 +24,8 @@ const DataSourceDetails = () => {
     try {
       const response = await DatasourceService.getDatasource(id);
       setDataSource(response);
-    } catch (err) {
-      setError("Failed to load data source details.");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
