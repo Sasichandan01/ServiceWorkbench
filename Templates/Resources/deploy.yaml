@@ -1301,7 +1301,7 @@ Resources:
       Role: !GetAtt ChatLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
-      Enironment:
+      Environment:
         Variables:
           WEBSOCKET_URL: !Ref WebSocketApi
           WEBSOCKET_STAGE: !Ref pWebSocketStage
