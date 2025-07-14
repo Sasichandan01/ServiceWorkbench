@@ -641,6 +641,8 @@ definitions:
           - echo "Starting deployment process..."
           - *authenticate
           - *deploy_stack
+        artifacts:
+          - .lambda_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -683,6 +685,8 @@ definitions:
           - echo "Zipping and uploading lambda files..."
           - *authenticate
           - *zip_and_upload_lambdas
+        artifacts:
+          - .lambda_version
 
     - step: &update_branch_lambdas
         name: Update Branch Lambda Functions
