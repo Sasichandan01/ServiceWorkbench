@@ -918,11 +918,11 @@ Resources:
   GlueJob:
     Type: AWS::Glue::Job
     Properties:
-      Name: "test-aurora"
+      Name: !Sub "${pPrefix}-Workbench-RAGSync"
       Role: !GetAtt GlueJobRole.Arn
       Command:
         Name: glueetl
-        ScriptLocation: !Sub "s3://bhargav-genai-s3/glue_lambda_aurora.py"
+        ScriptLocation: !Sub "s3://service-workbench-artifacts/lambda/RAGSyncGlueJob.py"
         PythonVersion: '3'
       DefaultArguments:
         '--job-language': 'python'
