@@ -1318,7 +1318,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/WorkbenchChatLambda/WorkbenchChat.zip
+        S3Key: lambda/workbenchchatlambda/WorkbenchChat.zip
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
