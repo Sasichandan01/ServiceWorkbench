@@ -55,7 +55,7 @@ const Verification = () => {
       console.error("Verification error:", error);
       toast({
         title: "Verification Failed",
-        description: error.message || "Invalid verification code. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
@@ -80,7 +80,7 @@ const Verification = () => {
       console.error("Resend error:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to resend code. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     } finally {

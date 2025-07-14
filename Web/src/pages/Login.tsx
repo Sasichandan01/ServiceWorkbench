@@ -72,7 +72,7 @@ const Login = () => {
       console.error("Authentication error:", error);
       toast({
         title: "Error",
-        description: error.message || "Authentication failed. Please try again.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {

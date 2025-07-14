@@ -39,7 +39,7 @@ const AdminDashboard = () => {
     changeType: "positive",
     icon: Cloud
   }, {
-    title: "Custom Roles",
+    title: "Roles",
     value: "24",
     change: "+3 new roles",
     changeType: "positive",

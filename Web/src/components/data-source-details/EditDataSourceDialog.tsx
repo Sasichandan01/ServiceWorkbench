@@ -58,10 +58,10 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
 
       onSuccess();
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update datasource",
+        description: error.message,
         variant: "destructive",
       });
     } finally {

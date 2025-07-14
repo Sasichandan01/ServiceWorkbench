@@ -157,11 +157,11 @@ const AdminRolesManager = () => {
         setRoles([]);
         setTotalCount(0);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching roles:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch roles. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
       setRoles([]);
@@ -230,11 +230,11 @@ const AdminRolesManager = () => {
       });
       
       await fetchRoles();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating role:', error);
       toast({
         title: "Error",
-        description: "Failed to create role. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     }

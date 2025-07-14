@@ -48,7 +48,6 @@ import {
 } from "lucide-react";
 import { ProtectedButton } from "@/components/ui/protected-button";
 import UserProfileDialog from "./UserProfileDialog";
-import UserPermissionsDialog from "./UserPermissionsDialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserService } from "../../services/userService";
 
@@ -104,11 +103,11 @@ const AdminUsersTable = () => {
         setUsers([]);
         setTotalCount(0);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching users:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch users. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
       setUsers([]);
@@ -195,12 +194,13 @@ const AdminUsersTable = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Last Login</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Loading users...</span>
@@ -209,7 +209,7 @@ const AdminUsersTable = () => {
                 </TableRow>
               ) : paginatedUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -229,6 +229,9 @@ const AdminUsersTable = () => {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
+                    <TableCell>
+                      <UserProfileDialog userId={user.id} />
+                    </TableCell>
                   </TableRow>
                 ))
               )}
