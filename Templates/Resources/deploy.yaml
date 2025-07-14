@@ -1578,7 +1578,7 @@ Resources:
       RouteKey: $connect
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref WebSocketAuthorizer
-      Target: !Join [ "/", [ "integrations", !Ref IntegrationConnect ] ]
+      Target: !Join ["/",["integrations",!Ref IntegrationConnect]]
 
 
   RouteDisconnect:
@@ -1587,7 +1587,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: $disconnect
       AuthorizationType: NONE
-      Target: !Join [ "/", [ "integrations", !Ref IntegrationDisconnect ] ]
+      Target: !Join ["/",["integrations",!Ref IntegrationDisconnect]]
 
   RouteAnalysis:
     Type: AWS::ApiGatewayV2::Route
@@ -1595,7 +1595,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: analysis
       AuthorizationType: NONE
-      Target: !Join [ "/", [ "integrations", !Ref IntegrationAnalysis ] ]
+      Target: !Join ["/", ["integrations",!Ref IntegrationAnalysis]]
 
   Deployment:
     Type: AWS::ApiGatewayV2::Deployment
