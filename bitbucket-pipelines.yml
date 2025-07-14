@@ -70,7 +70,10 @@ definitions:
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
-          TEMPLATE_S3_URI="https://service-workbench-artifacts.s3.amazonaws.com/cf/${BRANCH_NAME}/deploy.yaml"
+          TEMPLATE_FILE="Templates/Resources/deploy.yaml"
+          S3_BUCKET="service-workbench-artifacts"
+          S3_KEY="cf/${BRANCH_NAME}/deploy.yaml"
+
 
           # if [ ! -f "Templates/Resources/deploy.yaml" ]; then
           #   echo "[ERROR] Templates/Resources/deploy.yaml not found"
@@ -81,10 +84,12 @@ definitions:
           ./Scripts/swagger-replacement.sh "${BRANCH_NAME}"
           
           aws cloudformation deploy \
-            --template-url "$TEMPLATE_S3_URI" \
+            --template-file "$TEMPLATE_FILE" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" LambdaArtifactVersion="${LAMBDA_VERSION}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --s3-bucket "${S3_BUCKET}" \
+            --s3-prefix "cf/${BRANCH_NAME}" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -114,13 +119,17 @@ definitions:
         # fi
 
         STACK_NAME="${BRANCH_NAME}-infra"
-        TEMPLATE_S3_URI="https://service-workbench-artifacts.s3.amazonaws.com/cf/${BRANCH_NAME}/infra.yaml"
+        TEMPLATE_FILE="Templates/Resources/infra.yaml"
+        S3_BUCKET="service-workbench-artifacts"
+        S3_KEY="cf/${BRANCH_NAME}/infra.yaml"
         echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
-          --template-url "$TEMPLATE_S3_URI" \
+          --template-url "$TEMPLATE_FILE" \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
+          --s3-bucket "${S3_BUCKET}" \
+          --s3-prefix "cf/${BRANCH_NAME}" \
           --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed"
             exit 1
