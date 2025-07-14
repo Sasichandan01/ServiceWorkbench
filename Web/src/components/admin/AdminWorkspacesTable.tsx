@@ -1,17 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -27,106 +19,174 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { 
-  Cloud, 
-  Search, 
-  Eye, 
-  Pause,
+import {
+  Cloud,
+  Search,
+  FolderOpen,
+  Calendar,
+  Archive,
   Play,
-  Trash2,
-  DollarSign,
   Users,
-  Calendar
+  Loader2,
+  Plus,
+  DollarSign
 } from "lucide-react";
+import { WorkspaceService } from "../../services/workspaceService";
+import { SolutionService } from "../../services/solutionService";
+import { useNavigate } from "react-router-dom";
 
-interface Workspace {
+interface LocalWorkspace {
   id: string;
   name: string;
-  owner: string;
-  status: 'active' | 'paused' | 'archived';
-  memberCount: number;
-  monthlyCost: number;
-  createdAt: string;
+  status: string;
   lastActivity: string;
-  region: string;
+  owner: string;
+  description: string;
+  type: string;
 }
+
+const getStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case "Active": return "bg-green-100 text-green-800 border-green-200";
+    case "Archived": return "bg-gray-100 text-gray-800 border-gray-200";
+    case "Default": return "bg-blue-100 text-blue-800 border-blue-200";
+    default: return "bg-gray-100 text-gray-800 border-gray-200";
+  }
+};
+
+const getRowColor = (status: string) => {
+  switch (status) {
+    case "Active": return "hover:bg-green-50";
+    case "Archived": return "hover:bg-gray-50 bg-gray-25";
+    case "Default": return "hover:bg-blue-50 bg-blue-25";
+    default: return "hover:bg-gray-50";
+  }
+};
+
+const formatLastActivity = (timestamp: string): string => {
+  if (!timestamp) return "Unknown";
+  let isoTimestamp = timestamp;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+    isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+  }
+  const date = new Date(isoTimestamp);
+  if (isNaN(date.getTime())) return "Unknown";
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "Just now";
+  const diffInMinutes = Math.floor(diffMs / (1000 * 60));
+  if (diffInMinutes < 1) {
+    return "Just now";
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
+  } else if (diffInMinutes < 1440) {
+    const hours = Math.floor(diffInMinutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  } else {
+    const days = Math.floor(diffInMinutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+};
 
 const AdminWorkspacesTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [solutionsCount, setSolutionsCount] = useState(0);
+  const [solutionsLoading, setSolutionsLoading] = useState(false);
+  const itemsPerPage = 10;
+  const navigate = useNavigate();
 
-  // Mock data
-  const workspaces: Workspace[] = [
-    {
-      id: "ws-1",
-      name: "Marketing Analytics",
-      owner: "John Doe",
-      status: "active",
-      memberCount: 12,
-      monthlyCost: 450,
-      createdAt: "2024-01-15",
-      lastActivity: "2 hours ago",
-      region: "us-east-1"
-    },
-    {
-      id: "ws-2", 
-      name: "Sales Dashboard",
-      owner: "Jane Smith",
-      status: "active",
-      memberCount: 8,
-      monthlyCost: 320,
-      createdAt: "2024-02-10",
-      lastActivity: "1 day ago",
-      region: "us-west-2"
-    },
-    {
-      id: "ws-3",
-      name: "Legacy Reports",
-      owner: "Bob Johnson",
-      status: "paused",
-      memberCount: 3,
-      monthlyCost: 0,
-      createdAt: "2023-11-20",
-      lastActivity: "2 weeks ago",
-      region: "eu-west-1"
+  // Fetch workspaces
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      setLoading(true);
+      try {
+        const searchParams: any = {
+          limit: itemsPerPage,
+          offset: currentPage,
+        };
+        if (searchTerm.trim()) {
+          searchParams.filter = searchTerm.trim();
+        }
+        const response = await WorkspaceService.getWorkspaces(searchParams);
+        if (response && response.Workspaces && Array.isArray(response.Workspaces)) {
+          const transformedWorkspaces: LocalWorkspace[] = response.Workspaces.map(ws => ({
+            id: ws.WorkspaceId,
+            name: ws.WorkspaceName,
+            status: ws.WorkspaceStatus,
+            lastActivity: formatLastActivity(ws.LastUpdationTime),
+            owner: ws.CreatedBy,
+            description: ws.Description,
+            type: ws.WorkspaceType
+          }));
+          setWorkspaces(transformedWorkspaces);
+          setTotalCount(response.Pagination?.TotalCount || transformedWorkspaces.length);
+        } else {
+          setWorkspaces([]);
+          setTotalCount(0);
+        }
+      } catch (error) {
+        setWorkspaces([]);
+        setTotalCount(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWorkspaces();
+  }, [currentPage, searchTerm]);
+
+  // Fetch total solutions count for all workspaces
+  useEffect(() => {
+    const fetchSolutionsCount = async () => {
+      setSolutionsLoading(true);
+      try {
+        let total = 0;
+        // Fetch solutions for each workspace (first page only for performance)
+        await Promise.all(
+          workspaces.map(async (ws) => {
+            try {
+              const res = await SolutionService.getSolutions(ws.id, { limit: 1, offset: 1 });
+              total += res.Pagination?.TotalCount || 0;
+            } catch {
+              // ignore errors for individual workspaces
+            }
+          })
+        );
+        setSolutionsCount(total);
+      } catch {
+        setSolutionsCount(0);
+      } finally {
+        setSolutionsLoading(false);
+      }
+    };
+    if (workspaces.length > 0) {
+      fetchSolutionsCount();
+    } else {
+      setSolutionsCount(0);
     }
-  ];
+  }, [workspaces]);
 
   const filteredWorkspaces = workspaces.filter(workspace => {
-    const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         workspace.owner.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || workspace.status === statusFilter;
-    
+    const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || workspace.status.toLowerCase() === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const itemsPerPage = 10;
-  const totalPages = Math.ceil(filteredWorkspaces.length / itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedWorkspaces = filteredWorkspaces.slice(startIndex, startIndex + itemsPerPage);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
-      case 'paused':
-        return <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>;
-      case 'archived':
-        return <Badge className="bg-gray-100 text-gray-800">Archived</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const totalWorkspaces = workspaces.length;
+  const activeWorkspaces = workspaces.filter(w => w.status === "Active").length;
+  const archivedWorkspaces = workspaces.filter(w => w.status === "Archived").length;
+  const defaultWorkspaces = workspaces.filter(w => w.status === "Default").length;
 
-  const handleToggleWorkspace = (workspaceId: string, currentStatus: string) => {
-    console.log(`Toggle workspace ${workspaceId} from ${currentStatus}`);
-    // In real app, this would make an API call
-  };
-
-  const handleDeleteWorkspace = (workspaceId: string) => {
-    console.log(`Delete workspace ${workspaceId}`);
-    // In real app, this would make an API call with confirmation
+  const handleWorkspaceClick = (workspaceId: string) => {
+    navigate(`/workspaces/${workspaceId}`);
   };
 
   return (
@@ -142,36 +202,14 @@ const AdminWorkspacesTable = () => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search workspaces by name or owner..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Summary Stats */}
+        {/* Removed search bar and filter dropdown above the summary cards */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-blue-600">Total Workspaces</p>
-                <p className="text-2xl font-bold text-blue-900">{workspaces.length}</p>
+                <p className="text-2xl font-bold text-blue-900">{totalWorkspaces}</p>
               </div>
               <Cloud className="w-8 h-8 text-blue-500" />
             </div>
@@ -180,22 +218,9 @@ const AdminWorkspacesTable = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-green-600">Active</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {workspaces.filter(w => w.status === 'active').length}
-                </p>
+                <p className="text-2xl font-bold text-green-900">{activeWorkspaces}</p>
               </div>
               <Play className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-purple-600">Total Users</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {workspaces.reduce((sum, w) => sum + w.memberCount, 0)}
-                </p>
-              </div>
-              <Users className="w-8 h-8 text-purple-500" />
             </div>
           </div>
           <div className="bg-orange-50 p-4 rounded-lg">
@@ -203,127 +228,149 @@ const AdminWorkspacesTable = () => {
               <div>
                 <p className="text-sm text-orange-600">Monthly Cost</p>
                 <p className="text-2xl font-bold text-orange-900">
-                  ${workspaces.reduce((sum, w) => sum + w.monthlyCost, 0)}
+                  ${workspaces.reduce((sum, w) => {
+                    const cost = Number((w as any).cost || (w as any).Cost || 0);
+                    return sum + (isNaN(cost) ? 0 : cost);
+                  }, 0)}
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-orange-500" />
             </div>
           </div>
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-purple-600">Total Solutions</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {solutionsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : solutionsCount}
+                </p>
+              </div>
+              <Users className="w-8 h-8 text-purple-500" />
+            </div>
+          </div>
         </div>
-
         {/* Workspaces Table */}
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Workspace</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Members</TableHead>
-                <TableHead>Monthly Cost</TableHead>
-                <TableHead>Last Activity</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedWorkspaces.map((workspace) => (
-                <TableRow key={workspace.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{workspace.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {workspace.region} • Created {new Date(workspace.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{workspace.owner}</div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(workspace.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span>{workspace.memberCount}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-1">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
-                      <span>${workspace.monthlyCost}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">
-                    {workspace.lastActivity}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleToggleWorkspace(workspace.id, workspace.status)}
-                      >
-                        {workspace.status === 'active' ? 
-                          <Pause className="w-4 h-4" /> : 
-                          <Play className="w-4 h-4" />
-                        }
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteWorkspace(workspace.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+        <Card>
+          <CardHeader>
+            <CardTitle>All Workspaces</CardTitle>
+            <CardDescription>
+              {filteredWorkspaces.length} workspace{filteredWorkspaces.length !== 1 ? 's' : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Search workspaces..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Workspace</TableHead>
+                  <TableHead>Owner</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Activity</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious 
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (currentPage > 1) setCurrentPage(currentPage - 1);
-                  }}
-                />
-              </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <PaginationItem key={page}>
-                  <PaginationLink
-                    href="#"
-                    isActive={page === currentPage}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setCurrentPage(page);
-                    }}
-                  >
-                    {page}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        )}
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading workspaces...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredWorkspaces.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                      No workspaces found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedWorkspaces.map((workspace) => (
+                    <TableRow
+                      key={workspace.id}
+                      className={`${getRowColor(workspace.status)} cursor-pointer`}
+                      onClick={() => handleWorkspaceClick(workspace.id)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <FolderOpen className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                              {workspace.name}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-gray-900">{workspace.owner}</div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                          <span>{workspace.type}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
+                          <span>{workspace.status}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">{workspace.lastActivity}</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </CardContent>
     </Card>
   );

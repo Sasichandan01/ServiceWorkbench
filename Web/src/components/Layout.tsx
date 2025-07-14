@@ -22,7 +22,10 @@ import {
   Bell,
   LogOut,
   RefreshCw,
-  Shield
+  Shield,
+  Activity,
+  Users,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut, clearAllAuthData } from "@/lib/auth";
@@ -41,7 +44,7 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canView } = usePermissions();
+  const { canView, userRole } = usePermissions();
   const { loading: authLoading } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
 
@@ -55,6 +58,14 @@ const Layout = () => {
     { name: "Workspaces", href: "/workspaces", icon: Cloud, resource: "workspaces" },
     { name: "Data Sources", href: "/data-sources", icon: Database, resource: "datasources" },
     { name: "Cost Dashboard", href: "/dashboard", icon: DollarSign, resource: null },
+  ];
+
+  const adminNavigation = [
+    { name: "Overview", href: "/admin", icon: Activity, resource: "users", action: "view" },
+    { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
+    { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
+    { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
+    { name: "Audit Logs", href: "/admin?tab=audit", icon: AlertTriangle, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -143,6 +154,52 @@ const Layout = () => {
     return linkContent;
   };
 
+  const AdminNavLink = ({ item }: { item: typeof adminNavigation[0] }) => {
+    // Check if user has permission to view this resource
+    if (item.resource && !canView(item.resource)) {
+      return null;
+    }
+
+    // Fix: Only highlight the correct tab
+    let isAdminActive = false;
+    if (item.name === 'Overview') {
+      isAdminActive = location.pathname === '/admin' && (!location.search || location.search === '');
+    } else if (item.href.includes('tab=')) {
+      const tabValue = item.href.split('=')[1];
+      const urlParams = new URLSearchParams(location.search);
+      isAdminActive = location.pathname === '/admin' && urlParams.get('tab') === tabValue;
+    }
+
+    const linkContent = (
+      <Link
+        to={item.href}
+        className={`flex items-center ${sidebarOpen ? 'space-x-3 px-3' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
+          isAdminActive
+            ? 'bg-blue-50 text-blue-700'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }`}
+      >
+        <item.icon className={`${sidebarOpen ? 'w-5 h-5' : 'w-6 h-6'}`} />
+        {sidebarOpen && <span className="whitespace-nowrap">{item.name}</span>}
+      </Link>
+    );
+
+    if (!sidebarOpen) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {linkContent}
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>{item.name}</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return linkContent;
+  };
+
   // Show loading state while auth is initializing
   if (authLoading) {
     return (
@@ -176,13 +233,52 @@ const Layout = () => {
 
           {/* Navigation */}
           <nav className="flex-1 p-4">
-            <ul className="space-y-2">
-              {navigation.map((item) => (
-                <li key={item.name}>
-                  <NavLink item={item} />
-                </li>
-              ))}
-            </ul>
+            {userRole === 'ITAdmin' ? (
+              <>
+                {/* Admin Navigation */}
+                <div className="mb-6">
+                  {sidebarOpen && (
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      Administration
+                    </h3>
+                  )}
+                  <ul className="space-y-2">
+                    {adminNavigation.map((item) => (
+                      <li key={item.name}>
+                        <AdminNavLink item={item} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                
+                {/* Separator */}
+                <div className="border-t border-gray-200 my-4"></div>
+                
+                {/* Regular Navigation */}
+                <div>
+                  {sidebarOpen && (
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      Main
+                    </h3>
+                  )}
+                  <ul className="space-y-2">
+                    {navigation.map((item) => (
+                      <li key={item.name}>
+                        <NavLink item={item} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <ul className="space-y-2">
+                {navigation.map((item) => (
+                  <li key={item.name}>
+                    <NavLink item={item} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </nav>
         </div>
 
@@ -237,14 +333,6 @@ const Layout = () => {
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    <ProtectedContent resource="users" action="manage" hideIfNoAccess>
-                      <DropdownMenuItem asChild>
-                        <Link to="/admin" className="w-full">
-                          <Shield className="w-4 h-4 mr-2" />
-                          Admin Dashboard
-                        </Link>
-                      </DropdownMenuItem>
-                    </ProtectedContent>
                     <DropdownMenuItem onClick={handleSwitchRole}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Switch Role

@@ -2,18 +2,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Users, Database, Zap, DollarSign } from "lucide-react";
+import { useAppSelector } from "@/hooks/useAppSelector";
 
 const AccountOverview = () => {
+  const user = useAppSelector((state) => state.auth.user);
+  // Determine active roles count
+  let activeRoles = 0;
+  if (user && Array.isArray((user as any).Role)) {
+    activeRoles = (user as any).Role.length;
+  }
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg text-gray-900">Account Overview</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Active Workspaces */}
+        {/* Active Roles */}
         <div className="text-center">
-          <div className="text-3xl font-bold text-blue-600 mb-1">12</div>
-          <div className="text-sm text-gray-600">Active Workspaces</div>
+          <div className="text-3xl font-bold text-blue-600 mb-1">{activeRoles}</div>
+          <div className="text-sm text-gray-600">Active Roles</div>
         </div>
         
         <Separator />

@@ -1,13 +1,15 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
+import { WorkspaceService } from "../services/workspaceService";
+import { SolutionService } from "../services/solutionService";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import AIGeneratorBreadcrumb from "@/components/AIGeneratorBreadcrumb";
-import { Brain, Send, User, Sparkles } from "lucide-react";
+import { Brain, Send, User } from "lucide-react";
 
 interface Message {
   id: number;
@@ -18,32 +20,37 @@ interface Message {
 
 const AIGenerator = () => {
   const { workspaceId, solutionId } = useParams();
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [solutionName, setSolutionName] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const workspaceName = "Analytics Team";
-  const solutionName = "Customer Segmentation";
+  useEffect(() => {
+    if (workspaceId) {
+      WorkspaceService.getWorkspace(workspaceId).then(ws => setWorkspaceName(ws.WorkspaceName));
+    }
+    if (workspaceId && solutionId) {
+      SolutionService.getSolution(workspaceId, solutionId).then(sol => setSolutionName(sol.SolutionName));
+    }
+  }, [workspaceId, solutionId]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
-
     const userMessage: Message = {
       id: messages.length + 1,
       content: inputValue,
       sender: 'user',
       timestamp: new Date().toLocaleTimeString()
     };
-
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
-
     // Simulate AI response
     setTimeout(() => {
       const aiMessage: Message = {
         id: messages.length + 2,
-        content: "I'll help you generate a comprehensive solution for customer segmentation. Based on your requirements, I'll create an ML model that analyzes behavioral patterns and purchase history to segment customers effectively. Let me break this down into components: data preprocessing, feature engineering, model training, and deployment architecture.",
+        content: "I'll help you generate a comprehensive solution. Please provide more details about your requirements.",
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString()
       };
@@ -60,163 +67,182 @@ const AIGenerator = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 p-6 sticky top-0 z-10">
-        <AIGeneratorBreadcrumb 
-          workspaceName={workspaceName}
-          workspaceId={workspaceId}
-          solutionName={solutionName}
-          solutionId={solutionId}
-        />
-        <div className="mt-4">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center">
-            <Brain className="w-6 h-6 text-purple-600 mr-3" />
-            AI Solution Generator
-          </h1>
-          <p className="text-gray-600 mt-1">Generate comprehensive solutions with AI assistance</p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Breadcrumb */}
+      <SolutionBreadcrumb 
+        workspaceName={workspaceName}
+        workspaceId={workspaceId}
+        solutionName={solutionName}
+        solutionId={solutionId}
+        extra="AI Generator"
+      />
 
-      {/* Chat Container */}
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 overflow-hidden">
-          {messages.length === 0 ? (
-            // Simplified Welcome Screen
-            <div className="p-8 text-center">
-              <div className="relative inline-block mb-6">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Brain className="w-8 h-8 text-white" />
-                </div>
-                <Sparkles className="w-4 h-4 text-yellow-400 absolute -top-1 -right-1 animate-pulse" />
-              </div>
-              
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                Welcome to AI Generator
-              </h2>
-              <p className="text-gray-600 mb-6 max-w-lg mx-auto">
-                Describe your solution requirements and I'll help you generate comprehensive architecture and implementation guidance.
-              </p>
-              
-              <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
-                {[
-                  { title: "Architecture", icon: "🏗️" },
-                  { title: "Code Gen", icon: "💻" },
-                  { title: "Best Practices", icon: "⭐" },
-                  { title: "Deployment", icon: "🚀" }
-                ].map((feature) => (
-                  <div 
-                    key={feature.title}
-                    className="p-3 bg-gray-50 rounded-lg border hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="text-xl mb-1">{feature.icon}</div>
-                    <p className="text-sm font-medium text-gray-700">{feature.title}</p>
+      {/* Header (removed workspace/solution name and subtitle) */}
+      {/* <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">{solutionName || "AI Solution Generator"}</h1>
+          <p className="text-muted-foreground mt-1">Generate comprehensive solutions with AI assistance</p>
+        </div>
+      </div> */}
+
+      {/* Chat Window */}
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20">
+        <CardContent className="p-0">
+          {/* Initial Centered State */}
+          {messages.length === 0 && (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 animate-fade-in">
+              <div className="text-center space-y-8 max-w-2xl">
+                <div className="space-y-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                    <Brain className="w-8 h-8 text-primary-foreground" />
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            // Chat Messages
-            <div className="h-[500px] flex flex-col">
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4 max-w-3xl mx-auto">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex items-start space-x-3 animate-fade-in ${
-                        message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                      }`}
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                    What can I help you build today?
+                  </h2>
+                  <p className="text-muted-foreground text-lg">
+                    Describe your solution requirements and I'll help you create something amazing.
+                  </p>
+                </div>
+                
+                {/* Centered Input */}
+                <div className="w-full max-w-2xl space-y-4">
+                  <div className="relative">
+                    <Textarea
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask anything..."
+                      className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10"
+                      disabled={isGenerating}
+                    />
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputValue.trim() || isGenerating}
+                      className="absolute right-3 bottom-3 h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
                     >
-                      <Avatar className={`w-8 h-8 flex-shrink-0 ${
-                        message.sender === 'user' ? '' : ''
-                      }`}>
-                        <AvatarFallback className={`${
-                          message.sender === 'user' 
-                            ? 'bg-blue-500' 
-                            : 'bg-purple-500'
-                        }`}>
-                          {message.sender === 'user' ? (
-                            <User className="w-4 h-4 text-white" />
-                          ) : (
-                            <Brain className="w-4 h-4 text-white" />
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className={`flex-1 ${message.sender === 'user' ? 'max-w-xs' : 'max-w-2xl'}`}>
-                        <div
-                          className={`p-3 rounded-2xl ${
-                            message.sender === 'user'
-                              ? 'bg-blue-500 text-white ml-auto'
-                              : 'bg-gray-100 text-gray-900'
-                          }`}
-                        >
-                          <p className="text-sm leading-relaxed">{message.content}</p>
-                        </div>
-                        <span className="text-xs text-gray-500 mt-1 block">
-                          {message.timestamp}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                      <Send className="w-5 h-5" />
+                    </Button>
+                  </div>
                   
                   {isGenerating && (
-                    <div className="flex items-start space-x-3 animate-fade-in">
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarFallback className="bg-purple-500">
-                          <Brain className="w-4 h-4 text-white" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 max-w-2xl">
-                        <div className="p-3 bg-gray-100 rounded-2xl">
-                          <div className="flex items-center space-x-2">
-                            <div className="flex space-x-1">
-                              {[0, 1, 2].map((i) => (
-                                <div
-                                  key={i}
-                                  className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
-                                  style={{ animationDelay: `${i * 0.1}s` }}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-sm text-gray-600">AI is thinking...</span>
-                          </div>
-                        </div>
+                    <div className="flex items-center justify-center space-x-2 animate-fade-in">
+                      <div className="flex space-x-1">
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="w-3 h-3 bg-primary rounded-full animate-bounce"
+                            style={{ animationDelay: `${i * 0.15}s` }}
+                          />
+                        ))}
                       </div>
+                      <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           )}
 
-          {/* Simplified Input Area */}
-          <div className="border-t border-gray-200/50 bg-white/50 backdrop-blur-sm p-4">
-            <div className="flex items-end space-x-3 max-w-3xl mx-auto">
-              <div className="flex-1 relative">
-                <Textarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Describe your solution requirements..."
-                  className="resize-none min-h-[60px] border-gray-300 focus:border-purple-500 focus:ring-purple-500/20 rounded-xl bg-white placeholder:text-gray-500"
-                  disabled={isGenerating}
-                />
+          {/* Chat Messages View */}
+          {messages.length > 0 && (
+            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in">
+              <div className="h-[700px] flex flex-col"> {/* Increased height from 500px to 700px */}
+                <ScrollArea className="flex-1 p-6">
+                  <div className="space-y-6 max-w-4xl mx-auto">
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex items-start space-x-4 animate-fade-in ${
+                          message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                        }`}
+                      >
+                        <Avatar className="w-10 h-10 flex-shrink-0 ring-2 ring-background shadow-lg">
+                          <AvatarFallback className={
+                            message.sender === 'user' 
+                              ? 'bg-gradient-to-br from-primary to-primary/80' 
+                              : 'bg-gradient-to-br from-secondary to-secondary/80'
+                          }>
+                            {message.sender === 'user' ? (
+                              <User className="w-5 h-5 text-primary-foreground" />
+                            ) : (
+                              <Brain className="w-5 h-5 text-secondary-foreground" />
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className={`flex-1 ${message.sender === 'user' ? 'max-w-md' : 'max-w-3xl'}`}>
+                          <div
+                            className={`p-4 rounded-2xl transition-all duration-300 hover:shadow-md ${
+                              message.sender === 'user'
+                                ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground ml-auto shadow-lg shadow-primary/20'
+                                : 'bg-card text-card-foreground border border-border/50 shadow-sm hover:border-border'
+                            }`}
+                          >
+                            <p className="leading-relaxed">{message.content}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-2 block opacity-70">
+                            {message.timestamp}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {isGenerating && (
+                      <div className="flex items-start space-x-4 animate-fade-in">
+                        <Avatar className="w-10 h-10 flex-shrink-0 ring-2 ring-background shadow-lg">
+                          <AvatarFallback className="bg-gradient-to-br from-secondary to-secondary/80">
+                            <Brain className="w-5 h-5 text-secondary-foreground" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 max-w-3xl">
+                          <div className="p-4 bg-card border border-border/50 rounded-2xl shadow-sm">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex space-x-1">
+                                {[0, 1, 2].map((i) => (
+                                  <div
+                                    key={i}
+                                    className="w-3 h-3 bg-primary rounded-full animate-bounce"
+                                    style={{ animationDelay: `${i * 0.15}s` }}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+                
+                {/* Bottom Input Area */}
+                <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
+                  <div className="flex items-end space-x-4 max-w-4xl mx-auto">
+                    <div className="flex-1 relative">
+                      <Textarea
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Continue the conversation..."
+                        className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
+                        disabled={isGenerating}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputValue.trim() || isGenerating}
+                      className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                    >
+                      <Send className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
+                    Press Enter to send
+                  </p>
+                </div>
               </div>
-              <Button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isGenerating}
-                className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 h-[60px] px-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
             </div>
-            <p className="text-center text-xs text-gray-500 mt-2">
-              Press Enter to send
-            </p>
-          </div>
-        </div>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
