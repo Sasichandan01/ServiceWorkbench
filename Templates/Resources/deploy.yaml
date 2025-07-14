@@ -1100,6 +1100,9 @@ Resources:
           ProvisionedThroughput:
             ReadCapacityUnits: 1
             WriteCapacityUnits: 1
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1117,6 +1120,9 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1145,6 +1151,9 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1164,6 +1173,9 @@ Resources:
           KeyType: HASH
         - AttributeName: SolutionId
           KeyType: RANGE
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1192,6 +1204,9 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1218,6 +1233,9 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1237,6 +1255,9 @@ Resources:
           KeyType: HASH
         - AttributeName: ExecutionId
           KeyType: RANGE
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1256,6 +1277,9 @@ Resources:
           KeyType: HASH
         - AttributeName: Version
           KeyType: RANGE
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1271,6 +1295,9 @@ Resources:
       KeySchema:
         - AttributeName: Role
           KeyType: HASH
+      PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: 'true'
+          RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
