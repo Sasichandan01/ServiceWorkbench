@@ -5,7 +5,7 @@ import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, Conf
 const COGNITO_CONFIG = {
   userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
   clientId: import.meta.env.VITE_COGNITO_CLIENT_ID, 
-  region: import.meta.env.VITE_COGNITO_REGION || "us-east-1",
+  region: import.meta.env.VITE_COGNITO_REGION
 };
 
 const cognitoClient = new CognitoIdentityProviderClient({
@@ -155,4 +155,36 @@ export const clearAllAuthData = () => {
   sessionStorage.clear();
   
   console.log("All auth data cleared from browser");
+};
+
+export const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) throw new Error('No refresh token available');
+
+  const command = new InitiateAuthCommand({
+    ClientId: COGNITO_CONFIG.clientId,
+    AuthFlow: "REFRESH_TOKEN_AUTH",
+    AuthParameters: {
+      REFRESH_TOKEN: refreshToken,
+    },
+  });
+
+  try {
+    const response = await cognitoClient.send(command);
+    if (response.AuthenticationResult) {
+      const { AccessToken, IdToken } = response.AuthenticationResult;
+      if (AccessToken) {
+        localStorage.setItem('accessToken', AccessToken);
+      }
+      if (IdToken) {
+        localStorage.setItem('idToken', IdToken);
+      }
+      return response.AuthenticationResult;
+    } else {
+      throw new Error('No AuthenticationResult in refresh response');
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    throw error;
+  }
 };
