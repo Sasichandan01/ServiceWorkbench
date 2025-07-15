@@ -1,25 +1,15 @@
-<<<<<<< HEAD
-import React, { useState } from "react";
-=======
 import React, { useState, useEffect } from "react";
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD
-import { X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { DatasourceService } from "@/services/datasourceService";
-=======
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasourceService } from "@/services/datasourceService";
 import type { Datasource } from "@/services/datasourceService";
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
 interface EditDataSourceDialogProps {
   open: boolean;
@@ -39,10 +29,6 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
   const [tags, setTags] = useState<string[]>(datasource.Tags || []);
   const [newTag, setNewTag] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-<<<<<<< HEAD
-  const { toast } = useToast();
-
-=======
   const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [loadingDatasources, setLoadingDatasources] = useState(false);
   const { toast } = useToast();
@@ -69,7 +55,6 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
     }
   };
 
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
       setTags([...tags, newTag.trim()]);
@@ -138,8 +123,6 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
           </div>
           
           <div className="space-y-2">
-<<<<<<< HEAD
-=======
             <Label>Reference Datasources</Label>
             <Select disabled={loadingDatasources}>
               <SelectTrigger>
@@ -176,7 +159,6 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
           </div>
 
           <div className="space-y-2">
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
             <Label>Tags</Label>
             <div className="flex gap-2">
               <Input

@@ -79,11 +79,7 @@ export class SolutionService {
     params?: {
       limit?: number;
       offset?: number;
-<<<<<<< HEAD
-      filterby?: string;
-=======
       filterBy?: string;
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     }
   ): Promise<SolutionListResponse> {
     const searchParams = new URLSearchParams();
@@ -91,13 +87,8 @@ export class SolutionService {
     const offset = params?.offset ?? 1;
     searchParams.append('limit', limit.toString());
     searchParams.append('offset', offset.toString());
-<<<<<<< HEAD
-    if (params?.filterby) {
-      searchParams.append('filterby', params.filterby);
-=======
     if (params?.filterBy) {
       searchParams.append('filterBy', params.filterBy);
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     }
     const endpoint = `/workspaces/${workspaceId}/solutions${searchParams.toString() ? `?${searchParams}` : ''}`;
     const response = await ApiClient.get(endpoint);

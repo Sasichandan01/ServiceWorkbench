@@ -9,11 +9,6 @@ import SolutionOverviewCards from "@/components/SolutionOverviewCards";
 import SolutionInformation from "@/components/SolutionInformation";
 import ArchitectureDiagram from "@/components/ArchitectureDiagram";
 import RunHistory from "@/components/RunHistory";
-<<<<<<< HEAD
-import { Play, Brain } from "lucide-react";
-import { SolutionService } from "../services/solutionService";
-import { WorkspaceService } from "../services/workspaceService";
-=======
 import { Play, Brain, Trash2, Plus } from "lucide-react";
 import { SolutionService } from "../services/solutionService";
 import { WorkspaceService } from "../services/workspaceService";
@@ -25,7 +20,6 @@ import { DatasourceService } from "../services/datasourceService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
 interface RunHistoryItem {
   id: number;
@@ -46,8 +40,6 @@ const SolutionDetails = () => {
   const [workspaceName, setWorkspaceName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-<<<<<<< HEAD
-=======
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -60,7 +52,6 @@ const SolutionDetails = () => {
   const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
   const [addingDatasource, setAddingDatasource] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
   // Fetch solution and workspace name on mount
   useEffect(() => {
@@ -82,8 +73,6 @@ const SolutionDetails = () => {
       });
   }, [workspaceId, solutionId]);
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     if (!datasourcePopoverOpen) return;
     DatasourceService.getDatasources({ limit: 50 }).then(res => {
@@ -91,7 +80,6 @@ const SolutionDetails = () => {
     });
   }, [datasourcePopoverOpen]);
 
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
   if (loading) {
     return <div className="p-8 text-center text-gray-500">Loading solution details...</div>;
   }
@@ -124,9 +112,6 @@ const SolutionDetails = () => {
     navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`);
   };
 
-<<<<<<< HEAD
-  const isNewSolution = !solution.LastUpdationTime && !solution.SolutionStatus;
-=======
   const isNewSolution = !solution.CftS3Path;
 
   // Handler to open add datasource dialog
@@ -209,7 +194,6 @@ const SolutionDetails = () => {
       toast({ title: "Error", description: err?.message || "Failed to delete solution.", variant: "destructive" });
     }
   };
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
   return (
     <div className="space-y-6">
@@ -373,11 +357,6 @@ const SolutionDetails = () => {
         </CardContent>
       </Card>
 
-<<<<<<< HEAD
-      {/* Run History - only show if not a new solution */}
-      {/* You may want to fetch and show real run history here */}
-      {/* {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />} */}
-=======
       {/* Add Datasource Dialog */}
       <Dialog open={addDatasourceDialogOpen} onOpenChange={setAddDatasourceDialogOpen}>
         <DialogContent>
@@ -429,7 +408,6 @@ const SolutionDetails = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
       {/* Resources Table */}
       {Array.isArray(solution.Resources) && solution.Resources.length > 0 && (

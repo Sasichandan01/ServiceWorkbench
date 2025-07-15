@@ -1,5 +1,5 @@
 import boto3
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid
 import os
 import logging
@@ -26,10 +26,9 @@ def lambda_handler(event, context):
             'UserId': user_id,
             'Action': 'LOGIN',
             'Email': email,
-            'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+            'EventTime': datetime.utcnow().isoformat(),
             'ResourceName': 'CognitoPostAuth',
-            'ResourceType': 'Cognito',
-            'ResourceId': str(uuid.uuid4()),
+            'ResourceType': 'Cognito'
         }
 
         LOGGER.info(f"Logging login for user {user_id}")
