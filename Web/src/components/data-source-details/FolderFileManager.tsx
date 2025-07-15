@@ -167,7 +167,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       // Step 1: Get presigned URLs
       const fileData = files.map(file => ({
         FileName: file.name,
-        Type: file.name.split('.').pop()?.toLowerCase() || ''
+        ContentType: file.type
       }));
 
       const response = await DatasourceService.getPresignedUrls(datasourceId, fileData);

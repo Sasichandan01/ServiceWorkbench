@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from Utils.utils import log_activity,return_response,paginate_list
 import logging
-#test 
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -171,7 +171,7 @@ async def fetch_glue_logs_by_time(job_name, start_time, end_time):
         )
         
         logs_content = f"=== GLUE JOB LOGS: {job_name} ===\nTime Range: {start_time} to {end_time}\n\n"
-        log_groups = [f"/aws-glue/jobs/output", f"/aws-glue/jobs/error"]
+        log_groups = [f"/aws-glue/jobs/output"]
         for job_run in response.get('JobRuns', []):
             run_id = job_run.get('Id')
             run_start = job_run.get('StartedOn')

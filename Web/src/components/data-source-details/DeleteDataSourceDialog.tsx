@@ -37,10 +37,10 @@ const DeleteDataSourceDialog = ({ open, onOpenChange, datasourceId, datasourceNa
       });
 
       navigate("/data-sources");
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete datasource",
+        description: error.message,
         variant: "destructive",
       });
     } finally {

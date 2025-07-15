@@ -76,7 +76,7 @@ export class WorkspaceService {
   static async getWorkspaces(params?: {
     limit?: number;
     offset?: number;
-    filter?: string;
+    filterBy?: string;
   }): Promise<WorkspaceListResponse> {
     const searchParams = new URLSearchParams();
     
@@ -86,8 +86,8 @@ export class WorkspaceService {
     if (params?.offset) {
       searchParams.append('offset', params.offset.toString());
     }
-    if (params?.filter) {
-      searchParams.append('filter', params.filter);
+    if (params?.filterBy) {
+      searchParams.append('filterBy', params.filterBy);
     }
 
     const endpoint = `/workspaces${searchParams.toString() ? `?${searchParams}` : ''}`;

@@ -63,7 +63,7 @@ const Workspaces = () => {
       };
 
       if (searchTerm.trim()) {
-        searchParams.filter = searchTerm.trim();
+        searchParams.filterBy = searchTerm.trim();
       }
 
       const response = await WorkspaceService.getWorkspaces(searchParams);
@@ -86,11 +86,11 @@ const Workspaces = () => {
         setWorkspaces([]);
         setTotalCount(0);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching workspaces:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch workspaces. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
       setWorkspaces([]);
@@ -243,11 +243,11 @@ const Workspaces = () => {
       
       // Refresh workspaces list
       await fetchWorkspaces();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating workspace:', error);
       toast({
         title: "Error",
-        description: "Failed to create workspace. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     }

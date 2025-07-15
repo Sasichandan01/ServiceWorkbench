@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Cloud } from "lucide-react";
+import { Cloud, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { signUp, signIn } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -17,11 +17,19 @@ const GoogleIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" classNa
     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
   </svg>;
 
-const Login = () => {
-  const [isLogin, setIsLogin] = useState(true);
+// Add prop type
+interface LoginProps {
+  isSignupDefault?: boolean;
+}
+
+// Accept prop
+const Login = ({ isSignupDefault = false }: LoginProps) => {
+  const [isLogin, setIsLogin] = useState(!isSignupDefault);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +80,7 @@ const Login = () => {
       console.error("Authentication error:", error);
       toast({
         title: "Error",
-        description: error.message || "Authentication failed. Please try again.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -167,15 +175,49 @@ const Login = () => {
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" name="password" type="password" placeholder="Enter your password" required />
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    style={{ background: "none", border: "none", padding: 0 }}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
 
                 {!isLogin && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <Input id="confirm-password" name="confirm-password" type="password" placeholder="Confirm your password" required />
+                    <Input
+                      id="confirm-password"
+                      name="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      style={{ background: "none", border: "none", padding: 0 }}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 )}
 

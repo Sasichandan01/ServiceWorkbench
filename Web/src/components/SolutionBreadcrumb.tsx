@@ -13,9 +13,14 @@ interface SolutionBreadcrumbProps {
   workspaceName: string;
   workspaceId: string | undefined;
   solutionName: string;
+  solutionId?: string;
+  extra?: string;
 }
 
-const SolutionBreadcrumb = ({ workspaceName, workspaceId, solutionName }: SolutionBreadcrumbProps) => {
+const SolutionBreadcrumb = ({ workspaceName, workspaceId, solutionName, solutionId, extra }: SolutionBreadcrumbProps) => {
+  // Fallbacks for loading state
+  const displayWorkspaceName = workspaceName && workspaceName.trim() ? workspaceName : 'Loading...';
+  const displaySolutionName = solutionName && solutionName.trim() ? solutionName : 'Loading...';
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -27,13 +32,25 @@ const SolutionBreadcrumb = ({ workspaceName, workspaceId, solutionName }: Soluti
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to={`/workspaces/${workspaceId}`}>{workspaceName}</Link>
+            <Link to={`/workspaces/${workspaceId}`}>{displayWorkspaceName}</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>{solutionName}</BreadcrumbPage>
+          {extra ? (
+            <BreadcrumbLink asChild>
+              <Link to={`/workspaces/${workspaceId}/solutions/${solutionId}`}>{displaySolutionName}</Link>
+            </BreadcrumbLink>
+          ) : (
+            <BreadcrumbPage>{displaySolutionName}</BreadcrumbPage>
+          )}
         </BreadcrumbItem>
+        {extra && (
+          <>
+            <BreadcrumbSeparator />
+            <BreadcrumbPage>{extra}</BreadcrumbPage>
+          </>
+        )}
       </BreadcrumbList>
     </Breadcrumb>
   );
