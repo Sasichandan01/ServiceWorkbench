@@ -4,6 +4,8 @@ interface ApiClientOptions extends RequestInit {
   headers?: Record<string, string>;
 }
 
+import { refreshAccessToken, clearAllAuthData } from './auth';
+
 /**
  * Custom API client that ensures proper header formatting for our backend
  */
@@ -44,10 +46,29 @@ export class ApiClient {
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
     
     console.log('API Request:', { url, method: config.method || 'GET', headers: config.headers });
-    
+
+    let response: Response;
     try {
-      const response = await fetch(url, config);
+      response = await fetch(url, config);
       console.log('API Response:', { status: response.status, ok: response.ok });
+      if (response.status === 401) {
+        // Try to refresh token and retry once
+        try {
+          await refreshAccessToken();
+          // Update headers with new token
+          const retryHeaders = this.createHeaders(customHeaders);
+          const retryConfig: RequestInit = {
+            ...restOptions,
+            headers: Object.fromEntries(retryHeaders.entries()),
+          };
+          response = await fetch(url, retryConfig);
+        } catch (refreshError) {
+          // If refresh fails, clear auth and redirect to login
+          clearAllAuthData();
+          window.location.replace('/login');
+          throw response;
+        }
+      }
       return response;
     } catch (error) {
       console.error('API Request Failed:', { url, error });

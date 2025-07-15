@@ -6,12 +6,11 @@ export interface User {
   Email: string;
   Roles: string[] | string;
   ProfileImageURL?: string;
+  LastLoginTime?: string;
 }
 
 export interface UserListResponse {
   Users: User[];
-  TotalUsers: string;
-  TotalWorkspaces: string;
   Pagination: {
     Count: number;
     TotalCount: number;

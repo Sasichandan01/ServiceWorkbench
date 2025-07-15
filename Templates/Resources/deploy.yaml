@@ -273,7 +273,7 @@ Resources:
       MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -314,7 +314,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchpresignuplambda/WorkbenchPresignup.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchpresignuplambda/WorkbenchPresignup.zip"
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
@@ -346,7 +346,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchpreauthlambda/WorkbenchPreAuth.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchpreauthlambda/WorkbenchPreAuth.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -375,7 +375,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -404,7 +404,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
@@ -438,7 +438,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchpostauthlambda/WorkbenchPostAuth.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchpostauthlambda/WorkbenchPostAuth.zip"
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
@@ -468,7 +468,7 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: "lambda/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
       Environment:
         Variables:
           QUEUE_URL: !Ref CleanupQueue
@@ -821,14 +821,12 @@ Resources:
       Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: "service-workbench-artifacts"
-        S3Key: "lambda/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
           USERS_TABLE: !Ref UserTable
           CLIENT_ID: !Ref UserPoolClient
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2" 
@@ -863,7 +861,7 @@ Resources:
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
@@ -929,6 +927,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-UserTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -937,9 +936,6 @@ Resources:
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       GlobalSecondaryIndexes:
         - IndexName: EmailIndex
           KeySchema:
@@ -947,9 +943,6 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: 1
-            WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -958,15 +951,13 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-ActivityLogsTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1138,7 +1129,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/rbaccustomresource/rbac_custom_resource.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/rbaccustomresource/rbac_custom_resource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1255,7 +1246,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/roles/roles_lambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/roles/roles_lambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1288,7 +1279,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserslambda/WorkbenchUsersLambda.zip"
+        S3Key: !Sub "lambda/workbenchuserslambda/WorkbenchUsersLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1322,7 +1313,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1353,7 +1344,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/workbenchchatlambda/WorkbenchChat.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchchatlambda/WorkbenchChat.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1388,7 +1379,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: lambda/sharelambda/ShareLambda.zip
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}/sharelambda/ShareLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1613,7 +1604,7 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-
+  
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
@@ -1640,4 +1631,4 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-  
+   

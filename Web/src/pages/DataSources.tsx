@@ -51,11 +51,11 @@ const DataSources = () => {
         setDataSources([]);
         setTotalCount(0);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching datasources:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch datasources. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
       setDataSources([]);
@@ -118,11 +118,11 @@ const DataSources = () => {
 
       // Refresh datasources list
       await fetchDataSources();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating datasource:', error);
       toast({
         title: "Error",
-        description: "Failed to create datasource. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     }

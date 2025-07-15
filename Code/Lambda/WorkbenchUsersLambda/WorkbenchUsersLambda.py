@@ -3,11 +3,11 @@ import boto3
 import os
 import logging
 from boto3.dynamodb.conditions import Key
-from Utils.utils import paginate_list
-from RBAC.rbac import is_user_action_valid, return_response
+from Utils.utils import paginate_list,  return_response
+from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
-VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
+VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
 # Setup logger
 LOGGER = logging.getLogger()
@@ -21,25 +21,6 @@ ROLES_TABLE = os.environ.get("ROLES_TABLE")
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
 table = dynamodb.Table(ROLES_TABLE)
-
-
-def response(status_code, body):
-    """
-    Helper method to format HTTP responses.
-
-    Args:
-        status_code (int): HTTP status code.
-        body (dict): Response body.
-
-    Returns:
-        dict: Formatted API Gateway response.
-    """
-    return {
-        "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(body)
-    }
-
 
 def lambda_handler(event, context):
     """
@@ -75,7 +56,7 @@ def lambda_handler(event, context):
         try:
             body = json.loads(event.get('body') or "{}")
         except json.JSONDecodeError:
-            return response(400, {"message": "Invalid JSON in request body"})
+            return return_response(400, {"message": "Invalid JSON in request body"})
 
         # Route: GET /users
         if http_method == 'GET' and path == '/users':
@@ -92,14 +73,16 @@ def lambda_handler(event, context):
 
             if action == 'profile_image':
                 return get_profile_image_upload_url(user_id, body)
+            elif action == 'role':
+                return update_user_roles(user_id, body)
             else:
                 return update_user_details(user_id, body)
 
-        return response(404, {"message": "Route not found"})
+        return return_response(404, {"message": "Route not found"})
 
     except Exception as e:
         LOGGER.error("Error processing request: %s", e, exc_info=True)
-        return response(500, {"message": "Internal server error"})
+        return return_response(500, {"message": "Internal server error"})
 
 def get_all_users(query_params):
     """
@@ -128,7 +111,8 @@ def get_all_users(query_params):
             "Username": item.get("Username"),
             "Email": item.get("Email"),
             "Roles": item.get("Role", []),
-            "ProfileImageURL": item.get("ProfileImage")
+            "ProfileImageURL": item.get("ProfileImage"),
+            "LastLoginTime": item.get("LastLoginTime", "")
         } for item in items
     ]
     paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
@@ -150,7 +134,7 @@ def get_all_users(query_params):
     }
 
     LOGGER.info("result: %s", formatted_response)
-    return response(200, formatted_response)
+    return return_response(200, formatted_response)
 
 
 def get_user_profile(user_id):
@@ -166,11 +150,12 @@ def get_user_profile(user_id):
     LOGGER.info("Getting User Profile for %s", user_id)
     res = user_table.get_item(Key={"UserId": user_id})
     item = res.get("Item")
+    LOGGER.info("Item: %s", item)
 
     if not item:
-        return response(404, {"message": "User not found"})
+        return return_response(404, {"message": "User not found"})
 
-    return response(200, item)
+    return return_response(200, item)
 
 
 def update_user_details(user_id, body):
@@ -187,7 +172,7 @@ def update_user_details(user_id, body):
     LOGGER.info("Updating User Details for %s", user_id)
     username = body.get("Username")
     if not username:
-        return response(400, {"message": "Username is required"})
+        return return_response(400, {"message": "Username is required"})
 
     last_updated_time = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -200,7 +185,7 @@ def update_user_details(user_id, body):
         }
     )
 
-    return response(200, {"message": "User details updated"})
+    return return_response(200, {"message": "User details updated"})
 
 def get_profile_image_upload_url(user_id, body):
     """
@@ -217,7 +202,7 @@ def get_profile_image_upload_url(user_id, body):
     LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
 
     if not MISC_BUCKET:
-        return response(500, {"message": "S3 bucket not configured"})
+        return return_response(500, {"message": "S3 bucket not configured"})
 
     file_name = user_id
 
@@ -237,7 +222,7 @@ def get_profile_image_upload_url(user_id, body):
         
     content_type = allowed_types.get(extension)
     if not content_type:
-        return response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
+        return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
 
     object_key = f"profile-images/{user_id}/{file_name}"
     s3_client = boto3.client("s3")
@@ -255,15 +240,15 @@ def get_profile_image_upload_url(user_id, body):
 
         # object_url = f"https://{s3_bucket}.s3.amazonaws.com/{object_key}"
 
-        return response(200, {
+        return return_response(200, {
             "message": "Pre-signed URL generated",
-            "UploadURL": presigned_url
+            "PreSignedURL": presigned_url
             # "ImageURL": object_url
         })
 
     except Exception as e:
         LOGGER.error("Failed to generate pre-signed URL: %s", e, exc_info=True)
-        return response(500, {"message": "Error generating pre-signed URL"})
+        return return_response(500, {"message": "Error generating pre-signed URL"})
 
 def update_profile_image_on_s3_upload(event, context):
     """
@@ -320,3 +305,49 @@ def update_profile_image_on_s3_upload(event, context):
             "statusCode": 500,
             "body": json.dumps({"message": "Failed to update profile image URL"})
         }
+
+def update_user_roles(user_id, body):
+    """
+    Appends a role to the user's existing list of roles.
+
+    Args:
+        user_id (str): Unique identifier for the user.
+        body (dict): JSON body containing the 'Role'.
+
+    Returns:
+        dict: HTTP response confirming update.
+    """
+    LOGGER.info("Updating roles for user: %s", user_id)
+
+    new_role = body.get("Role")
+    if not new_role:
+        return return_response(400, {"message": "Role is required"})
+
+    try:
+        # Fetch the current roles
+        result = user_table.get_item(Key={"UserId": user_id})
+        user = result.get("Item")
+        if not user:
+            return return_response(404, {"message": "User not found"})
+
+        current_roles = user.get("Role", [])
+        if not isinstance(current_roles, list):
+            current_roles = [current_roles]
+
+        if new_role in current_roles:
+            return return_response(200, {"message": f"Role '{new_role}' already assigned"})
+
+        updated_roles = current_roles + [new_role]
+
+        user_table.update_item(
+            Key={"UserId": user_id},
+            UpdateExpression="SET #r = :roles",
+            ExpressionAttributeNames={"#r": "Role"},
+            ExpressionAttributeValues={":roles": updated_roles}
+        )
+
+        return return_response(200, {"message": f"Role '{new_role}' added successfully"})
+
+    except Exception as e:
+        LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
+        return return_response(500, {"message": "Error updating user roles"})

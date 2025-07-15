@@ -33,7 +33,7 @@ interface User {
   name: string;
   email: string;
   role: string;
-  status: 'active' | 'inactive' | 'suspended';
+  status?: 'active' | 'inactive' | 'suspended'; // Make status optional
   lastLogin: string;
   workspaces: number;
   createdAt: string;
