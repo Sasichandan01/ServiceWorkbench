@@ -391,8 +391,8 @@ definitions:
             aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
 
 
-            # S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
-            S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+            # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
 
             # Get all .py files in the category
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
@@ -740,39 +740,51 @@ definitions:
           - echo "Uploading CloudFormation templates to S3..."
           - *authenticate
           - *upload_cf_templates
+    
+    - step: &update_selected_lambdas_with_layer_step
+        name: Update Selected Lambdas with Layer
+        oidc: true
+        script:
+          - echo "Updating selected Lambda functions with new layer version..."
+          - *authenticate
+          - *update_selected_lambdas_with_layer
 
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-abhishek:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
       
     wb-salma:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-*:
@@ -780,10 +792,11 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *deploy_infra_stack
       - step: *build_and_deploy_ui
 
