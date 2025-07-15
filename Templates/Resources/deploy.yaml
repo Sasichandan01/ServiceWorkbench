@@ -11,6 +11,10 @@ Parameters:
   LambdaArtifactVersion:
     Type: String
     Description: S3 path version folder for Lambda artifacts
+  
+  GlueArtifactVersion:
+    Type: String
+    Description: S3 path version folder for Glue artifacts
 
   ApiName:
     Type: String
@@ -928,7 +932,7 @@ Resources:
       Role: !GetAtt GlueJobRole.Arn
       Command:
         Name: glueetl
-        ScriptLocation: !Sub "s3://service-workbench-artifacts/lambda/RAGSyncGlueJob.py"
+        ScriptLocation: !Sub "s3://service-workbench-artifacts/glue-${GlueArtifactVersion}/ragsyncgluejob/RAGSyncGlueJob.py"
         PythonVersion: '3'
       DefaultArguments:
         '--job-language': 'python'
