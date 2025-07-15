@@ -891,7 +891,7 @@ Resources:
                   - dynamodb:ListTables
                 Resource:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
-
+ 
 
   AuroraDataSource:
     Type: AWS::Bedrock::DataSource
