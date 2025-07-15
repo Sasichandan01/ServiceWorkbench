@@ -144,11 +144,7 @@ const WorkspaceDetails = () => {
     SolutionService.getSolutions(id, {
       limit: 10,
       offset: page,
-<<<<<<< HEAD
-      filterby: search.trim() ? search : undefined,
-=======
       filterBy: search.trim() ? search : undefined,
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     })
       .then((data) => {
         setAllSolutions(data.Solutions || []);
@@ -161,11 +157,6 @@ const WorkspaceDetails = () => {
       });
   };
 
-<<<<<<< HEAD
-  // Fetch workspace details on mount, search, or page change
-  useEffect(() => {
-    fetchWorkspaceDetails();
-=======
   // Fetch workspace details only on mount or when id changes
   useEffect(() => {
     fetchWorkspaceDetails();
@@ -173,7 +164,6 @@ const WorkspaceDetails = () => {
 
   // Fetch solutions when search or page changes
   useEffect(() => {
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     fetchSolutions(solutionsSearch, solutionsPage);
   }, [id, solutionsSearch, solutionsPage]);
 
@@ -274,9 +264,6 @@ const WorkspaceDetails = () => {
       });
       return;
     }
-<<<<<<< HEAD
-
-=======
     if (newSolutionTags.length === 0) {
       toast({
         title: "Error",
@@ -285,15 +272,11 @@ const WorkspaceDetails = () => {
       });
       return;
     }
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     try {
       const response = await SolutionService.createSolution(id, {
         SolutionName: newSolutionName,
         Description: newSolutionDescription,
-<<<<<<< HEAD
-=======
         Tags: newSolutionTags,
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
       });
       toast({
         title: "Success",
@@ -302,19 +285,11 @@ const WorkspaceDetails = () => {
       setIsCreateSolutionDialogOpen(false);
       setNewSolutionName("");
       setNewSolutionDescription("");
-<<<<<<< HEAD
-      // Navigate to the new solution details page if SolutionId is returned
-      if (response && response.SolutionId) {
-        navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
-      } else {
-        // fallback: refresh solutions list
-=======
       setNewSolutionTags([]);
       setNewTagInput("");
       if (response && response.SolutionId) {
         navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
       } else {
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
         fetchSolutions("", 1);
       }
     } catch (error: any) {
@@ -402,21 +377,7 @@ const WorkspaceDetails = () => {
           </CardContent>
         </Card>
 
-<<<<<<< HEAD
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Database className="w-8 h-8 text-purple-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace?.dataSources || "0"}</p>
-                <p className="text-sm text-gray-600">Data Sources</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-=======
         {/* Removed Data Sources Card */}
->>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
         <Card>
           <CardContent className="pt-6">

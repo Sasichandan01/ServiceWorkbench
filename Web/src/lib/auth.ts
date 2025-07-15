@@ -156,3 +156,35 @@ export const clearAllAuthData = () => {
   
   console.log("All auth data cleared from browser");
 };
+
+export const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) throw new Error('No refresh token available');
+
+  const command = new InitiateAuthCommand({
+    ClientId: COGNITO_CONFIG.clientId,
+    AuthFlow: "REFRESH_TOKEN_AUTH",
+    AuthParameters: {
+      REFRESH_TOKEN: refreshToken,
+    },
+  });
+
+  try {
+    const response = await cognitoClient.send(command);
+    if (response.AuthenticationResult) {
+      const { AccessToken, IdToken } = response.AuthenticationResult;
+      if (AccessToken) {
+        localStorage.setItem('accessToken', AccessToken);
+      }
+      if (IdToken) {
+        localStorage.setItem('idToken', IdToken);
+      }
+      return response.AuthenticationResult;
+    } else {
+      throw new Error('No AuthenticationResult in refresh response');
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    throw error;
+  }
+};
