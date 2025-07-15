@@ -1099,6 +1099,9 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 'true'
+        RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1114,6 +1117,9 @@ Resources:
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 'true'
+        RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
