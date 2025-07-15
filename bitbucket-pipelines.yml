@@ -391,6 +391,7 @@ definitions:
         export LAMBDA_VERSION
         echo "$LAMBDA_VERSION" > .lambda_version
 
+
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
@@ -845,6 +846,7 @@ pipelines:
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
@@ -857,6 +859,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
