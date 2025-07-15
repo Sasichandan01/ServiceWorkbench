@@ -5,7 +5,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from datetime import datetime, timezone
 from Utils.utils import log_activity, paginate_list,return_response
-
+ 
 DYNAMO_DB = boto3.resource('dynamodb')
 
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
