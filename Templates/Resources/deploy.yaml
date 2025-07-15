@@ -946,7 +946,7 @@ Resources:
         '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
         '--AURORA_DS_ID': !Ref AuroraDataSource
         '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
-        '--OPENSEARCHDS_ID': !Ref OpensearchDataSource
+        '--OPENSEARCH_DS_ID': !Ref OpensearchDataSource
         '--OPENSEARCH_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--OPENSEARCH_S3_PREFIX': !Ref pWebScrapDocumentsPrefix
         '--AURORA_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
