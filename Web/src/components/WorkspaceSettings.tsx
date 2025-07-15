@@ -17,16 +17,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { WorkspaceService } from "../services/workspaceService";
 
 interface WorkspaceSettingsProps {
   workspaceName: string;
   workspaceId?: string;
   workspaceStatus: string;
+  workspaceDescription?: string;
+  workspaceType?: string;
+  workspaceTags?: string[];
   onWorkspaceDeleted?: () => void;
   onWorkspaceStatusChange?: (newStatus: string) => void;
+  onWorkspaceUpdated?: () => void;
 }
 
-const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWorkspaceDeleted, onWorkspaceStatusChange }: WorkspaceSettingsProps) => {
+const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, workspaceDescription = "", workspaceType = "Public", workspaceTags = [], onWorkspaceDeleted, onWorkspaceStatusChange, onWorkspaceUpdated }: WorkspaceSettingsProps) => {
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
@@ -35,10 +40,10 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWork
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState(workspaceName || "");
-  const [editDescription, setEditDescription] = useState("");
-  const [editType, setEditType] = useState("Public");
+  const [editDescription, setEditDescription] = useState(workspaceDescription || "");
+  const [editType, setEditType] = useState(workspaceType || "Public");
   const [editTagInput, setEditTagInput] = useState("");
-  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTags, setEditTags] = useState<string[]>(workspaceTags || []);
 
   // Tag input handlers
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -56,21 +61,34 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWork
   // Reset dialog state when opened
   const handleOpenEditDialog = () => {
     setEditName(workspaceName || "");
-    setEditDescription("");
-    setEditType("Public");
-    setEditTags([]);
+    setEditDescription(workspaceDescription || "");
+    setEditType(workspaceType || "Public");
+    setEditTags(workspaceTags || []);
     setEditTagInput("");
     setIsEditDialogOpen(true);
   };
 
-  const handleDeleteWorkspace = () => {
-    toast({
-      title: "Workspace Deleted",
-      description: "The workspace has been deleted successfully.",
-      variant: "destructive",
-    });
-    setIsDeleteDialogOpen(false);
-    onWorkspaceDeleted?.();
+  const handleDeleteWorkspace = async () => {
+    if (!workspaceId) return;
+    setLoading(true);
+    try {
+      await WorkspaceService.deleteWorkspace(workspaceId);
+      toast({
+        title: "Workspace Deleted",
+        description: "The workspace has been deleted successfully.",
+        variant: "destructive",
+      });
+      setIsDeleteDialogOpen(false);
+      onWorkspaceDeleted?.();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to delete workspace.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStatusChange = async () => {
@@ -96,6 +114,33 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWork
     }
   };
 
+  const handleSaveChanges = async () => {
+    if (!workspaceId) return;
+    try {
+      setLoading(true);
+      await WorkspaceService.updateWorkspace(workspaceId, {
+        WorkspaceName: editName,
+        Description: editDescription,
+        Tags: editTags,
+        WorkspaceType: editType,
+      });
+      toast({
+        title: "Workspace Updated",
+        description: "Workspace details updated successfully.",
+      });
+      setIsEditDialogOpen(false);
+      onWorkspaceUpdated?.();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update workspace.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -109,10 +154,6 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWork
           <DropdownMenuItem onClick={handleOpenEditDialog}>
             <Edit className="w-4 h-4 mr-2" />
             Edit Workspace
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Database className="w-4 h-4 mr-2" />
-            Data Sources
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
@@ -227,7 +268,7 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, onWork
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => setIsEditDialogOpen(false)}>
+            <Button onClick={handleSaveChanges} disabled={loading}>
               Save Changes
             </Button>
           </DialogFooter>

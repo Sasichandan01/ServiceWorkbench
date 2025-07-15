@@ -86,11 +86,11 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
         description: roleData.Description || "",
         permissions: parsePermissionsForForm(roleData.Permissions || [])
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching role details:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch role details. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
@@ -164,11 +164,11 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       setIsEditing(false);
       await fetchRoleDetails(roleDetails.Role);
       onRoleUpdated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating role:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update role. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     }
@@ -203,11 +203,11 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       setIsOpen(false);
       setShowDeleteConfirm(false);
       onRoleUpdated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting role:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete role. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     }

@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,17 @@ import SolutionOverviewCards from "@/components/SolutionOverviewCards";
 import SolutionInformation from "@/components/SolutionInformation";
 import ArchitectureDiagram from "@/components/ArchitectureDiagram";
 import RunHistory from "@/components/RunHistory";
-import { Play, Brain } from "lucide-react";
+import { Play, Brain, Trash2, Plus } from "lucide-react";
+import { SolutionService } from "../services/solutionService";
+import { WorkspaceService } from "../services/workspaceService";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { DatasourceService } from "../services/datasourceService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface RunHistoryItem {
   id: number;
@@ -26,24 +36,59 @@ const SolutionDetails = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Mock solution data - in a real app, this would come from an API
-  const solutionData = {
-    id: solutionId,
-    name: "Customer Segmentation",
-    description: "Advanced ML model for customer segmentation based on behavioral patterns and purchase history",
-    type: "ML Model",
-    status: "Development",
-    owner: "Sarah Chen",
-    created: "2024-01-15",
-    lastModified: "Just now",
-    version: "v1.0.0",
-    totalRuns: 0,
-  };
+  const [solution, setSolution] = useState<any>(null);
+  const [workspaceName, setWorkspaceName] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTagInput, setEditTagInput] = useState("");
+  const [editDatasources, setEditDatasources] = useState<string[]>([]);
+  const [allDatasources, setAllDatasources] = useState<any[]>([]);
+  const [datasourcePopoverOpen, setDatasourcePopoverOpen] = useState(false);
+  const [addDatasourceDialogOpen, setAddDatasourceDialogOpen] = useState(false);
+  const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
+  const [addingDatasource, setAddingDatasource] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const workspaceName = "Analytics Team";
+  // Fetch solution and workspace name on mount
+  useEffect(() => {
+    if (!workspaceId || !solutionId) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      SolutionService.getSolution(workspaceId, solutionId),
+      WorkspaceService.getWorkspace(workspaceId)
+    ])
+      .then(([solutionData, workspaceData]) => {
+        setSolution(solutionData);
+        setWorkspaceName(workspaceData.WorkspaceName);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message || "Failed to load solution details.");
+        setLoading(false);
+      });
+  }, [workspaceId, solutionId]);
 
-  // Mock run history data - empty for new solution
-  const [allRunHistory] = useState<RunHistoryItem[]>([]);
+  useEffect(() => {
+    if (!datasourcePopoverOpen) return;
+    DatasourceService.getDatasources({ limit: 50 }).then(res => {
+      setAllDatasources(res.Datasources || []);
+    });
+  }, [datasourcePopoverOpen]);
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500">Loading solution details...</div>;
+  }
+  if (error) {
+    return <div className="p-8 text-center text-red-500">{error}</div>;
+  }
+  if (!solution) {
+    return <div className="p-8 text-center text-gray-500">Solution not found.</div>;
+  }
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -67,7 +112,88 @@ const SolutionDetails = () => {
     navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`);
   };
 
-  const isNewSolution = solutionData.totalRuns === 0;
+  const isNewSolution = !solution.CftS3Path;
+
+  // Handler to open add datasource dialog
+  const handleOpenAddDatasource = () => {
+    setAddingDatasource(true);
+    DatasourceService.getDatasources({ limit: 50 }).then(res => {
+      setAllDatasources(res.Datasources || []);
+      setSelectedDatasources([]);
+    }).finally(() => setAddingDatasource(false));
+    setAddDatasourceDialogOpen(true);
+  };
+
+  // Handler to attach datasources
+  const handleAttachDatasources = async () => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      await SolutionService.updateSolutionDatasources(workspaceId, solutionId, selectedDatasources);
+      toast({ title: "Datasources Added", description: "Datasources attached to solution." });
+      setAddDatasourceDialogOpen(false);
+      // Refresh solution details
+      const updated = await SolutionService.getSolution(workspaceId, solutionId);
+      setSolution(updated);
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to add datasources.", variant: "destructive" });
+    }
+  };
+
+  // Handler to detach a datasource
+  const handleDetachDatasource = async (datasourceId: string) => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      const remaining = (solution.Datasources || []).filter((ds: any) => ds.DatasourceId !== datasourceId).map((ds: any) => ds.DatasourceId);
+      await SolutionService.updateSolutionDatasources(workspaceId, solutionId, remaining);
+      toast({ title: "Datasource Detached", description: "Datasource removed from solution." });
+      // Refresh solution details
+      const updated = await SolutionService.getSolution(workspaceId, solutionId);
+      setSolution(updated);
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to detach datasource.", variant: "destructive" });
+    }
+  };
+
+  // Handler to open edit dialog
+  const handleOpenEditDialog = () => {
+    setEditName(solution.SolutionName || "");
+    setEditDescription(solution.Description || "");
+    setEditTags(Array.isArray(solution.Tags) ? solution.Tags : []);
+    setEditTagInput("");
+    setEditDialogOpen(true);
+  };
+
+  // Handler to save edit details
+  const handleEditSave = async () => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      await SolutionService.updateSolution(workspaceId, solutionId, {
+        SolutionName: editName,
+        Description: editDescription,
+        Tags: editTags,
+        Datasources: Array.isArray(solution.Datasources) ? solution.Datasources.map((ds: any) => ds.DatasourceId) : [],
+      });
+      toast({ title: "Success", description: "Solution details updated." });
+      setEditDialogOpen(false);
+      // Refresh solution details
+      const updated = await SolutionService.getSolution(workspaceId, solutionId);
+      setSolution(updated);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Handler to delete solution
+  const handleDeleteSolution = async () => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      await SolutionService.deleteSolution(workspaceId, solutionId);
+      toast({ title: "Solution Deleted", description: "The solution has been deleted." });
+      navigate(`/workspaces/${workspaceId}`);
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to delete solution.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -75,43 +201,247 @@ const SolutionDetails = () => {
       <SolutionBreadcrumb 
         workspaceName={workspaceName}
         workspaceId={workspaceId}
-        solutionName={solutionData.name}
+        solutionName={solution.SolutionName}
       />
 
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{solutionData.name}</h1>
-          <p className="text-gray-600 mt-1">{solutionData.description}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{solution.SolutionName}</h1>
+          <p className="text-gray-600 mt-1">{solution.Description}</p>
         </div>
         <div className="flex items-center space-x-3">
-          {isNewSolution && (
-            <Button onClick={handleGenerateSolution} variant="outline">
-              <Brain className="w-4 h-4 mr-2" />
-              Generate Solution
-            </Button>
-          )}
+          <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
           <Button onClick={handleRunSolution} disabled={isNewSolution}>
             <Play className="w-4 h-4 mr-2" />
             Run Solution
           </Button>
+          {/* Delete Solution Button */}
+          <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Solution
+          </Button>
         </div>
       </div>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Solution</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this solution? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteSolution}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Solution Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Solution Details</DialogTitle>
+            <DialogDescription>Update the solution name, description, and tags.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-solution-name">Solution Name</Label>
+              <Input id="edit-solution-name" value={editName} onChange={e => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-solution-description">Description</Label>
+              <Textarea id="edit-solution-description" value={editDescription} onChange={e => setEditDescription(e.target.value)} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add a tag and press Enter"
+                  value={editTagInput}
+                  onChange={e => setEditTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && editTagInput.trim()) {
+                      e.preventDefault();
+                      if (!editTags.includes(editTagInput.trim())) {
+                        setEditTags([...editTags, editTagInput.trim()]);
+                      }
+                      setEditTagInput("");
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (editTagInput.trim() && !editTags.includes(editTagInput.trim())) {
+                      setEditTags([...editTags, editTagInput.trim()]);
+                    }
+                    setEditTagInput("");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Add
+                </Button>
+              </div>
+              {editTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {editTags.map((tag, idx) => (
+                    <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
+                      {tag}
+                      <button
+                        type="button"
+                        className="ml-1 text-blue-600 hover:text-red-600"
+                        onClick={() => setEditTags(editTags.filter(t => t !== tag))}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditSave}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Overview Cards */}
-      <SolutionOverviewCards solutionData={solutionData} />
+      <SolutionOverviewCards solutionData={solution} />
 
       {/* Solution Information */}
-      <SolutionInformation solutionData={solutionData} getStatusBadgeClass={getStatusBadgeClass} />
+      <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
 
-      {/* Architecture Diagram - only show if not a new solution */}
-      {!isNewSolution && <ArchitectureDiagram />}
+      {/* Datasources Table or Empty State */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Datasources</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {Array.isArray(solution.Datasources) && solution.Datasources.length > 0 ? (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left p-2">Name</th>
+                  <th className="text-left p-2">ID</th>
+                  <th className="text-left p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {solution.Datasources.map((ds: any, idx: number) => (
+                  <tr key={idx} className="border-t">
+                    <td className="p-2">{ds.DatasourceName}</td>
+                    <td className="p-2">{ds.DatasourceId}</td>
+                    <td className="p-2">
+                      <Button variant="destructive" size="sm" onClick={() => handleDetachDatasource(ds.DatasourceId)}>
+                        <Trash2 className="w-4 h-4" /> Detach
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8">
+              <p className="text-gray-500 mb-4">No datasources attached to this solution.</p>
+              <Button onClick={handleOpenAddDatasource}>
+                <Plus className="w-4 h-4 mr-2" /> Add Datasource
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Run History - only show if not a new solution */}
-      {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />}
+      {/* Add Datasource Dialog */}
+      <Dialog open={addDatasourceDialogOpen} onOpenChange={setAddDatasourceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Datasources</DialogTitle>
+            <DialogDescription>Select datasources to attach to this solution.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto py-2">
+            {addingDatasource ? (
+              <div className="text-center text-gray-500">Loading datasources...</div>
+            ) : (
+              allDatasources.map((ds: any) => (
+                <div key={ds.DatasourceId} className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id={`ds-${ds.DatasourceId}`}
+                    checked={selectedDatasources.includes(ds.DatasourceId)}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setSelectedDatasources(prev => [...prev, ds.DatasourceId]);
+                      } else {
+                        setSelectedDatasources(prev => prev.filter(id => id !== ds.DatasourceId));
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-900">{ds.DatasourceName}</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Array.isArray(ds.Tags) && ds.Tags.length > 0 ? (
+                        ds.Tags.map((tag: string, idx: number) => (
+                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 text-xs">No tags</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDatasourceDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAttachDatasources} disabled={selectedDatasources.length === 0}>
+              Add Selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Generate Solution Card - show for new solutions */}
-      {isNewSolution && (
+      {/* Resources Table */}
+      {Array.isArray(solution.Resources) && solution.Resources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resources</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left p-2">Type</th>
+                  <th className="text-left p-2">Name</th>
+                  <th className="text-left p-2">ARN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {solution.Resources.map((res: any, idx: number) => (
+                  <tr key={idx} className="border-t">
+                    <td className="p-2">{res.ResourceType}</td>
+                    <td className="p-2">{res.ResourceName}</td>
+                    <td className="p-2 break-all">{res.ResourceArn}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Architecture Diagram or Generate Solution Card */}
+      {!isNewSolution ? (
+        <ArchitectureDiagram />
+      ) : (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -139,6 +469,9 @@ const SolutionDetails = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Run History - only show if not a new solution */}
+      {/* {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />} */}
     </div>
   );
 };

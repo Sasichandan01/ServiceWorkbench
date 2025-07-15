@@ -6,12 +6,11 @@ export interface User {
   Email: string;
   Roles: string[] | string;
   ProfileImageURL?: string;
+  LastLoginTime?: string;
 }
 
 export interface UserListResponse {
   Users: User[];
-  TotalUsers: string;
-  TotalWorkspaces: string;
   Pagination: {
     Count: number;
     TotalCount: number;
@@ -30,9 +29,14 @@ export interface UpdateUserResponse {
 export class UserService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let errorMsg = '';
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      } catch {
+        errorMsg = await response.text();
+      }
+      throw new Error(errorMsg);
     }
     return response.json();
   };

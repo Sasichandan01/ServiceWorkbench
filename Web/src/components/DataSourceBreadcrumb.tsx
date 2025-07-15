@@ -14,8 +14,6 @@ interface DataSourceBreadcrumbProps {
 }
 
 const DataSourceBreadcrumb = ({ dataSourceName }: DataSourceBreadcrumbProps) => {
-  const { id } = useParams();
-
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -24,14 +22,10 @@ const DataSourceBreadcrumb = ({ dataSourceName }: DataSourceBreadcrumbProps) => 
             <Link to="/data-sources">Data Sources</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
-        {id && (
-          <>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{dataSourceName || `Data Source ${id}`}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </>
-        )}
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{dataSourceName || 'Data Source'}</BreadcrumbPage>
+        </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
   );
