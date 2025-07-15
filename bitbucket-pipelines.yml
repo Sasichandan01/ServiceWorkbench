@@ -66,12 +66,12 @@ definitions:
           exit 1
         fi
 
-        if [ -f ".glue_version" ]; then
-          export GLUE_VERSION=$(cat .glue_version)
-        else
-          echo "[ERROR] Glue version not found. Please run zip_and_upload_lambdas first."
-          exit 1
-        fi
+        # if [ -f ".glue_version" ]; then
+        #   export GLUE_VERSION=$(cat .glue_version)
+        # else
+        #   echo "[ERROR] Glue version not found. Please run zip_and_upload_lambdas first."
+        #   exit 1
+        # fi
 
         if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
@@ -94,7 +94,7 @@ definitions:
             --template-file "$TEMPLATE_FILE" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}" GlueArtifactVersion="${GLUE_VERSION}"  \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}"  \
             --s3-bucket "${S3_BUCKET}" \
             --s3-prefix "cf/${BRANCH_NAME}" \
             --no-fail-on-empty-changeset || {
@@ -451,10 +451,10 @@ definitions:
         DEST_BUCKET="service-workbench-artifacts"
 
         BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
-        GLUE_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
-        echo "Using Glue version: $GLUE_VERSION"
-        export GLUE_VERSION
-        echo "$GLUE_VERSION" > .glue_version
+        # GLUE_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
+        # echo "Using Glue version: $GLUE_VERSION"
+        # export GLUE_VERSION
+        # echo "$GLUE_VERSION" > .glue_version
 
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
@@ -462,7 +462,7 @@ definitions:
             echo "Cleaning up old Glue zips for: ${CATEGORY_NAME,,}"
             aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "glue-*/${CATEGORY_NAME,,}/*.py" || true
 
-            S3_PREFIX="glue-${GLUE_VERSION}/${CATEGORY_NAME,,}"
+            S3_PREFIX="glue/${CATEGORY_NAME,,}"
 
             # Get all relevant files in the category
             mapfile -t GLUE_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py" )
@@ -728,7 +728,7 @@ definitions:
           - *deploy_stack
         artifacts:
           - .lambda_version
-          - .glue_version
+          # - .glue_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -805,8 +805,8 @@ definitions:
           - echo "Zipping and uploading Glue scripts..."
           - *authenticate
           - *zip_and_upload_glue_scripts
-        artifacts:
-          - .glue_version
+        # artifacts:
+        #   - .glue_version
 
 pipelines:
   branches:
