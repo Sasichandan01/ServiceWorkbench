@@ -840,6 +840,8 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc/*"
                   - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc"
+                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-artifacts"
+                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-artifacts/*"
         - PolicyName: BedrockAccess
           PolicyDocument:
             Version: '2012-10-17'
