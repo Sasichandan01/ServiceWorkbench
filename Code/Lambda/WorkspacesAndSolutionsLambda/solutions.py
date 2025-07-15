@@ -48,6 +48,21 @@ def list_solutions(workspace_id, params,user_id):
         except ValueError:
             return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
 
+    if sort_order and sort_order not in ['asc', 'desc']:
+            return return_response(400, {"Error": "Invalid sort_by parameter. Must be 'asc' or 'desc'."})
+
+    if limit is not None:
+        try:
+            limit = int(limit)
+        except ValueError:
+            return return_response(400, {"Error": "Invalid limit parameter. Must be an integer."})
+
+    if offset is not None:
+        try:
+            offset = int(offset)
+        except ValueError:
+            return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
+
     response = WORKSPACES_TABLE.get_item(Key={"WorkspaceId": workspace_id})
     if 'Item' not in response:
         return {
@@ -98,8 +113,6 @@ def list_solutions(workspace_id, params,user_id):
         "LastUpdatedBy": item.get("LastUpdatedBy"),
         "LastUpdationTime": item.get("LastUpdationTime")
     } for item in items]
-
-    print(solutions)
 
     pagination_response = paginate_list(
         name='Solutions',

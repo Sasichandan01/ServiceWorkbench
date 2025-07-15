@@ -827,8 +827,6 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           USERS_TABLE: !Ref UserTable
           CLIENT_ID: !Ref UserPoolClient
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2" 
@@ -929,6 +927,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-UserTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -937,9 +936,6 @@ Resources:
       KeySchema:
         - AttributeName: UserId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       GlobalSecondaryIndexes:
         - IndexName: EmailIndex
           KeySchema:
@@ -947,9 +943,6 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: 1
-            WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -958,15 +951,13 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "Workbench-${pPrefix}-ActivityLogsTable"
+      BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1288,7 +1279,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchuserslambda/WorkbenchUsersLambda.zip"
+        S3Key: !Sub "lambda/workbenchuserslambda/WorkbenchUsersLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1613,7 +1604,7 @@ Outputs:
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-
+  
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
@@ -1640,4 +1631,4 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-  
+   

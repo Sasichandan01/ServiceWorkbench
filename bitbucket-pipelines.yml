@@ -383,10 +383,10 @@ definitions:
         echo "Using Lambda version: $LAMBDA_VERSION"
         export LAMBDA_VERSION
         echo "$LAMBDA_VERSION" > .lambda_version
+
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-
             echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
             aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
 
@@ -435,7 +435,74 @@ definitions:
           fi
         done
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
-  
+    
+    - script: &zip_and_upload_glue_scripts
+        |
+        set -e
+        echo "Zipping and uploading Glue scripts under Code/Glue to S3..."
+        BASE_DIR="Code/Glue"
+        DEST_BUCKET="service-workbench-artifacts"
+        GLUE_ZIP_DIR="glue_zips"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+
+        mkdir -p "$GLUE_ZIP_DIR"
+        trap "rm -rf $GLUE_ZIP_DIR" EXIT
+        GLUE_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
+        echo "Using Glue version: $GLUE_VERSION"
+        export GLUE_VERSION
+        echo "$GLUE_VERSION" > .glue_version
+
+        for CATEGORY in "$BASE_DIR"/*; do
+          if [ -d "$CATEGORY" ]; then
+            CATEGORY_NAME=$(basename "$CATEGORY")
+            echo "Cleaning up old Glue zips for: ${CATEGORY_NAME,,}"
+            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "glue-*/${CATEGORY_NAME,,}/*.zip" || true
+
+            S3_PREFIX="glue-${GLUE_VERSION}/${CATEGORY_NAME,,}"
+
+            # Get all relevant files in the category
+            mapfile -t GLUE_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py" )
+            if [ ${#GLUE_FILES[@]} -eq 0 ]; then
+              echo "No Glue files found in $CATEGORY"
+              continue
+            fi
+            if [ ${#GLUE_FILES[@]} -eq 1 ]; then
+              FILE_PATH="${GLUE_FILES[0]}"
+              FILE_NAME=$(basename "$FILE_PATH")
+              ZIP_NAME="${FILE_NAME}.zip"
+              TEMP_DIR="${GLUE_ZIP_DIR}/temp_${FILE_NAME}"
+
+              echo "Processing single file $FILE_PATH -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              cp "$FILE_PATH" "$TEMP_DIR/$FILE_NAME"
+            else
+              ZIP_NAME="${CATEGORY_NAME}.zip"
+              TEMP_DIR="${GLUE_ZIP_DIR}/temp_${CATEGORY_NAME}"
+
+              echo "Processing multiple files in $CATEGORY_NAME -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              for FILE in "${GLUE_FILES[@]}"; do
+                cp "$FILE" "$TEMP_DIR/"
+              done
+            fi
+
+            ZIP_PATH="${GLUE_ZIP_DIR}/${ZIP_NAME}"
+
+            (
+              cd "$TEMP_DIR"
+              zip -r "../${ZIP_NAME}" . > /dev/null
+            )
+            rm -rf "$TEMP_DIR"
+            echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
+            aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}" || {
+              echo "[ERROR] Failed to upload ${ZIP_PATH}"
+              exit 1
+            }
+          fi
+        done
+        echo "All Glue zips uploaded to S3 under glue/<folder>/ structure."
+
     - script: &zip_and_upload_layers
         |
         set -e

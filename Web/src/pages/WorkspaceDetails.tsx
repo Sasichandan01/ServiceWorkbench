@@ -72,6 +72,8 @@ const WorkspaceDetails = () => {
   const [isCreateSolutionDialogOpen, setIsCreateSolutionDialogOpen] = useState(false);
   const [newSolutionName, setNewSolutionName] = useState("");
   const [newSolutionDescription, setNewSolutionDescription] = useState("");
+  const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -142,7 +144,7 @@ const WorkspaceDetails = () => {
     SolutionService.getSolutions(id, {
       limit: 10,
       offset: page,
-      filterby: search.trim() ? search : undefined,
+      filterBy: search.trim() ? search : undefined,
     })
       .then((data) => {
         setAllSolutions(data.Solutions || []);
@@ -155,9 +157,13 @@ const WorkspaceDetails = () => {
       });
   };
 
-  // Fetch workspace details on mount, search, or page change
+  // Fetch workspace details only on mount or when id changes
   useEffect(() => {
     fetchWorkspaceDetails();
+  }, [id]);
+
+  // Fetch solutions when search or page changes
+  useEffect(() => {
     fetchSolutions(solutionsSearch, solutionsPage);
   }, [id, solutionsSearch, solutionsPage]);
 
@@ -250,7 +256,6 @@ const WorkspaceDetails = () => {
       });
       return;
     }
-
     if (!newSolutionDescription.trim()) {
       toast({
         title: "Error",
@@ -259,11 +264,19 @@ const WorkspaceDetails = () => {
       });
       return;
     }
-
+    if (newSolutionTags.length === 0) {
+      toast({
+        title: "Error",
+        description: "At least one tag is required.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const response = await SolutionService.createSolution(id, {
         SolutionName: newSolutionName,
         Description: newSolutionDescription,
+        Tags: newSolutionTags,
       });
       toast({
         title: "Success",
@@ -272,11 +285,11 @@ const WorkspaceDetails = () => {
       setIsCreateSolutionDialogOpen(false);
       setNewSolutionName("");
       setNewSolutionDescription("");
-      // Navigate to the new solution details page if SolutionId is returned
+      setNewSolutionTags([]);
+      setNewTagInput("");
       if (response && response.SolutionId) {
         navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
       } else {
-        // fallback: refresh solutions list
         fetchSolutions("", 1);
       }
     } catch (error: any) {
@@ -364,17 +377,7 @@ const WorkspaceDetails = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Database className="w-8 h-8 text-purple-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace?.dataSources || "0"}</p>
-                <p className="text-sm text-gray-600">Data Sources</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Removed Data Sources Card */}
 
         <Card>
           <CardContent className="pt-6">
@@ -462,6 +465,58 @@ const WorkspaceDetails = () => {
                       rows={3}
                       disabled={workspaceStatus === 'Inactive'}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="solution-tags">Tags <span className="text-red-500">*</span></Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="solution-tags"
+                        placeholder="Add a tag and press Enter"
+                        value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newTagInput.trim()) {
+                            e.preventDefault();
+                            if (!newSolutionTags.includes(newTagInput.trim())) {
+                              setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                            }
+                            setNewTagInput("");
+                          }
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (newTagInput.trim() && !newSolutionTags.includes(newTagInput.trim())) {
+                            setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                          }
+                          setNewTagInput("");
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {newSolutionTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {newSolutionTags.map((tag, idx) => (
+                          <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
+                            {tag}
+                            <button
+                              type="button"
+                              className="ml-1 text-blue-600 hover:text-red-600"
+                              onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
+                              disabled={workspaceStatus === 'Inactive'}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>

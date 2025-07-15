@@ -29,7 +29,7 @@ def lambda_handler(event, context):
             'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             'ResourceName': 'CognitoPostAuth',
             'ResourceType': 'Cognito',
-            'ResourceId': str(uuid.uuid4()),
+            'ResourceId': user_id
         }
 
         LOGGER.info(f"Logging login for user {user_id}")

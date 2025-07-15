@@ -178,13 +178,13 @@ def lambda_handler(event, context):
 
         log_item = {
             'LogId': str(uuid.uuid4()),
-            'ResourceId': str(uuid.uuid4()),
             'UserId': user_id,
             'Action': 'ACCOUNT CREATED',
             'Email': email,
             'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             'ResourceName': 'CognitoPostAuth',
-            'ResourceType': 'Cognito'
+            'ResourceType': 'Cognito',
+            'ResourceId': user_id
         }
         LOGGER.info(f"Logging login for user {user_id}")
         ACTIVITY_LOGS_TABLE.put_item(Item=log_item)

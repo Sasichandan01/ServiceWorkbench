@@ -71,7 +71,7 @@ export class RoleService {
   static async assignRole(data: AssignRoleRequest): Promise<{ Message: string }> {
     // Call /users/{userId}?action=role with body { Role: string }
     const endpoint = `/users/${data.UserId}?action=role`;
-    const response = await ApiClient.post(endpoint, { Role: data.Role });
+    const response = await ApiClient.put(endpoint, { Role: data.Role });
     return this.handleResponse<{ Message: string }>(response);
   }
 
