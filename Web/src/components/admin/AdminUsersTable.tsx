@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,7 +92,7 @@ const AdminUsersTable = () => {
           name: user.Username,
           email: user.Email,
           role: Array.isArray(user.Roles) ? user.Roles[0] : user.Roles as string,
-          lastLogin: (user as any).LastLoginTime || "Unknown",
+          lastLogin: user.LastLoginTime || "Unknown",
           workspaces: Math.floor(Math.random() * 5) + 1, // Mock data for workspaces if not in API
           createdAt: new Date().toISOString().split('T')[0] // Mock data
         }));
@@ -230,7 +229,14 @@ const AdminUsersTable = () => {
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
                     <TableCell>
-                      <UserProfileDialog userId={user.id} />
+                      <UserProfileDialog 
+                        userId={user.id}
+                        trigger={
+                          <Button variant="ghost" size="icon" aria-label="Edit user profile">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))

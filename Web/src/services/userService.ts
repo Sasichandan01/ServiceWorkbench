@@ -6,6 +6,7 @@ export interface User {
   Email: string;
   Roles: string[] | string;
   ProfileImageURL?: string;
+  LastLoginTime?: string;
 }
 
 export interface UserListResponse {

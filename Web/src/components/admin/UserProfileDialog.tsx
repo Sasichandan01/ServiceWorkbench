@@ -256,16 +256,8 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
 
   // Update getAvailableRolesToAssign to filter out roles the user already has (by 'Role')
   const getAvailableRolesToAssign = () => {
-    let userRoles: string[] = [];
-    if (Array.isArray((user as any)?.Roles)) {
-      userRoles = (user as any).Roles;
-    } else if (Array.isArray((user as any)?.Role)) {
-      userRoles = (user as any).Role;
-    }
-    return availableRoles.filter(roleObj => {
-      const roleName = roleObj.Role || roleObj.RoleName;
-      return roleName && !userRoles.includes(roleName);
-    });
+    const userRoles = getUserRoles();
+    return availableRoles.filter(role => role.Role && !userRoles.includes(role.Role));
   };
 
   return (
@@ -523,9 +515,9 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
                               <SelectValue placeholder="Select a role" />
                             </SelectTrigger>
                             <SelectContent>
-                              {getAvailableRolesToAssign().map((role) => (
-                                <SelectItem key={role.Role || role.RoleName} value={role.Role || role.RoleName || ""}>
-                                  {role.Role || role.RoleName}
+                              {getAvailableRolesToAssign().map(role => (
+                                <SelectItem key={role.Role} value={role.Role}>
+                                  {role.Role}
                                 </SelectItem>
                               ))}
                             </SelectContent>
