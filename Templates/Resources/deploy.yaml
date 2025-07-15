@@ -834,8 +834,8 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource:
-                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc*"
-                  - !Sub "arn:aws:s3:::bhargav-genai-s3*"
+                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc/*"
+                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc"
         - PolicyName: BedrockAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -879,7 +879,8 @@ Resources:
                   - dynamodb:ListTables
                   - dynamodb:ExportTableToPointInTime
                   - dynamodb:DescribeExport
-                Resource: "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-${pPrefix}-*"
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-${pPrefix}-*"
 
 
   AuroraDataSource:
