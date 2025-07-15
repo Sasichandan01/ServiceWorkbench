@@ -18,13 +18,10 @@ from datetime import datetime, timezone, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 class DynamoDBExportGlueJob:
-    """Fetches data from DDB and stores in s3 and ingests into knowledge base"""
     def __init__(self, dynamodb_table_prefix, s3_export_bucket_name, s3_export_prefix,
                  bedrock_knowledge_base_id, bedrock_data_source_id, wait_for_sync,
                  aws_region, aws_account_id, job_name):
-        """Initialize the DynamoDBExportGlueJob with required AWS and job parameters."""
         self.dynamodb_client = boto3.client('dynamodb', region_name=aws_region)
         self.bedrock_agent_client = boto3.client('bedrock-agent', region_name=aws_region)
         self.dynamodb_table_prefix = dynamodb_table_prefix
@@ -39,7 +36,6 @@ class DynamoDBExportGlueJob:
         self.aws_partition = self.dynamodb_client.meta.partition
 
     def get_dynamodb_tables_with_prefix(self, prefix):
-        """Return a list of DynamoDB table names that start with the given prefix."""
         table_names = []
         paginator = self.dynamodb_client.get_paginator('list_tables')
         response_iterator = paginator.paginate()
@@ -50,7 +46,6 @@ class DynamoDBExportGlueJob:
         return table_names
 
     def run_export_and_ingestion(self):
-        """Run the export of DynamoDB tables and trigger Bedrock ingestion."""
         logger.info(f"DynamoDB Export: Discovering tables with prefix: {self.dynamodb_table_prefix}")
         matching_tables = self.get_dynamodb_tables_with_prefix(self.dynamodb_table_prefix)
 
@@ -168,11 +163,8 @@ class DynamoDBExportGlueJob:
 
         logger.info("DynamoDB Export: Process completed.")
 
-
 class WebScraperGlueJob:
-    """Scrapes web pages, stores content in S3, and triggers Bedrock ingestion."""
     def __init__(self, s3_bucket, s3_prefix, kb_id, ds_id, job_name, region):
-        """Initialize the WebScraperGlueJob with S3, Bedrock, and job parameters."""
         self.s3_client = boto3.client('s3')
         self.bedrock_agent_client = boto3.client('bedrock-agent', region_name=region)
         self.s3_bucket = s3_bucket
@@ -198,7 +190,6 @@ class WebScraperGlueJob:
         })
     
     def clean_s3_data(self):
-        """Delete all objects under the specified S3 prefix."""
         logger.info(f"Web Scraper: Cleaning S3 data from s3://{self.s3_bucket}/{self.s3_prefix}")
         
         try:
@@ -233,7 +224,6 @@ class WebScraperGlueJob:
             raise
     
     def should_follow(self, url: str, domain: str, allowed_prefixes: dict) -> bool:
-        """Determine if a URL should be followed based on domain and allowed prefixes."""
         if not allowed_prefixes.get(domain):
             return False
             
@@ -252,7 +242,6 @@ class WebScraperGlueJob:
         return url.lower().endswith(".html")
     
     def url_to_txt_s3_key(self, url: str, domain: str) -> str:
-        """Convert a URL to a corresponding S3 key for storing text content."""
         key = url.replace("https://", "").replace("/", "_")
         if not key.endswith(".txt"):
             key += ".txt"
@@ -263,7 +252,6 @@ class WebScraperGlueJob:
             return f"{domain}/{key}"
     
     def check_if_already_processed(self, url: str, domain: str) -> bool:
-        """Check if the URL has already been processed and stored in S3."""
         try:
             txt_key = self.url_to_txt_s3_key(url, domain)
             self.s3_client.head_object(Bucket=self.s3_bucket, Key=txt_key)
@@ -275,7 +263,6 @@ class WebScraperGlueJob:
             return False
     
     def find_main_container(self, soup: BeautifulSoup):
-        """Find the main content container in the HTML soup."""
         main = soup.select_one("#main-col-body") or soup.find("main") or soup.find("article")
         if main:
             return main
@@ -283,7 +270,6 @@ class WebScraperGlueJob:
         return max(candidates, key=lambda d: len(d.get_text(strip=True)), default=soup.body)
     
     def extract_and_clean(self, html: str) -> str:
-        """Extract and clean main text content from HTML."""
         soup = BeautifulSoup(html, "html.parser")
         
         for selector in ["script", "style", "header", "nav", "footer", ".breadcrumb", ".awsdocs-filter-selector"]:
@@ -300,7 +286,6 @@ class WebScraperGlueJob:
         return "\n".join(lines)
     
     def crawl_url(self, url: str, domain: str, allowed_prefixes: dict, urls_to_crawl: list):
-        """Crawl a single URL, process its content, and enqueue new links."""
         with self.lock:
             if url in self.visited:
                 return
@@ -353,7 +338,6 @@ class WebScraperGlueJob:
                 self.stats['failed'] += 1
     
     def process_urls(self, urls_to_process: dict, allowed_prefixes: dict):
-        """Process a batch of URLs for scraping and storage."""
         if not urls_to_process:
             logger.error("Web Scraper ERROR: No URLs configured to process")
             return {'processed': 0, 'skipped': 0, 'failed': 0}
@@ -401,7 +385,6 @@ class WebScraperGlueJob:
         return self.stats
     
     def trigger_kb_ingestion(self):
-        """Trigger a Bedrock knowledge base ingestion job."""
         try:
             logger.info("Web Scraper: Starting knowledge base ingestion job")
             
@@ -420,7 +403,6 @@ class WebScraperGlueJob:
             return None
     
     def monitor_ingestion_job(self, ingestion_job_id):
-        """Monitor the status of a Bedrock ingestion job until completion or timeout."""
         try:
             logger.info(f"Web Scraper: Monitoring ingestion job: {ingestion_job_id}")
             max_wait_time = 3600
@@ -463,7 +445,6 @@ class WebScraperGlueJob:
             return False
     
     def create_summary_report(self):
-        """Create and upload a summary report of the scraping job to S3."""
         summary = {
             'total_visited': len(self.visited),
             'visited_urls': list(self.visited),
@@ -491,7 +472,6 @@ class WebScraperGlueJob:
         return summary
 
 def main():
-    """Main entry point for the Glue job: runs DynamoDB export and web scraping in parallel."""
     args = getResolvedOptions(sys.argv, [
         'JOB_NAME',
         'DYNAMODB_TABLE_PREFIX',
@@ -637,19 +617,19 @@ def main():
             logger.info(f"Web Scraper: Triggered Bedrock ingestion job with ID: {ingestion_job_id}")
             return ingestion_job_id
 
-        with ThreadPoolExecutor(max_workers=6) as executor: 
+        with ThreadPoolExecutor(max_workers=70) as executor: 
             logger.info("Submitting DynamoDB Export and Web Scraping processes to run in parallel...")
-            
+            webscrape_future=None
+            ddb_future=None
             ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
             webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
 
             monitoring_futures = []
-
-            for future in as_completed([ddb_future, webscrape_future]):
+            active_futures = [fut for fut in [ddb_future, webscrape_future] if fut is not None]
+            for future in as_completed(active_futures):
                 task_name = "Unknown Task"
                 try:
                     if future is ddb_future:
-                        print(ddb_future)
                         task_name = "DynamoDB Export & Trigger"
                         ingestion_job_id = future.result()
                         logger.info(f"{task_name} completed. Bedrock Ingestion Job ID: {ingestion_job_id}")
