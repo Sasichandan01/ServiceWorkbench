@@ -3,10 +3,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Calendar, Clock } from "lucide-react";
 
 interface SolutionData {
-  owner: string;
-  status: string;
-  created: string;
-  lastModified: string;
+  CreatedBy: string;
+  CreationTime: string;
+  LastUpdatedBy: string;
+  LastUpdationTime: string;
 }
 
 interface SolutionInformationProps {
@@ -14,39 +14,29 @@ interface SolutionInformationProps {
   getStatusBadgeClass: (status: string) => string;
 }
 
-const SolutionInformation = ({ solutionData, getStatusBadgeClass }: SolutionInformationProps) => {
+const SolutionInformation = ({ solutionData }: SolutionInformationProps) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Solution Overview</CardTitle>
+        <CardTitle>Solution Information</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="text-sm font-medium text-gray-700">Owner</label>
-            <p className="mt-1 text-gray-900">{solutionData.owner}</p>
+            <label className="text-sm font-medium text-gray-700">Created By</label>
+            <p className="mt-1 text-gray-900">{solutionData.CreatedBy}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Status</label>
-            <div className="mt-1">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solutionData.status)}`}>
-                {solutionData.status}
-              </span>
-            </div>
+            <label className="text-sm font-medium text-gray-700">Last Updated By</label>
+            <p className="mt-1 text-gray-900">{solutionData.LastUpdatedBy}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Created</label>
-            <div className="mt-1 flex items-center space-x-1">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <p className="text-gray-900">{solutionData.created}</p>
-            </div>
+            <label className="text-sm font-medium text-gray-700">Created At</label>
+            <p className="mt-1 text-gray-900">{solutionData.CreationTime}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Last Modified</label>
-            <div className="mt-1 flex items-center space-x-1">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <p className="text-gray-900">{solutionData.lastModified}</p>
-            </div>
+            <label className="text-sm font-medium text-gray-700">Last Updated At</label>
+            <p className="mt-1 text-gray-900">{solutionData.LastUpdationTime}</p>
           </div>
         </div>
       </CardContent>
@@ -55,3 +45,4 @@ const SolutionInformation = ({ solutionData, getStatusBadgeClass }: SolutionInfo
 };
 
 export default SolutionInformation;
+

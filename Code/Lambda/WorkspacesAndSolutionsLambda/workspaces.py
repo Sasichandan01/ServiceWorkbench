@@ -6,7 +6,7 @@ from datetime import datetime,timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from Utils.utils import log_activity,return_response,paginate_list
-from FGAC.fgac import create_workspace_fgac
+from FGAC.fgac import create_workspace_fgac, check_workspace_access
 
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
@@ -82,6 +82,14 @@ def update_workspace(event, context):
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
+        
+        access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
+        if not access_type:
+            return return_response(403, {"Error": "Not authorized to perform this action"})
+        
+        if access_type not in ['editor', 'owner']:
+            return return_response(403, {"Error": "Not authorized to perform this action"})
+        
         queryParams=event.get('queryStringParameters')
         timestamp=str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         if queryParams and queryParams.get('action'):
@@ -175,6 +183,15 @@ def delete_workspace(event,context):
 
         if not workspace_response:
             return return_response(400, {"Error": "Workspace does not exist"})
+        
+        # Check user's access to the workspace
+        access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
+        if not access_type:
+            return return_response(403, {"Error": "Not authorized to perform this action"})
+        
+        # Only allow owner permissions to delete workspace
+        if access_type != 'owner':
+            return return_response(403, {"Error": "Not authorized to perform this action"})
 
         if workspace_response.get('WorkspaceStatus') == 'Active':
             return return_response(400, {"Error": "Workspace is already Active, cannot be deleted, Disable the workspace"})
@@ -201,6 +218,13 @@ def get_workspace(event,context):
         workspace_id=path_params.get('workspace_id')
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
+        if not workspace_response:
+            return return_response(400, {"Error": "Workspace does not exist"})
+        
+        access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
+        if not access_type:
+            return return_response(403, {"Error": "Not authorized to perform this action"})
+
         access_resource_response = resource_access_table.query(
             IndexName='AccessKey-Index',
             KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
@@ -215,9 +239,6 @@ def get_workspace(event,context):
 
         resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
         workspace_response.update({'Users':resp.get('body')})
-
-        if not workspace_response:
-            return return_response(400, {"Error": "Workspace does not exist"})
         
         return return_response(200, workspace_response)
     except Exception as e:

@@ -8,3 +8,5 @@ rules:
   empty-lines:
     max: 99
   document-start: disable
+  truthy: disable
+  braces: disable

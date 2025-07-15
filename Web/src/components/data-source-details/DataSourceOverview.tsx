@@ -66,28 +66,12 @@ const DataSourceOverview = ({ dataSource }: DataSourceOverviewProps) => {
             <Badge className={`${getTypeColor(dataSource.type)} border`}>
               {dataSource.type}
             </Badge>
-            <Badge className={`${getStatusColor(dataSource.status)} border`}>
-              {getStatusIcon(dataSource.status)}
-              <span className="ml-1">{dataSource.status}</span>
-            </Badge>
           </div>
         </div>
       </div>
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Status</p>
-                <p className="text-lg font-bold">{dataSource.status}</p>
-              </div>
-              {getStatusIcon(dataSource.status)}
-            </div>
-          </CardContent>
-        </Card>
-        
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">

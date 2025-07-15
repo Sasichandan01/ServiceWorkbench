@@ -59,24 +59,37 @@ definitions:
         COMMIT_MSG=$(git log -1 --pretty=%B)
         echo "Latest commit message: ${COMMIT_MSG}"
 
+        if [ -f ".lambda_version" ]; then
+          export LAMBDA_VERSION=$(cat .lambda_version)
+        else
+          echo "[ERROR] Lambda version not found. Please run zip_and_upload_lambdas first."
+          exit 1
+        fi
+
         if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
           STACK_NAME="${BRANCH_NAME}-deployment"
+          TEMPLATE_FILE="Templates/Resources/deploy.yaml"
+          S3_BUCKET="service-workbench-artifacts"
+          S3_KEY="cf/${BRANCH_NAME}/deploy.yaml"
 
-          if [ ! -f "Templates/Resources/deploy.yaml" ]; then
-            echo "[ERROR] Templates/Resources/deploy.yaml not found"
-            exit 1
-          fi
+
+          # if [ ! -f "Templates/Resources/deploy.yaml" ]; then
+          #   echo "[ERROR] Templates/Resources/deploy.yaml not found"
+          #   exit 1
+          # fi
 
           chmod +x Scripts/swagger-replacement.sh
           ./Scripts/swagger-replacement.sh "${BRANCH_NAME}"
           
           aws cloudformation deploy \
-            --template-file Templates/Resources/deploy.yaml \
+            --template-file "$TEMPLATE_FILE" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}" \
+            --s3-bucket "${S3_BUCKET}" \
+            --s3-prefix "cf/${BRANCH_NAME}" \
             --no-fail-on-empty-changeset || {
               echo "[ERROR] CloudFormation deployment failed"
               exit 1
@@ -100,22 +113,52 @@ definitions:
           exit 1
         fi
 
-        if [ ! -f "Templates/Resources/infra.yaml" ]; then
-          echo "[ERROR] Templates/Resources/infra.yaml not found"
-          exit 1
-        fi
+        # if [ ! -f "Templates/Resources/infra.yaml" ]; then
+        #   echo "[ERROR] Templates/Resources/infra.yaml not found"
+        #   exit 1
+        # fi
 
         STACK_NAME="${BRANCH_NAME}-infra"
+        TEMPLATE_FILE="Templates/Resources/infra.yaml"
+        S3_BUCKET="service-workbench-artifacts"
+        S3_KEY="cf/${BRANCH_NAME}/infra.yaml"
         echo "Deploying infrastructure stack: $STACK_NAME"
 
         aws cloudformation deploy \
-          --template-file Templates/Resources/infra.yaml \
+          --template-file "$TEMPLATE_FILE" \
           --stack-name "$STACK_NAME" \
           --capabilities CAPABILITY_NAMED_IAM \
+          --s3-bucket "${S3_BUCKET}" \
+          --s3-prefix "cf/${BRANCH_NAME}" \
           --parameter-overrides pApplicationPrefix="${BRANCH_NAME}" || {
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
+
+    - script: &upload_cf_templates
+        |
+        set -e
+        echo "Uploading CloudFormation templates to S3..."
+        
+        CF_S3_BUCKET="service-workbench-artifacts"
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+
+        for TEMPLATE in Templates/Resources/deploy.yaml Templates/Resources/infra.yaml; do
+          if [ -f "$TEMPLATE" ]; then
+            FILE_NAME=$(basename "$TEMPLATE")
+            S3_KEY="cf/${BRANCH_NAME}/${FILE_NAME}"
+            echo "Uploading $TEMPLATE to s3://${CF_S3_BUCKET}/${S3_KEY}"
+            aws s3 cp "$TEMPLATE" "s3://${CF_S3_BUCKET}/${S3_KEY}" || {
+              echo "[ERROR] Failed to upload $TEMPLATE"
+              exit 1
+            }
+          else
+            echo "[WARN] Template not found: $TEMPLATE"
+          fi
+        done
+
+        echo "CloudFormation templates uploaded successfully."
+
 
     - script: &build_ui
         |
@@ -245,62 +288,84 @@ definitions:
         |
         set -e
 
-        if [ -z "$LAMBDA_NAME" ]; then
-          echo "[ERROR] LAMBDA_NAME is required"
+        if [ -z "$LAMBDA_NAME" ] || [ -z "$S3_KEY" ]; then
+          echo "[ERROR] LAMBDA_NAME and S3_KEY are required"
           exit 1
         fi
 
         S3_BUCKET="service-workbench-artifacts"
-        ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
-        BASE_DIR="Code"
+        REGION="us-east-1"
 
-        echo "Listing contents of $BASE_DIR:"
-        ls -alR "$BASE_DIR"
+        echo "Updating Lambda '$LAMBDA_NAME' using S3 object s3://${S3_BUCKET}/${S3_KEY}..."
 
-        echo "Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
-        MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
-
-        if [ -z "$MATCHING_FILES" ]; then
-          echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
-          exit 1
-        fi
-
-        NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
-        if [ "$NUM_MATCHES" -gt 1 ]; then
-          echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
-          echo "$MATCHING_FILES"
-          exit 1
-        fi
-
-        FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
-
-        echo "Found Lambda file: $FILE_PATH"
-
-        # Copy and rename to a temp location as lambda_function.py
-        TEMP_FILE="/tmp/lambda_function.py"
-        cp "$FILE_PATH" "$TEMP_FILE"
-
-        echo "Creating zip with renamed file as lambda_function.py"
-        zip -j "$ZIP_PATH" "$TEMP_FILE" || {
-          echo "[ERROR] Failed to create zip"
-          exit 1
-        }
-
-        echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
-        aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
-          echo "[ERROR] Failed to upload to S3"
-          exit 1
-        }
-
-        echo "Updating Lambda: $LAMBDA_NAME"
         aws lambda update-function-code \
           --function-name "$LAMBDA_NAME" \
-          --zip-file "fileb://${ZIP_PATH}" || {
-            echo "[ERROR] Lambda update failed"
+          --s3-bucket "$S3_BUCKET" \
+          --s3-key "$S3_KEY" \
+          --region "$REGION" || {
+            echo "[ERROR] Failed to update Lambda function"
             exit 1
           }
 
-        echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
+        echo "Lambda '$LAMBDA_NAME' updated successfully using ZIP from S3."
+        # set -e
+
+        # if [ -z "$LAMBDA_NAME" ]; then
+        #   echo "[ERROR] LAMBDA_NAME is required"
+        #   exit 1
+        # fi
+
+        # S3_BUCKET="service-workbench-artifacts"
+        # ZIP_PATH="/tmp/${LAMBDA_NAME}.zip"
+        # BASE_DIR="Code"
+
+        # echo "Listing contents of $BASE_DIR:"
+        # ls -alR "$BASE_DIR"
+
+        # echo "Searching for file named '${LAMBDA_NAME}.py' inside '$BASE_DIR'..."
+        # MATCHING_FILES=$(find "$BASE_DIR" -type f -name "${LAMBDA_NAME}.py")
+
+        # if [ -z "$MATCHING_FILES" ]; then
+        #   echo "[ERROR] No file found named '${LAMBDA_NAME}.py' under $BASE_DIR"
+        #   exit 1
+        # fi
+
+        # NUM_MATCHES=$(echo "$MATCHING_FILES" | wc -l)
+        # if [ "$NUM_MATCHES" -gt 1 ]; then
+        #   echo "[ERROR] Multiple files found named '${LAMBDA_NAME}.py':"
+        #   echo "$MATCHING_FILES"
+        #   exit 1
+        # fi
+
+        # FILE_PATH=$(echo "$MATCHING_FILES" | head -n1)
+
+        # echo "Found Lambda file: $FILE_PATH"
+
+        # # Copy and rename to a temp location as lambda_function.py
+        # TEMP_FILE="/tmp/lambda_function.py"
+        # cp "$FILE_PATH" "$TEMP_FILE"
+
+        # echo "Creating zip with renamed file as lambda_function.py"
+        # zip -j "$ZIP_PATH" "$TEMP_FILE" || {
+        #   echo "[ERROR] Failed to create zip"
+        #   exit 1
+        # }
+
+        # echo "Uploading to S3: s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip"
+        # aws s3 cp "$ZIP_PATH" "s3://${S3_BUCKET}/lambda/${LAMBDA_NAME}.zip" || {
+        #   echo "[ERROR] Failed to upload to S3"
+        #   exit 1
+        # }
+
+        # echo "Updating Lambda: $LAMBDA_NAME"
+        # aws lambda update-function-code \
+        #   --function-name "$LAMBDA_NAME" \
+        #   --zip-file "fileb://${ZIP_PATH}" || {
+        #     echo "[ERROR] Lambda update failed"
+        #     exit 1
+        #   }
+
+        # echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
     - script: &zip_and_upload_lambdas
         |
@@ -314,10 +379,21 @@ definitions:
 
         mkdir -p "$LAMBDA_ZIP_DIR"
         trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
+        LAMBDA_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
+        echo "Using Lambda version: $LAMBDA_VERSION"
+        export LAMBDA_VERSION
+        echo "$LAMBDA_VERSION" > .lambda_version
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-            S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+
+            echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
+            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
+
+
+            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+            # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
+
             # Get all .py files in the category
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py")
             if [ ${#PY_FILES[@]} -eq 0 ]; then
@@ -370,6 +446,8 @@ definitions:
         LAYER_ZIP_DIR="layer_zips"
         ZIP_NAME="layer.zip"
         ZIP_PATH="${LAYER_ZIP_DIR}/${ZIP_NAME}"
+        REGION="us-east-1"
+        LAYER_NAME="ServiceWorkbenchLambdaLayer"
 
         mkdir -p "$LAYER_ZIP_DIR"
         # trap "rm -rf $LAYER_ZIP_DIR /tmp/layer_temp" EXIT
@@ -377,6 +455,7 @@ definitions:
         TEMP_LAYER_DIR="/tmp/layer_temp"
         PYTHON_DIR="${TEMP_LAYER_DIR}/python"
 
+        rm -rf "$TEMP_LAYER_DIR"
         mkdir -p "$PYTHON_DIR"
 
         echo "Copying all files and folders from $BASE_DIR to $PYTHON_DIR"
@@ -402,6 +481,19 @@ definitions:
           echo "[ERROR] Upload to S3 failed"
           exit 1
         }
+
+        echo "Publishing new Lambda Layer version..."
+        PUBLISH_OUTPUT=$(aws lambda publish-layer-version \
+          --layer-name "$LAYER_NAME" \
+          --description "Updated layer from CI script" \
+          --content S3Bucket="$DEST_BUCKET",S3Key="layer/${ZIP_NAME}" \
+          --compatible-runtimes python3.8 python3.9 python3.10 \
+          --region "$REGION") || {
+            echo "[ERROR] Failed to publish layer"
+            exit 1
+          }
+
+        NEW_LAYER_ARN=$(echo "$PUBLISH_OUTPUT" | jq -r '.LayerVersionArn')
 
         echo "Layer zip created and uploaded successfully — only includes 'python/' directory"
 
@@ -586,6 +678,8 @@ definitions:
           - echo "Starting deployment process..."
           - *authenticate
           - *deploy_stack
+        artifacts:
+          - .lambda_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -628,6 +722,8 @@ definitions:
           - echo "Zipping and uploading lambda files..."
           - *authenticate
           - *zip_and_upload_lambdas
+        artifacts:
+          - .lambda_version
 
     - step: &update_branch_lambdas
         name: Update Branch Lambda Functions
@@ -636,35 +732,59 @@ definitions:
           - echo "Updating Lambda functions for current branch..."
           - *authenticate
           - *update_branch_specific_lambdas
+    
+    - step: &update_cftemplates
+        name: Upload CloudFormation Templates
+        oidc: true
+        script:
+          - echo "Uploading CloudFormation templates to S3..."
+          - *authenticate
+          - *upload_cf_templates
+    
+    - step: &update_selected_lambdas_with_layer_step
+        name: Update Selected Lambdas with Layer
+        oidc: true
+        script:
+          - echo "Updating selected Lambda functions with new layer version..."
+          - *authenticate
+          - *update_selected_lambdas_with_layer
 
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
-      - step: *deploy
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_cftemplates
+      - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-abhishek:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
       
     wb-salma:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-bhargav:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
 
     wb-*:
@@ -672,9 +792,11 @@ pipelines:
 
     develop:
       - step: *lint_and_validate
-      - step: *zipping_and_uploading_layers
+      # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *update_cftemplates
       - step: *deploy
+      - step: *update_selected_lambdas_with_layer_step
       - step: *deploy_infra_stack
       - step: *build_and_deploy_ui
 
@@ -704,11 +826,18 @@ pipelines:
             default: "abc"
             required: true
             description: "Enter the AWS Lambda function name (e.g., lambda1)"
+          
+          - name: S3_KEY
+            default: "lambda/user/users_handler.zip"
+            required: true
+            description: "S3 key for the Lambda ZIP file (e.g., lambda/user/users_handler.zip)"
+
       - step:
           name: Update Lambda Function (Manual)
           oidc: true
           script:
             - *authenticate
+            - *zip_and_upload_lambdas
             - *update_lambda_code
 
     Zip-upload-and-update-lambdas:

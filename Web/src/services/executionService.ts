@@ -32,9 +32,14 @@ export interface CreateExecutionResponse {
 export class ExecutionService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', errorText);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let errorMsg = '';
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      } catch {
+        errorMsg = await response.text();
+      }
+      throw new Error(errorMsg);
     }
     return response.json();
   };

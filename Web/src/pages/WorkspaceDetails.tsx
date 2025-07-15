@@ -13,6 +13,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { useToast } from "@/hooks/use-toast";
 import WorkspaceSettings from "@/components/WorkspaceSettings";
 import WorkspaceBreadcrumb from "@/components/WorkspaceBreadcrumb";
+import UserProfileDialog from "@/components/admin/UserProfileDialog";
 import { 
   Users, 
   Plus, 
@@ -71,6 +72,8 @@ const WorkspaceDetails = () => {
   const [isCreateSolutionDialogOpen, setIsCreateSolutionDialogOpen] = useState(false);
   const [newSolutionName, setNewSolutionName] = useState("");
   const [newSolutionDescription, setNewSolutionDescription] = useState("");
+  const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -89,19 +92,17 @@ const WorkspaceDetails = () => {
   const [allSolutions, setAllSolutions] = useState<any[]>([]);
   const [solutionsLoading, setSolutionsLoading] = useState(true);
   const [solutionsError, setSolutionsError] = useState<string | null>(null);
+  const [solutionsTotalCount, setSolutionsTotalCount] = useState(0);
 
   // Users: keep mock for now
   const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([]);
 
-  // Fetch workspace details and solutions on mount/id change
-  useEffect(() => {
+  // Add a function to refetch workspace details
+  const fetchWorkspaceDetails = () => {
     if (!id) return;
     setWorkspaceLoading(true);
     setWorkspaceError(null);
-    setSolutionsLoading(true);
-    setSolutionsError(null);
-
-    WorkspaceService.getWorkspace(id)
+    WorkspaceService.getWorkspace(id, { limit: 10, offset: 1 })
       .then((data) => {
         setWorkspace({
           id: data.WorkspaceId,
@@ -111,12 +112,13 @@ const WorkspaceDetails = () => {
           owner: data.CreatedBy,
           created: data.CreationTime,
           members: data.Users?.Pagination?.TotalCount || 0,
-          solutions: 0, // Update if you have solutions count elsewhere
-          dataSources: 0, // Update if you have data sources count elsewhere
-          monthlyCost: 0, // Update if you have cost info
+          solutions: 0,
+          dataSources: 0,
+          monthlyCost: 0,
+          type: data.WorkspaceType,
+          tags: data.Tags || [],
         });
         setWorkspaceStatus(data.WorkspaceStatus || "Active");
-        // Map API users to WorkspaceUser interface
         const apiUsers = data.Users?.Users || [];
         setAllUsers(
           apiUsers.map((u: any, idx: number) => ({
@@ -129,32 +131,51 @@ const WorkspaceDetails = () => {
         );
         setWorkspaceLoading(false);
       })
-      .catch((err) => {
-        setWorkspaceError("Failed to load workspace details.");
+      .catch((err: any) => {
+        setWorkspaceError(err.message);
         setWorkspaceLoading(false);
       });
+  };
 
-    SolutionService.getSolutions(id)
+  // Fetch solutions from API
+  const fetchSolutions = (search: string, page: number) => {
+    setSolutionsLoading(true);
+    setSolutionsError(null);
+    SolutionService.getSolutions(id, {
+      limit: 10,
+      offset: page,
+<<<<<<< HEAD
+      filterby: search.trim() ? search : undefined,
+=======
+      filterBy: search.trim() ? search : undefined,
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
+    })
       .then((data) => {
         setAllSolutions(data.Solutions || []);
+        setSolutionsTotalCount(data.Pagination?.TotalCount || 0);
         setSolutionsLoading(false);
       })
-      .catch((err) => {
-        setSolutionsError("Failed to load solutions.");
+      .catch((err: any) => {
+        setSolutionsError(err.message);
         setSolutionsLoading(false);
       });
+  };
+
+<<<<<<< HEAD
+  // Fetch workspace details on mount, search, or page change
+  useEffect(() => {
+    fetchWorkspaceDetails();
+=======
+  // Fetch workspace details only on mount or when id changes
+  useEffect(() => {
+    fetchWorkspaceDetails();
   }, [id]);
 
-  // Filter and paginate solutions
-  const filteredSolutions = allSolutions.filter(solution =>
-    solution.name.toLowerCase().includes(solutionsSearch.toLowerCase()) ||
-    solution.type.toLowerCase().includes(solutionsSearch.toLowerCase())
-  );
-  const totalSolutionsPages = Math.ceil(filteredSolutions.length / itemsPerPage);
-  const paginatedSolutions = filteredSolutions.slice(
-    (solutionsPage - 1) * itemsPerPage,
-    solutionsPage * itemsPerPage
-  );
+  // Fetch solutions when search or page changes
+  useEffect(() => {
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
+    fetchSolutions(solutionsSearch, solutionsPage);
+  }, [id, solutionsSearch, solutionsPage]);
 
   // Filter and paginate users
   const filteredUsers = allUsers.filter(user =>
@@ -236,7 +257,7 @@ const WorkspaceDetails = () => {
     setWorkspaceStatus("Inactive");
   };
 
-  const handleCreateSolution = () => {
+  const handleCreateSolution = async () => {
     if (!newSolutionName.trim()) {
       toast({
         title: "Error",
@@ -245,7 +266,6 @@ const WorkspaceDetails = () => {
       });
       return;
     }
-
     if (!newSolutionDescription.trim()) {
       toast({
         title: "Error",
@@ -254,29 +274,56 @@ const WorkspaceDetails = () => {
       });
       return;
     }
+<<<<<<< HEAD
 
-    // Create new solution
-    const newSolution: Solution = {
-      id: allSolutions.length + 1,
-      name: newSolutionName,
-      status: "Development",
-      lastModified: "Just now",
-      type: "ML Model"
-    };
-
-    setAllSolutions(prev => [...prev, newSolution]);
-
-    toast({
-      title: "Success",
-      description: "Solution created successfully!",
-    });
-
-    // Navigate to the new solution page
-    navigate(`/workspaces/${id}/solutions/${newSolution.id}`);
-
-    setNewSolutionName("");
-    setNewSolutionDescription("");
-    setIsCreateSolutionDialogOpen(false);
+=======
+    if (newSolutionTags.length === 0) {
+      toast({
+        title: "Error",
+        description: "At least one tag is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
+    try {
+      const response = await SolutionService.createSolution(id, {
+        SolutionName: newSolutionName,
+        Description: newSolutionDescription,
+<<<<<<< HEAD
+=======
+        Tags: newSolutionTags,
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
+      });
+      toast({
+        title: "Success",
+        description: "Solution created successfully!",
+      });
+      setIsCreateSolutionDialogOpen(false);
+      setNewSolutionName("");
+      setNewSolutionDescription("");
+<<<<<<< HEAD
+      // Navigate to the new solution details page if SolutionId is returned
+      if (response && response.SolutionId) {
+        navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
+      } else {
+        // fallback: refresh solutions list
+=======
+      setNewSolutionTags([]);
+      setNewTagInput("");
+      if (response && response.SolutionId) {
+        navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
+      } else {
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
+        fetchSolutions("", 1);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSolutionClick = (solutionId: number) => {
@@ -305,8 +352,12 @@ const WorkspaceDetails = () => {
           workspaceName={workspace?.name || "Loading..."}
           workspaceId={workspace?.id}
           workspaceStatus={workspaceStatus}
+          workspaceDescription={workspace?.description || ""}
+          workspaceType={workspace?.type || "Public"}
+          workspaceTags={workspace?.tags || []}
           onWorkspaceDeleted={handleWorkspaceDeleted}
           onWorkspaceStatusChange={(newStatus) => setWorkspaceStatus(newStatus)}
+          onWorkspaceUpdated={fetchWorkspaceDetails}
         />
       </div>
 
@@ -351,6 +402,7 @@ const WorkspaceDetails = () => {
           </CardContent>
         </Card>
 
+<<<<<<< HEAD
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -362,6 +414,9 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
+=======
+        {/* Removed Data Sources Card */}
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
         <Card>
           <CardContent className="pt-6">
@@ -416,7 +471,7 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={workspaceStatus === 'Inactive'}>
                   <Plus className="w-4 h-4 mr-2" />
                   Create Solution
                 </Button>
@@ -436,6 +491,7 @@ const WorkspaceDetails = () => {
                       placeholder="Enter solution name"
                       value={newSolutionName}
                       onChange={(e) => setNewSolutionName(e.target.value)}
+                      disabled={workspaceStatus === 'Inactive'}
                     />
                   </div>
                   <div className="space-y-2">
@@ -446,14 +502,67 @@ const WorkspaceDetails = () => {
                       value={newSolutionDescription}
                       onChange={(e) => setNewSolutionDescription(e.target.value)}
                       rows={3}
+                      disabled={workspaceStatus === 'Inactive'}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="solution-tags">Tags <span className="text-red-500">*</span></Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="solution-tags"
+                        placeholder="Add a tag and press Enter"
+                        value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newTagInput.trim()) {
+                            e.preventDefault();
+                            if (!newSolutionTags.includes(newTagInput.trim())) {
+                              setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                            }
+                            setNewTagInput("");
+                          }
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (newTagInput.trim() && !newSolutionTags.includes(newTagInput.trim())) {
+                            setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                          }
+                          setNewTagInput("");
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {newSolutionTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {newSolutionTags.map((tag, idx) => (
+                          <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
+                            {tag}
+                            <button
+                              type="button"
+                              className="ml-1 text-blue-600 hover:text-red-600"
+                              onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
+                              disabled={workspaceStatus === 'Inactive'}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateSolution}>
+                  <Button onClick={handleCreateSolution} disabled={workspaceStatus === 'Inactive'}>
                     Create Solution
                   </Button>
                 </DialogFooter>
@@ -481,46 +590,56 @@ const WorkspaceDetails = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Solution Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Last Modified</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {solutionsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       Loading solutions...
                     </TableCell>
                   </TableRow>
                 ) : solutionsError ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-red-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-red-500">
                       {solutionsError}
                     </TableCell>
                   </TableRow>
-                ) : paginatedSolutions.length === 0 ? (
+                ) : allSolutions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedSolutions.map((solution) => (
+                  allSolutions.map((solution) => (
                     <TableRow 
-                      key={solution.id} 
+                      key={solution.SolutionId} 
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => handleSolutionClick(solution.id)}
+                      onClick={() => handleSolutionClick(solution.SolutionId)}
                     >
                       <TableCell>
-                        <div className="font-medium text-gray-900">{solution.name}</div>
+                        <div className="font-medium text-gray-900">{solution.SolutionName}</div>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(solution.status)}`}>
-                          {solution.status}
-                        </span>
+                        <div className="text-gray-700 text-sm line-clamp-2">{solution.Description}</div>
                       </TableCell>
-                      <TableCell className="text-gray-600">{solution.lastModified}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
+                            solution.Tags.map((tag: string, idx: number) => (
+                              <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">No tags</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-600">{solution.LastUpdationTime}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -528,7 +647,7 @@ const WorkspaceDetails = () => {
             </Table>
 
             {/* Solutions Pagination */}
-            {totalSolutionsPages > 1 && (
+            {solutionsTotalCount > 10 && (
               <div className="flex justify-center">
                 <Pagination>
                   <PaginationContent>
@@ -538,7 +657,7 @@ const WorkspaceDetails = () => {
                         className={solutionsPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
-                    {[...Array(totalSolutionsPages)].map((_, i) => (
+                    {Array.from({ length: Math.ceil(solutionsTotalCount / 10) }, (_, i) => (
                       <PaginationItem key={i + 1}>
                         <PaginationLink
                           onClick={() => setSolutionsPage(i + 1)}
@@ -551,8 +670,8 @@ const WorkspaceDetails = () => {
                     ))}
                     <PaginationItem>
                       <PaginationNext 
-                        onClick={() => setSolutionsPage(Math.min(totalSolutionsPages, solutionsPage + 1))}
-                        className={solutionsPage === totalSolutionsPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        onClick={() => setSolutionsPage(Math.min(Math.ceil(solutionsTotalCount / 10), solutionsPage + 1))}
+                        className={solutionsPage === Math.ceil(solutionsTotalCount / 10) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
                   </PaginationContent>
@@ -669,6 +788,7 @@ const WorkspaceDetails = () => {
                     <TableCell className="text-gray-600">{user.joinedDate}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
+                        <UserProfileDialog userId={user.id.toString()} />
                         <Button variant="ghost" size="sm" disabled={workspaceStatus === "Inactive"}>
                           <Settings className="w-4 h-4" />
                         </Button>

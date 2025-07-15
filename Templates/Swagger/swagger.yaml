@@ -905,6 +905,182 @@ paths:
         passthroughBehavior: "when_no_match"
         type: "mock"
 
+  /share:
+    get:
+      summary: "Get all users who have access to a resource"
+      description: "Retrieve all users who have access to a specific resource"
+      parameters:
+        - name: "resourceType"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            enum: ["WORKSPACE", "SOLUTION", "DATASOURCE"]
+          description: "Type of resource (WORKSPACE, SOLUTION, DATASOURCE)"
+        - name: "resourceId"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+          description: "ID of the resource"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to return"
+        - name: "offset"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Number of items to skip"
+        - name: "sortBy"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Sort criteria"
+        - name: "sortOrder"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            enum: ["asc", "desc"]
+          description: "Sort order"
+      responses:
+        "200":
+          description: "Successful response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAccessResponse"
+        "400":
+          description: "Bad request"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-ShareLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    post:
+      summary: "Share a resource with a user"
+      description: "Grant access to a resource for a specific user"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareResourceRequest"
+      responses:
+        "200":
+          description: "Resource shared successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: "Bad request"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "User already has access"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-ShareLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    delete:
+      summary: "Revoke user access to a resource"
+      description: "Remove access to a resource for a specific user"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeAccessRequest"
+      responses:
+        "200":
+          description: "Access revoked successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: "Bad request"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-ShareLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+
   /roles:
     get:
       summary: "Get all roles"
@@ -2022,6 +2198,69 @@ components:
           type: "array"
           items:
             type: "string"
+
+    ResourceAccessResponse:
+      type: "object"
+      properties:
+        ResourceAccess:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/ResourceAccess"
+        Pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    ResourceAccess:
+      type: "object"
+      properties:
+        UserId:
+          type: "string"
+          description: "User ID"
+        AccessType:
+          type: "string"
+          enum: ["read_only", "editor", "owner"]
+          description: "Type of access granted"
+
+    ShareResourceRequest:
+      type: "object"
+      required:
+        - "UserId"
+        - "ResourceType"
+        - "ResourceId"
+        - "AccessType"
+      properties:
+        UserId:
+          type: "string"
+          description: "User ID to grant access to"
+        ResourceType:
+          type: "string"
+          enum: ["WORKSPACE", "SOLUTION", "DATASOURCE"]
+          description: "Type of resource"
+        ResourceId:
+          type: "string"
+          description: "ID of the resource"
+        AccessType:
+          type: "string"
+          enum: ["read_only", "editor", "owner"]
+          description: "Type of access to grant"
+
+    RevokeAccessRequest:
+      type: "object"
+      required:
+        - "UserId"
+        - "ResourceType"
+        - "ResourceId"
+      properties:
+        UserId:
+          type: "string"
+          description: "User ID to revoke access from"
+        ResourceType:
+          type: "string"
+          enum: ["WORKSPACE", "SOLUTION", "DATASOURCE"]
+          description: "Type of resource"
+        ResourceId:
+          type: "string"
+          description: "ID of the resource"
+
   securitySchemes:
     WorkbenchAuthorizer:
       type: "apiKey"

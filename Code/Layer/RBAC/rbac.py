@@ -76,6 +76,7 @@ def is_user_action_valid(
             perm = perm.strip().lower()
             key, req_level = perm.split(".", 1)
             req_rank = LEVEL_RANK.get(req_level, 0)
+            LOGGER.info("Key: %r, Req level: %r, Req rank: %r", key, req_level, req_rank)
         except ValueError:
             LOGGER.warning("Malformed API-perm entry: %r", perm)
             continue
@@ -85,6 +86,7 @@ def is_user_action_valid(
             rp = rp.strip().lower()
             try:
                 perm_key, perm_level = rp.split(".", 1)
+                LOGGER.info("Perm key: %r, Perm level: %r", perm_key, perm_level)
             except ValueError:
                 LOGGER.warning("Malformed role-perm entry: %r", rp)
                 continue
@@ -92,6 +94,7 @@ def is_user_action_valid(
             if perm_key == key:
                 match_found = True
                 if LEVEL_RANK.get(perm_level, 0) < req_rank:
+                    LOGGER.info("Insufficient permission: %r", f"{key} (need {req_level})")
                     insufficient_perms.append(f"{key} (need {req_level})")
                 break
         if not match_found:
