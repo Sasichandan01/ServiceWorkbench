@@ -36,6 +36,7 @@ export interface SolutionListResponse {
 export interface CreateSolutionRequest {
   SolutionName: string;
   Description: string;
+  Tags: string[];
 }
 
 export interface CreateSolutionResponse {
@@ -78,7 +79,11 @@ export class SolutionService {
     params?: {
       limit?: number;
       offset?: number;
+<<<<<<< HEAD
       filterby?: string;
+=======
+      filterBy?: string;
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     }
   ): Promise<SolutionListResponse> {
     const searchParams = new URLSearchParams();
@@ -86,8 +91,13 @@ export class SolutionService {
     const offset = params?.offset ?? 1;
     searchParams.append('limit', limit.toString());
     searchParams.append('offset', offset.toString());
+<<<<<<< HEAD
     if (params?.filterby) {
       searchParams.append('filterby', params.filterby);
+=======
+    if (params?.filterBy) {
+      searchParams.append('filterBy', params.filterBy);
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     }
     const endpoint = `/workspaces/${workspaceId}/solutions${searchParams.toString() ? `?${searchParams}` : ''}`;
     const response = await ApiClient.get(endpoint);
@@ -110,6 +120,18 @@ export class SolutionService {
     data: UpdateSolutionRequest
   ): Promise<UpdateSolutionResponse> {
     const response = await ApiClient.put(`/workspaces/${workspaceId}/solutions/${solutionId}`, data);
+    return this.handleResponse<UpdateSolutionResponse>(response);
+  }
+
+  static async updateSolutionDatasources(
+    workspaceId: string,
+    solutionId: string,
+    datasourceIds: string[]
+  ): Promise<UpdateSolutionResponse> {
+    const response = await ApiClient.put(
+      `/workspaces/${workspaceId}/solutions/${solutionId}?action=datasource`,
+      { Datasources: datasourceIds }
+    );
     return this.handleResponse<UpdateSolutionResponse>(response);
   }
 

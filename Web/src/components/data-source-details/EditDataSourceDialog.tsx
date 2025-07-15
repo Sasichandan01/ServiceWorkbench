@@ -1,13 +1,25 @@
+<<<<<<< HEAD
 import React, { useState } from "react";
+=======
+import React, { useState, useEffect } from "react";
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+<<<<<<< HEAD
 import { X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasourceService } from "@/services/datasourceService";
+=======
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { X, Database } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { DatasourceService } from "@/services/datasourceService";
+import type { Datasource } from "@/services/datasourceService";
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
 interface EditDataSourceDialogProps {
   open: boolean;
@@ -27,8 +39,37 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
   const [tags, setTags] = useState<string[]>(datasource.Tags || []);
   const [newTag, setNewTag] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+<<<<<<< HEAD
   const { toast } = useToast();
 
+=======
+  const [datasources, setDatasources] = useState<Datasource[]>([]);
+  const [loadingDatasources, setLoadingDatasources] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      fetchDatasources();
+    }
+  }, [open]);
+
+  const fetchDatasources = async () => {
+    setLoadingDatasources(true);
+    try {
+      const response = await DatasourceService.getDatasources({ limit: 100 });
+      setDatasources(response.Datasources);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load datasources",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingDatasources(false);
+    }
+  };
+
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
       setTags([...tags, newTag.trim()]);
@@ -97,6 +138,45 @@ const EditDataSourceDialog = ({ open, onOpenChange, datasource, onSuccess }: Edi
           </div>
           
           <div className="space-y-2">
+<<<<<<< HEAD
+=======
+            <Label>Reference Datasources</Label>
+            <Select disabled={loadingDatasources}>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingDatasources ? "Loading..." : "Browse existing datasources"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {datasources.map((ds) => (
+                  <SelectItem key={ds.DatasourceId} value={ds.DatasourceId} className="p-3">
+                    <div className="flex items-start gap-3 w-full">
+                      <Database className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{ds.DatasourceName}</div>
+                        <div className="text-xs text-muted-foreground truncate">{ds.Description}</div>
+                        {ds.Tags && ds.Tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {ds.Tags.slice(0, 3).map((tag, index) => (
+                              <Badge key={index} variant="outline" className="text-xs px-1 py-0">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {ds.Tags.length > 3 && (
+                              <Badge variant="outline" className="text-xs px-1 py-0">
+                                +{ds.Tags.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
             <Label>Tags</Label>
             <div className="flex gap-2">
               <Input

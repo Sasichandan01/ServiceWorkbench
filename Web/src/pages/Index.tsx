@@ -117,7 +117,7 @@ const Index = () => {
               <Link to="/login">
                 <Button variant="ghost">Sign In</Button>
               </Link>
-              <Link to="/login">
+              <Link to="/signup">
                 <Button>Get Started</Button>
               </Link>
             </div>
@@ -134,7 +134,7 @@ const Index = () => {
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">Design and architect solutions using Lambda, API Gateway, S3, DynamoDB, SQS, SNS, SES, Glue and Step Functions. Simply describe your workflow, and our AI will generate the complete architecture for you.</p>
           <div className="flex justify-center space-x-4">
-            <Link to="/login">
+            <Link to="/signup">
               <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
                 Start Building Now
                 <ArrowRight className="ml-2 w-4 h-4" />

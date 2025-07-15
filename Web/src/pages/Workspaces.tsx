@@ -63,7 +63,7 @@ const Workspaces = () => {
       };
 
       if (searchTerm.trim()) {
-        searchParams.filter = searchTerm.trim();
+        searchParams.filterBy = searchTerm.trim();
       }
 
       const response = await WorkspaceService.getWorkspaces(searchParams);

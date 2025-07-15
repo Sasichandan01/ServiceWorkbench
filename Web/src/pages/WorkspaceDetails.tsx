@@ -72,6 +72,8 @@ const WorkspaceDetails = () => {
   const [isCreateSolutionDialogOpen, setIsCreateSolutionDialogOpen] = useState(false);
   const [newSolutionName, setNewSolutionName] = useState("");
   const [newSolutionDescription, setNewSolutionDescription] = useState("");
+  const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -142,7 +144,11 @@ const WorkspaceDetails = () => {
     SolutionService.getSolutions(id, {
       limit: 10,
       offset: page,
+<<<<<<< HEAD
       filterby: search.trim() ? search : undefined,
+=======
+      filterBy: search.trim() ? search : undefined,
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     })
       .then((data) => {
         setAllSolutions(data.Solutions || []);
@@ -155,9 +161,19 @@ const WorkspaceDetails = () => {
       });
   };
 
+<<<<<<< HEAD
   // Fetch workspace details on mount, search, or page change
   useEffect(() => {
     fetchWorkspaceDetails();
+=======
+  // Fetch workspace details only on mount or when id changes
+  useEffect(() => {
+    fetchWorkspaceDetails();
+  }, [id]);
+
+  // Fetch solutions when search or page changes
+  useEffect(() => {
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     fetchSolutions(solutionsSearch, solutionsPage);
   }, [id, solutionsSearch, solutionsPage]);
 
@@ -250,7 +266,6 @@ const WorkspaceDetails = () => {
       });
       return;
     }
-
     if (!newSolutionDescription.trim()) {
       toast({
         title: "Error",
@@ -259,11 +274,26 @@ const WorkspaceDetails = () => {
       });
       return;
     }
+<<<<<<< HEAD
 
+=======
+    if (newSolutionTags.length === 0) {
+      toast({
+        title: "Error",
+        description: "At least one tag is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
     try {
       const response = await SolutionService.createSolution(id, {
         SolutionName: newSolutionName,
         Description: newSolutionDescription,
+<<<<<<< HEAD
+=======
+        Tags: newSolutionTags,
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
       });
       toast({
         title: "Success",
@@ -272,11 +302,19 @@ const WorkspaceDetails = () => {
       setIsCreateSolutionDialogOpen(false);
       setNewSolutionName("");
       setNewSolutionDescription("");
+<<<<<<< HEAD
       // Navigate to the new solution details page if SolutionId is returned
       if (response && response.SolutionId) {
         navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
       } else {
         // fallback: refresh solutions list
+=======
+      setNewSolutionTags([]);
+      setNewTagInput("");
+      if (response && response.SolutionId) {
+        navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
+      } else {
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
         fetchSolutions("", 1);
       }
     } catch (error: any) {
@@ -364,6 +402,7 @@ const WorkspaceDetails = () => {
           </CardContent>
         </Card>
 
+<<<<<<< HEAD
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -375,6 +414,9 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
+=======
+        {/* Removed Data Sources Card */}
+>>>>>>> 636d5e0192639348b48378599648f62a4870c1a7
 
         <Card>
           <CardContent className="pt-6">
@@ -462,6 +504,58 @@ const WorkspaceDetails = () => {
                       rows={3}
                       disabled={workspaceStatus === 'Inactive'}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="solution-tags">Tags <span className="text-red-500">*</span></Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="solution-tags"
+                        placeholder="Add a tag and press Enter"
+                        value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newTagInput.trim()) {
+                            e.preventDefault();
+                            if (!newSolutionTags.includes(newTagInput.trim())) {
+                              setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                            }
+                            setNewTagInput("");
+                          }
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (newTagInput.trim() && !newSolutionTags.includes(newTagInput.trim())) {
+                            setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                          }
+                          setNewTagInput("");
+                        }}
+                        disabled={workspaceStatus === 'Inactive'}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {newSolutionTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {newSolutionTags.map((tag, idx) => (
+                          <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
+                            {tag}
+                            <button
+                              type="button"
+                              className="ml-1 text-blue-600 hover:text-red-600"
+                              onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
+                              disabled={workspaceStatus === 'Inactive'}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>
