@@ -815,6 +815,14 @@ definitions:
           - echo "Updating selected Lambda functions with new layer version..."
           - *authenticate
           - *update_selected_lambdas_with_layer
+    
+    - step: &zipping_and_uploading_glue
+        name: Zip and Upload Glue Scripts
+        oidc: true
+        script:
+          - echo "Zipping and uploading Glue scripts..."
+          - *authenticate
+          - *zip_and_upload_glue_scripts
 
 pipelines:
   branches:
@@ -822,6 +830,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
@@ -831,6 +840,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
@@ -840,6 +850,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
@@ -849,6 +860,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
@@ -861,6 +873,7 @@ pipelines:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
       - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
