@@ -460,7 +460,7 @@ definitions:
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
             echo "Cleaning up old Glue zips for: ${CATEGORY_NAME,,}"
-            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "glue-*/${CATEGORY_NAME,,}/*" || true
+            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "glue-*/${CATEGORY_NAME,,}/*.py" || true
 
             S3_PREFIX="glue-${GLUE_VERSION}/${CATEGORY_NAME,,}"
 
@@ -728,6 +728,7 @@ definitions:
           - *deploy_stack
         artifacts:
           - .lambda_version
+          - .glue_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -804,6 +805,8 @@ definitions:
           - echo "Zipping and uploading Glue scripts..."
           - *authenticate
           - *zip_and_upload_glue_scripts
+        artifacts:
+          - .glue_version
 
 pipelines:
   branches:
