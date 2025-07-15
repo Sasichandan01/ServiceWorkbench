@@ -882,11 +882,15 @@ Resources:
                 Action:
                   - dynamodb:DescribeTable
                   - dynamodb:ListStreams
-                  - dynamodb:ListTables
                   - dynamodb:ExportTableToPointInTime
                   - dynamodb:DescribeExport
                 Resource:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-${pPrefix}-*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:ListTables
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
 
 
   AuroraDataSource:
