@@ -1098,12 +1098,6 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: 1
-            WriteCapacityUnits: 1
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: 'true'
-        RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1119,12 +1113,6 @@ Resources:
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: 'true'
-        RecoveryPeriodInDays: 7
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
