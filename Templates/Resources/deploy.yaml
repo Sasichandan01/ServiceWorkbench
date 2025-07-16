@@ -12,9 +12,9 @@ Parameters:
     Type: String
     Description: S3 path version folder for Lambda artifacts
   
-  GlueArtifactVersion:
-    Type: String
-    Description: S3 path version folder for Glue artifacts
+  # GlueArtifactVersion:
+  #   Type: String
+  #   Description: S3 path version folder for Glue artifacts
 
   ApiName:
     Type: String
@@ -62,9 +62,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-service-workbench-misc"
-      # AccessControl: PublicRead
-      VersioningConfiguration:
-        Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -688,6 +685,17 @@ Resources:
                   - ssm:GetParameter
                   - ssm:PutParameter
                 Resource: "*"
+      
+        - PolicyName: GlueJobPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: GlueJobAccess
+                Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                Resource:
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${GlueJob}"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -725,7 +733,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-    
+   
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -840,8 +848,8 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc/*"
                   - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-misc"
-                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-artifacts"
-                  - !Sub "arn:aws:s3:::${pPrefix}-service-workbench-artifacts/*"
+                  - !Sub "arn:aws:s3:::service-workbench-artifacts"
+                  - !Sub "arn:aws:s3:::service-workbench-artifacts/*"
         - PolicyName: BedrockAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -882,12 +890,16 @@ Resources:
                 Action:
                   - dynamodb:DescribeTable
                   - dynamodb:ListStreams
-                  - dynamodb:ListTables
                   - dynamodb:ExportTableToPointInTime
                   - dynamodb:DescribeExport
                 Resource:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-${pPrefix}-*"
-
+              - Effect: Allow
+                Action:
+                  - dynamodb:ListTables
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
+ 
 
   AuroraDataSource:
     Type: AWS::Bedrock::DataSource
@@ -934,7 +946,7 @@ Resources:
       Role: !GetAtt GlueJobRole.Arn
       Command:
         Name: glueetl
-        ScriptLocation: !Sub "s3://service-workbench-artifacts/glue-${GlueArtifactVersion}/ragsyncgluejob/RAGSyncGlueJob.py"
+        ScriptLocation: !Sub "s3://service-workbench-artifacts/glue/ragsyncgluejob/RAGSyncGlueJob.py"
         PythonVersion: '3'
       DefaultArguments:
         '--job-language': 'python'
@@ -942,15 +954,16 @@ Resources:
         '--enable-metrics': 'true'
         '--enable-continuous-cloudwatch-log': 'true'
         '--enable-continuous-log-filter': 'true'
-        '--DYNAMODB_TABLE_PREFIX': "Workbench-develop"
+        '--DYNAMODB_TABLE_PREFIX': !Sub "Workbench-${pPrefix}"
         '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
         '--AURORA_DS_ID': !Ref AuroraDataSource
         '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
-        '--OPENSEARCHDS_ID': !Ref OpensearchDataSource
+        '--OPENSEARCH_DS_ID': !Ref OpensearchDataSource
         '--OPENSEARCH_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--OPENSEARCH_S3_PREFIX': !Ref pWebScrapDocumentsPrefix
         '--AURORA_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--AURORA_S3_PREFIX': !Ref pTablesDataPrefix
+        '--ACTION': 'docsapp'
         '--WAIT_FOR_SYNC': 'true'
         '--AWS_REGION': !Ref AWS::Region
         '--AWS_ACCOUNT_ID': !Ref AWS::AccountId
@@ -1078,6 +1091,7 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
+      Description: "api Gateway for workbench"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1822,4 +1836,10 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
+
+  WebSocketApiUrl:
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${pWebSocketStage}"
+    Export:
+      Name: !Sub "${pPrefix}-WebSocketApiUrl"
+
    
