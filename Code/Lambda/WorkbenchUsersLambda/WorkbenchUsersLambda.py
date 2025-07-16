@@ -109,6 +109,7 @@ def get_all_users(query_params):
             "Username": item.get("Username"),
             "Email": item.get("Email"),
             "Roles": item.get("Role", []),
+            "LastLoginTime": item.get("LastLoginTime"),
             "ProfileImageURL": item.get("ProfileImage")
         } for item in items
     ]
@@ -198,7 +199,7 @@ def get_profile_image_upload_url(user_id, body):
     LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
 
     if not MISC_BUCKET:
-        return response(500, {"message": "S3 bucket not configured"})
+        return return_response(500, {"message": "S3 bucket not configured"})
 
     file_name = user_id
 
@@ -238,7 +239,7 @@ def get_profile_image_upload_url(user_id, body):
 
         return return_response(200, {
             "message": "Pre-signed URL generated",
-            "UploadURL": presigned_url
+            "PreSignedURL": presigned_url
             # "ImageURL": object_url
         })
 
