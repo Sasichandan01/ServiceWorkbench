@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import json
+import gzip
 import time
 from urllib.parse import urljoin
 from awsglue.utils import getResolvedOptions
@@ -18,12 +19,15 @@ from datetime import datetime, timezone, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+
 class DynamoDBExportGlueJob:
     def __init__(self, dynamodb_table_prefix, s3_export_bucket_name, s3_export_prefix,
                  bedrock_knowledge_base_id, bedrock_data_source_id, wait_for_sync,
                  aws_region, aws_account_id, job_name):
         self.dynamodb_client = boto3.client('dynamodb', region_name=aws_region)
         self.bedrock_agent_client = boto3.client('bedrock-agent', region_name=aws_region)
+        self.s3_client = boto3.client('s3', region_name=aws_region)
         self.dynamodb_table_prefix = dynamodb_table_prefix
         self.s3_export_bucket_name = s3_export_bucket_name
         self.s3_export_prefix = s3_export_prefix.strip('/')
@@ -33,6 +37,7 @@ class DynamoDBExportGlueJob:
         self.aws_region = aws_region
         self.aws_account_id = aws_account_id
         self.job_name = job_name
+        # self.processed_data_folder_name = processed_data_folder_name
         self.aws_partition = self.dynamodb_client.meta.partition
 
     def get_dynamodb_tables_with_prefix(self, prefix):
@@ -44,6 +49,164 @@ class DynamoDBExportGlueJob:
                 if table_name.startswith(prefix):
                     table_names.append(table_name)
         return table_names
+
+    def find_data_folders_recursively(self, base_prefix):
+        """
+        Recursively find all 'data' folders under the given S3 prefix
+        """
+        data_folders = []
+        paginator = self.s3_client.get_paginator('list_objects_v2')
+        
+        try:
+            page_iterator = paginator.paginate(
+                Bucket=self.s3_export_bucket_name,
+                Prefix=base_prefix,
+                Delimiter='/'
+            )
+            
+            for page in page_iterator:
+                # Check common prefixes (directories)
+                for prefix_info in page.get('CommonPrefixes', []):
+                    folder_path = prefix_info['Prefix']
+                    if folder_path.rstrip('/').endswith('/data'):
+                        data_folders.append(folder_path)
+                    else:
+                        # Recursively search in subdirectories
+                        sub_data_folders = self.find_data_folders_recursively(folder_path)
+                        data_folders.extend(sub_data_folders)
+                        
+        except Exception as e:
+            logger.error(f"Error finding data folders under {base_prefix}: {e}")
+            
+        return data_folders
+        
+    def delete_s3_prefix(self, prefix):
+        """
+        Delete all objects under a given prefix in S3
+        """
+        try:
+            # First list all objects under the prefix
+            objects_to_delete = []
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            
+            for page in paginator.paginate(
+                Bucket=self.s3_export_bucket_name,
+                Prefix=prefix
+            ):
+                if 'Contents' in page:
+                    objects_to_delete.extend(
+                        [{'Key': obj['Key']} for obj in page['Contents']]
+                    )
+    
+            if not objects_to_delete:
+                logger.info(f"No objects found under prefix: {prefix}")
+                return True
+    
+            # Delete all objects in batches of 1000 (S3 limit)
+            for i in range(0, len(objects_to_delete), 1000):
+                response = self.s3_client.delete_objects(
+                    Bucket=self.s3_export_bucket_name,
+                    Delete={'Objects': objects_to_delete[i:i+1000]}
+                )
+                logger.info(f"Deleted {len(objects_to_delete[i:i+1000])} objects under {prefix}")
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting objects under {prefix}: {e}")
+            return False
+
+    def extract_and_decompress_json_gz_files(self, data_folder_path, table_name, export_timestamp):
+        json_files_processed = 0
+    
+        try:
+            organized_prefix = f"{self.s3_export_prefix}/{table_name.lower()}/{export_timestamp}/"
+            table_prefix = f"{self.s3_export_prefix}/{table_name}/"
+    
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(
+                Bucket=self.s3_export_bucket_name,
+                Prefix=data_folder_path
+            )
+    
+            for page in page_iterator:
+                for obj in page.get('Contents', []):
+                    key = obj['Key']
+    
+                    if key.endswith('.json.gz'):
+                        try:
+                            filename = key.split('/')[-1]
+                            json_filename = filename.replace('.json.gz', '.json')
+                            dest_key = f"{organized_prefix}{json_filename}"
+    
+                            logger.info(f"Downloading and decompressing: {key}")
+                            response = self.s3_client.get_object(
+                                Bucket=self.s3_export_bucket_name,
+                                Key=key
+                            )
+    
+                            compressed_data = response['Body'].read()
+                            decompressed_data = gzip.decompress(compressed_data)
+    
+                            self.s3_client.put_object(
+                                Bucket=self.s3_export_bucket_name,
+                                Key=dest_key,
+                                Body=decompressed_data,
+                                ContentType='application/json'
+                            )
+    
+                            json_files_processed += 1
+                            logger.info(f"Decompressed and uploaded: {key} -> {dest_key}")
+    
+                        except self.s3_client.exceptions.NoSuchKey:
+                            logger.warning(f"Key not found (skipped): {key}")
+                            continue
+                        except Exception as inner_e:
+                            logger.error(f"Error processing key {key}: {inner_e}")
+                            continue
+    
+            #  Delete the original table export structure *after* processing
+            deleted = self.delete_s3_prefix(table_prefix)
+            logger.info(f"Deleted original table export folder: {table_prefix} -> {deleted}")
+    
+        except Exception as e:
+            logger.error(f"Error extracting and decompressing JSON.gz files from {data_folder_path}: {e}")
+    
+        return json_files_processed
+
+    def organize_exported_data(self, table_name, export_timestamp):
+        """
+        Find data folders recursively and organize JSON.gz files by decompressing them
+        """
+        logger.info(f"Organizing exported data for table: {table_name}")
+        
+        # Base path for this table's export
+        table_export_prefix = f"{self.s3_export_prefix}/{table_name}"
+        
+        # Find all data folders recursively
+        data_folders = self.find_data_folders_recursively(table_export_prefix)
+        
+        if not data_folders:
+            logger.warning(f"No data folders found for table {table_name} under {table_export_prefix}")
+            return 0
+            
+        logger.info(f"Found {len(data_folders)} data folders for table {table_name}: {data_folders}")
+        
+        total_files_processed = 0
+        
+        # Process each data folder
+        for data_folder in data_folders:
+            logger.info(f"Processing data folder: {data_folder}")
+            files_processed = self.extract_and_decompress_json_gz_files(data_folder, table_name, export_timestamp)
+            total_files_processed += files_processed
+            
+        logger.info(f"Total JSON.gz files processed for table {table_name}: {total_files_processed}")
+        
+        delete_ddb_folder=self.delete_s3_prefix(f"{table_export_prefix}/AWSDynamoDB/")
+        
+        print(delete_ddb_folder)
+        
+        return total_files_processed
 
     def run_export_and_ingestion(self):
         logger.info(f"DynamoDB Export: Discovering tables with prefix: {self.dynamodb_table_prefix}")
@@ -64,7 +227,8 @@ class DynamoDBExportGlueJob:
             logger.info(f"DynamoDB Export: Initiating export for table: {table_name}")
             try:
                 export_tag_time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-                s3_export_path_for_table = f"{self.s3_export_prefix}/{table_name.lower().replace(' ', '_')}/export-{export_tag_time_str}/"
+                # Modified to match DynamoDB export structure with /data at the end
+                s3_export_path_for_table = f"{self.s3_export_prefix}/{table_name}"
 
                 logger.info(f"DynamoDB Export: Performing FULL export for {table_name} to s3://{self.s3_export_bucket_name}/{s3_export_path_for_table}")
                 response = self.dynamodb_client.export_table_to_point_in_time(
@@ -72,15 +236,21 @@ class DynamoDBExportGlueJob:
                     S3Bucket=self.s3_export_bucket_name,
                     S3Prefix=s3_export_path_for_table,
                     ExportType='FULL_EXPORT',
-                    ExportFormat='DYNAMODB_JSON',
-                    ExportTime=current_export_to_time
+                    ExportFormat='DYNAMODB_JSON'
+                    
                 )
                 
                 export_arn = response['ExportDescription']['ExportArn']
                 export_status = response['ExportDescription']['ExportStatus']
+                actual_export_time = response['ExportDescription']['ExportTime']
                 
-                export_jobs_to_monitor.append({'Table': table_name, 'ExportArn': export_arn, 'Status': export_status})
-                logger.info(f"DynamoDB Export: Export for {table_name} started. ARN: {export_arn}, Status: {export_status}")
+                export_jobs_to_monitor.append({
+                    'Table': table_name, 
+                    'ExportArn': export_arn, 
+                    'Status': export_status,
+                    'ExportTime': actual_export_time
+                })
+                logger.info(f"DynamoDB Export: Export for {table_name} started. ARN: {export_arn}, Status: {export_status}, Export Time: {actual_export_time}")
 
             except Exception as e:
                 logger.error(f"DynamoDB Export ERROR: Failed to initiate export for table {table_name}: {e}")
@@ -96,13 +266,27 @@ class DynamoDBExportGlueJob:
             for i in range(max_export_retries):
                 all_exports_completed = True
                 for job_info in export_jobs_to_monitor:
-                    if job_info['Status'] not in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                    if job_info['Status'] not in ['COMPLETED', 'FAILED']:
                         try:
                             response = self.dynamodb_client.describe_export(ExportArn=job_info['ExportArn'])
                             current_status = response['ExportDescription']['ExportStatus']
                             job_info['Status'] = current_status
-                            logger.info(f"DynamoDB Export: Export for {job_info['Table']} (ARN: {job_info['ExportArn']}) status: {current_status}")
-                            if current_status not in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                            
+                            # Get additional export details
+                            export_time = response['ExportDescription']['ExportTime']
+                            s3_bucket = response['ExportDescription']['S3Bucket']
+                            s3_prefix = response['ExportDescription']['S3Prefix']
+                            
+                            logger.info(f"DynamoDB Export: Export for {job_info['Table']} (ARN: {job_info['ExportArn']}) status: {current_status}, Export Time: {export_time}")
+                            
+                            # Log completion details
+                            if current_status == 'COMPLETED':
+                                logger.info(f"DynamoDB Export: Export for {job_info['Table']} completed successfully. Data exported to s3://{s3_bucket}/{s3_prefix}")
+                            elif current_status == 'FAILED':
+                                failure_reason = response['ExportDescription'].get('FailureMessage', 'No failure message available')
+                                logger.error(f"DynamoDB Export ERROR: Export for {job_info['Table']} {current_status.lower()}. Reason: {failure_reason}")
+                            
+                            if current_status not in ['COMPLETED', 'FAILED']:
                                 all_exports_completed = False
                         except Exception as e:
                             logger.error(f"DynamoDB Export ERROR: Could not describe export {job_info['ExportArn']}: {e}")
@@ -118,11 +302,32 @@ class DynamoDBExportGlueJob:
             if not all_exports_completed:
                 logger.warning("DynamoDB Export WARNING: DynamoDB exports did not complete within the maximum retry limit.")
 
-            failed_exports = [job for job in export_jobs_to_monitor if job['Status'] in ['FAILED', 'CANCELLED']]
+            failed_exports = [job for job in export_jobs_to_monitor if job['Status'] in ['FAILED', 'STOPPED']]
             if failed_exports:
                 logger.warning(f"DynamoDB Export WARNING: {len(failed_exports)} DynamoDB exports failed or were cancelled. Details: {failed_exports}")
             else:
                 logger.info("DynamoDB Export: All initiated DynamoDB exports completed successfully.")
+
+        # Organize exported data after all exports complete
+        if export_jobs_to_monitor:
+            logger.info("DynamoDB Export: Starting data organization process...")
+            total_organized_files = 0
+            
+            for job_info in export_jobs_to_monitor:
+                if job_info['Status'] == 'COMPLETED':
+                    table_name = job_info['Table']
+                    export_time = job_info['ExportTime']
+                    export_timestamp = export_time.strftime("%Y%m%d-%H%M%S")
+                    
+                    # Wait a bit for S3 eventual consistency
+                    time.sleep(10)
+                    
+                    files_organized = self.organize_exported_data(table_name, export_timestamp)
+                    total_organized_files += files_organized
+                    
+            logger.info(f"DynamoDB Export: Data organization completed. Total files processed: {total_organized_files}")
+        else:
+            logger.info("DynamoDB Export: No exports to organize.")
 
         logger.info("DynamoDB Export: Attempting to trigger Bedrock Knowledge Base ingestion job...")
         try:
@@ -162,6 +367,8 @@ class DynamoDBExportGlueJob:
             logger.error(f"DynamoDB Export ERROR: Failed to trigger or monitor Bedrock KB sync: {e}")
 
         logger.info("DynamoDB Export: Process completed.")
+
+
 
 class WebScraperGlueJob:
     def __init__(self, s3_bucket, s3_prefix, kb_id, ds_id, job_name, region):
@@ -590,7 +797,7 @@ def main():
             s3_export_prefix=args['AURORA_S3_PREFIX'],
             bedrock_knowledge_base_id=args['AURORA_KB_ID'],
             bedrock_data_source_id=args['AURORA_DS_ID'],
-            wait_for_sync=False,
+            wait_for_sync=True,
             aws_region=args['AWS_REGION'],
             aws_account_id=args['AWS_ACCOUNT_ID'],
             job_name=args['JOB_NAME']
@@ -622,7 +829,7 @@ def main():
             webscrape_future=None
             ddb_future=None
             ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
-            webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
+            # webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
 
             monitoring_futures = []
             active_futures = [fut for fut in [ddb_future, webscrape_future] if fut is not None]

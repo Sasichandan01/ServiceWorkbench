@@ -688,6 +688,17 @@ Resources:
                   - ssm:GetParameter
                   - ssm:PutParameter
                 Resource: "*"
+      
+        - PolicyName: GlueJobPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: GlueJobAccess
+                Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                Resource:
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${GlueJob}"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -955,6 +966,7 @@ Resources:
         '--OPENSEARCH_S3_PREFIX': !Ref pWebScrapDocumentsPrefix
         '--AURORA_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--AURORA_S3_PREFIX': !Ref pTablesDataPrefix
+        '--ACTION': 'docsapp'
         '--WAIT_FOR_SYNC': 'true'
         '--AWS_REGION': !Ref AWS::Region
         '--AWS_ACCOUNT_ID': !Ref AWS::AccountId
