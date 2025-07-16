@@ -989,6 +989,8 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           USERS_TABLE: !Ref UserTable
           CLIENT_ID: !Ref UserPoolClient
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2" 
