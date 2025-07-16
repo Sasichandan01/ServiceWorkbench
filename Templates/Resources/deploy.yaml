@@ -1471,6 +1471,7 @@ Resources:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           MISC_BUCKET: !Ref MiscBucket
           ROLES_TABLE: !Ref RolesTable
+          GLUE_JOB_NAME: !Ref GlueJob
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
