@@ -134,7 +134,7 @@ definitions:
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
-
+ 
     - script: &upload_cf_templates
         |
         set -e
