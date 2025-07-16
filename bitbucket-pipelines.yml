@@ -388,8 +388,10 @@ definitions:
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
             echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
-            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
-
+            aws s3 rm "s3://${DEST_BUCKET}/" \
+              --recursive \
+              --exclude "*" \
+              --include "lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
 
             S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
             # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
@@ -575,7 +577,7 @@ definitions:
           
           # Look for zip file in S3 under lambda/<base_function_lowercase>/
           S3_BUCKET="service-workbench-artifacts"
-          S3_PREFIX="lambda/${BASE_FUNCTION_LOWER}/"
+          S3_PREFIX="lambda-${LambdaArtifactVersion}-${pPrefix}/${BASE_FUNCTION_LOWER}/"
           
           echo "Looking for zip files in S3 prefix: s3://${S3_BUCKET}/${S3_PREFIX}"
           
