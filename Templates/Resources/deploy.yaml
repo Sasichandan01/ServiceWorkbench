@@ -1133,7 +1133,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   RBACCustomResource:
     Type: Custom::RBACCustomResource
     DependsOn:

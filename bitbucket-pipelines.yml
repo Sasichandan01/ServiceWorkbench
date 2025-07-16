@@ -803,9 +803,9 @@ pipelines:
     wb-mayank:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -813,9 +813,9 @@ pipelines:
     wb-abhishek:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -823,9 +823,9 @@ pipelines:
     wb-salma:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -833,9 +833,9 @@ pipelines:
     wb-bhargav:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -846,9 +846,9 @@ pipelines:
     develop:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *deploy_infra_stack
