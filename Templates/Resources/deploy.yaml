@@ -688,6 +688,17 @@ Resources:
                   - ssm:GetParameter
                   - ssm:PutParameter
                 Resource: "*"
+      
+        - PolicyName: GlueJobPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: GlueJobAccess
+                Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                Resource:
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${GlueJob}"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -891,7 +902,7 @@ Resources:
                   - dynamodb:ListTables
                 Resource:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
-
+ 
 
   AuroraDataSource:
     Type: AWS::Bedrock::DataSource
@@ -946,7 +957,7 @@ Resources:
         '--enable-metrics': 'true'
         '--enable-continuous-cloudwatch-log': 'true'
         '--enable-continuous-log-filter': 'true'
-        '--DYNAMODB_TABLE_PREFIX': "Workbench-develop"
+        '--DYNAMODB_TABLE_PREFIX': !Sub "Workbench-${pPrefix}"
         '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
         '--AURORA_DS_ID': !Ref AuroraDataSource
         '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
@@ -955,6 +966,7 @@ Resources:
         '--OPENSEARCH_S3_PREFIX': !Ref pWebScrapDocumentsPrefix
         '--AURORA_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--AURORA_S3_PREFIX': !Ref pTablesDataPrefix
+        '--ACTION': 'docsapp'
         '--WAIT_FOR_SYNC': 'true'
         '--AWS_REGION': !Ref AWS::Region
         '--AWS_ACCOUNT_ID': !Ref AWS::AccountId
