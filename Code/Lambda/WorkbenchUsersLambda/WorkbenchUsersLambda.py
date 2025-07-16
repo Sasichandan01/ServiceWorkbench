@@ -390,3 +390,4 @@ def rag_sync(event):
                 'error': str(e)
             })
         }
+    
