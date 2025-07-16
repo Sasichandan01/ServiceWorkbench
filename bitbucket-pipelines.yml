@@ -66,6 +66,13 @@ definitions:
           exit 1
         fi
 
+        if [ -f ".glue_version" ]; then
+          export GLUE_VERSION=$(cat .glue_version)
+        else
+          echo "[ERROR] Glue version not found. Please run zip_and_upload_lambdas first."
+          exit 1
+        fi
+
         if echo "${COMMIT_MSG}" | grep -q "\[DEPLOY\]" || [ "$BITBUCKET_BRANCH" == "develop" ]; then
           echo "DEPLOY keyword found in commit. Proceeding..."
           BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
@@ -87,7 +94,7 @@ definitions:
             --template-file "$TEMPLATE_FILE" \
             --stack-name "$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM CAPABILITY_IAM \
-            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}" \
+            --parameter-overrides pPrefix="${BRANCH_NAME}" pRAGPrefix="${BRANCH_NAME//-/_}" DeploymentTrigger="$(date -u +%Y-%m-%dT%H:%M:%SZ)" LambdaArtifactVersion="${LAMBDA_VERSION}" GlueArtifactVersion="${GLUE_VERSION}"  \
             --s3-bucket "${S3_BUCKET}" \
             --s3-prefix "cf/${BRANCH_NAME}" \
             --no-fail-on-empty-changeset || {
@@ -134,7 +141,7 @@ definitions:
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
-
+ 
     - script: &upload_cf_templates
         |
         set -e
@@ -383,15 +390,17 @@ definitions:
         echo "Using Lambda version: $LAMBDA_VERSION"
         export LAMBDA_VERSION
         echo "$LAMBDA_VERSION" > .lambda_version
+
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
-
             echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
-            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
+            aws s3 rm "s3://${DEST_BUCKET}/" \
+              --recursive \
+              --exclude "*" \
+              --include "lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
 
-
-            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+            S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
             # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
 
             # Get all .py files in the category
@@ -435,7 +444,48 @@ definitions:
           fi
         done
         echo "All zips uploaded to S3 under lambda/<folder>/ structure."
-  
+    
+    - script: &zip_and_upload_glue_scripts
+        |
+        set -e
+        echo "Zipping and uploading Glue scripts under Code/Glue to S3..."
+        BASE_DIR="Code/Glue"
+        DEST_BUCKET="service-workbench-artifacts"
+
+        BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
+        GLUE_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
+        echo "Using Glue version: $GLUE_VERSION"
+        export GLUE_VERSION
+        echo "$GLUE_VERSION" > .glue_version
+
+        for CATEGORY in "$BASE_DIR"/*; do
+          if [ -d "$CATEGORY" ]; then
+            CATEGORY_NAME=$(basename "$CATEGORY")
+            echo "Cleaning up old Glue zips for: ${CATEGORY_NAME,,}"
+            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "glue-*/${CATEGORY_NAME,,}/*.py" || true
+
+            S3_PREFIX="glue-${GLUE_VERSION}/${CATEGORY_NAME,,}"
+
+            # Get all relevant files in the category
+            mapfile -t GLUE_FILES < <(find "$CATEGORY" -maxdepth 1 -type f -name "*.py" )
+            if [ ${#GLUE_FILES[@]} -eq 0 ]; then
+              echo "No Glue files found in $CATEGORY"
+              continue
+            fi
+            
+            echo "Uploading files from $CATEGORY_NAME to s3://${DEST_BUCKET}/${S3_PREFIX}/"
+            for FILE in "${GLUE_FILES[@]}"; do
+              FILE_NAME=$(basename "$FILE")
+              echo "Uploading $FILE_NAME"
+              aws s3 cp "$FILE" "s3://${DEST_BUCKET}/${S3_PREFIX}/${FILE_NAME}" || {
+                echo "[ERROR] Failed to upload ${FILE}"
+                exit 1
+              }
+            done
+          fi
+        done
+        echo "All Glue files uploaded directly to S3 under glue/<folder>/ structure."
+
     - script: &zip_and_upload_layers
         |
         set -e
@@ -534,7 +584,7 @@ definitions:
           
           # Look for zip file in S3 under lambda/<base_function_lowercase>/
           S3_BUCKET="service-workbench-artifacts"
-          S3_PREFIX="lambda/${BASE_FUNCTION_LOWER}/"
+          S3_PREFIX="lambda-${LambdaArtifactVersion}-${pPrefix}/${BASE_FUNCTION_LOWER}/"
           
           echo "Looking for zip files in S3 prefix: s3://${S3_BUCKET}/${S3_PREFIX}"
           
@@ -680,6 +730,7 @@ definitions:
           - *deploy_stack
         artifacts:
           - .lambda_version
+          - .glue_version
 
     - step: &deploy_infra_stack
         name: Deploy Infrastructure
@@ -748,14 +799,25 @@ definitions:
           - echo "Updating selected Lambda functions with new layer version..."
           - *authenticate
           - *update_selected_lambdas_with_layer
+    
+    - step: &zipping_and_uploading_glue
+        name: Zip and Upload Glue Scripts
+        oidc: true
+        script:
+          - echo "Zipping and uploading Glue scripts..."
+          - *authenticate
+          - *zip_and_upload_glue_scripts
+        artifacts:
+          - .glue_version
 
 pipelines:
   branches:
     wb-mayank:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
+      - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -763,8 +825,9 @@ pipelines:
     wb-abhishek:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
+      - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -772,8 +835,9 @@ pipelines:
     wb-salma:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
+      - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -781,8 +845,9 @@ pipelines:
     wb-bhargav:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
+      - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -793,8 +858,9 @@ pipelines:
     develop:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
-      - step: *zipping_and_uploading_lambdas
       - step: *update_cftemplates
+      - step: *zipping_and_uploading_lambdas
+      - step: *zipping_and_uploading_glue
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *deploy_infra_stack

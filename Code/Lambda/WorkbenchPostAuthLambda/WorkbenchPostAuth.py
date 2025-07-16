@@ -28,7 +28,8 @@ def lambda_handler(event, context):
             'Email': email,
             'EventTime': datetime.utcnow().isoformat(),
             'ResourceName': 'CognitoPostAuth',
-            'ResourceType': 'Cognito'
+            'ResourceType': 'Cognito',
+            'ResourceId': user_id
         }
 
         LOGGER.info(f"Logging login for user {user_id}")
