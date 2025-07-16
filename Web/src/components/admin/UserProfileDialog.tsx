@@ -19,21 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { 
   Eye, 
   Mail, 
-  Calendar, 
   Shield, 
-  Activity,
-  Cloud,
-  Edit,
-  Save,
-  X,
+  Clock,
   Plus,
-  Trash2,
-  Upload,
+  X,
   Loader2
 } from "lucide-react";
 import { UserService, User } from "../../services/userService";
@@ -51,20 +45,14 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
   const [user, setUser] = useState<User | null>(null);
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [editedUsername, setEditedUsername] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
   const [managingRoles, setManagingRoles] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
 
   const fetchUserData = async () => {
     setLoading(true);
     try {
       const userData = await UserService.getUser(userId);
       setUser(userData);
-      setEditedUsername(userData.Username);
-      // Remove roles API call from here
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast({
@@ -77,9 +65,8 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     }
   };
 
-  // Fetch roles only when the roles tab is activated
-  const fetchRolesIfNeeded = async () => {
-    if (!isOwnProfile && availableRoles.length === 0) {
+  const fetchRoles = async () => {
+    if (!isOwnProfile) {
       try {
         const rolesData = await RoleService.getRoles();
         setAvailableRoles(rolesData.Roles || []);
@@ -90,95 +77,6 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
           variant: "destructive"
         });
       }
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!user) return;
-    
-    try {
-      await UserService.updateUser(userId, {
-        Username: editedUsername
-      });
-      
-      setUser({ ...user, Username: editedUsername });
-      setEditingProfile(false);
-      
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Error",
-        description: "Please select a valid image file",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // Get presigned URL
-      const response = await fetch(`/users/${userId}?action=profile_image`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          Username: user?.Username || "",
-          ContentType: file.type
-        })
-      });
-
-      if (response.ok) {
-        const uploadResponse = await response.json();
-        
-        if (uploadResponse.PreSignedURL) {
-          // Upload image to S3
-          const uploadToS3 = await fetch(uploadResponse.PreSignedURL, {
-            method: 'PUT',
-            body: file
-          });
-
-          if (uploadToS3.ok) {
-            // Refresh user data to get new profile image
-            await fetchUserData();
-            toast({
-              title: "Success",
-              description: "Profile image updated successfully",
-            });
-          } else {
-            throw new Error('Failed to upload to S3');
-          }
-        }
-      } else {
-        throw new Error('Failed to get presigned URL');
-      }
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload image. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -193,10 +91,9 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
       });
       
       // Update user roles locally
-      const currentRoles = Array.isArray(user.Roles) ? user.Roles : [user.Roles];
       setUser({
         ...user,
-        Roles: [...currentRoles, selectedRole]
+        Roles: [...user.Roles, selectedRole]
       });
       
       setSelectedRole("");
@@ -227,10 +124,9 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
       });
       
       // Update user roles locally
-      const currentRoles = Array.isArray(user.Roles) ? user.Roles : [user.Roles];
       setUser({
         ...user,
-        Roles: currentRoles.filter(role => role !== roleName)
+        Roles: user.Roles.filter(role => role !== roleName)
       });
       
       toast({
@@ -249,16 +145,16 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     }
   };
 
-  const getUserRoles = () => {
-    if (!user?.Roles) return [];
-    return Array.isArray(user.Roles) ? user.Roles : [user.Roles];
+  // Filter out roles the user already has
+  const getAvailableRolesToAssign = () => {
+    return availableRoles.filter(role => role.Role && !user?.Roles?.includes(role.Role));
   };
 
-  // Update getAvailableRolesToAssign to filter out roles the user already has (by 'Role')
-  const getAvailableRolesToAssign = () => {
-    const userRoles = getUserRoles();
-    return availableRoles.filter(role => role.Role && !userRoles.includes(role.Role));
-  };
+  useEffect(() => {
+    if (user && !isOwnProfile) {
+      fetchRoles();
+    }
+  }, [user, isOwnProfile]);
 
   return (
     <Dialog onOpenChange={(open) => open && fetchUserData()}>
@@ -269,11 +165,11 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isOwnProfile ? "My Profile" : "User Profile"}</DialogTitle>
           <DialogDescription>
-            {isOwnProfile ? "View and edit your profile information" : "View and manage user information"}
+            {isOwnProfile ? "View your profile information" : "View and manage user information"}
           </DialogDescription>
         </DialogHeader>
         
@@ -283,264 +179,131 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
             <span>Loading user data...</span>
           </div>
         ) : user ? (
-          <Tabs value={activeTab} onValueChange={async (tab) => {
-            setActiveTab(tab);
-            if (tab === "roles") {
-              await fetchRolesIfNeeded();
-            }
-          }} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-              {!isOwnProfile && <TabsTrigger value="roles">Role Management</TabsTrigger>}
-            </TabsList>
-
-            <TabsContent value="profile" className="space-y-6">
-              {/* User Header */}
-              <div className="flex items-center space-x-6">
-                <div className="relative">
-                  <Avatar className="w-20 h-20">
-                    {user.ProfileImageURL ? (
-                      <AvatarImage src={user.ProfileImageURL} alt={user.Username} />
-                    ) : (
-                      <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                        {user.Username.split(' ').map(n => n[0]).join('').toUpperCase()}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  {isOwnProfile && (
-                    <div className="absolute -bottom-2 -right-2">
-                      <Label htmlFor="profile-image" className="cursor-pointer">
-                        <div className="bg-primary text-primary-foreground rounded-full p-2 shadow-lg hover:bg-primary/90 transition-colors">
-                          {uploading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Upload className="w-4 h-4" />
-                          )}
-                        </div>
-                      </Label>
-                      <Input
-                        id="profile-image"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={uploading}
-                      />
-                    </div>
-                  )}
+          <div className="space-y-6">
+            {/* Profile Header */}
+            <div className="flex items-center space-x-4">
+              <Avatar className="w-16 h-16">
+                {user.ProfileImageURL ? (
+                  <AvatarImage src={user.ProfileImageURL} alt={user.Username} />
+                ) : (
+                  <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                    {user.Username.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold">{user.Username}</h3>
+                <div className="flex items-center text-muted-foreground mt-1">
+                  <Mail className="w-4 h-4 mr-2" />
+                  {user.Email}
                 </div>
-                
-                <div className="flex-1">
-                  {editingProfile ? (
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="username">Username</Label>
-                        <Input
-                          id="username"
-                          value={editedUsername}
-                          onChange={(e) => setEditedUsername(e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button onClick={handleSaveProfile} size="sm">
-                          <Save className="w-4 h-4 mr-2" />
-                          Save
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            setEditingProfile(false);
-                            setEditedUsername(user.Username);
-                          }}
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="text-2xl font-semibold">{user.Username}</h3>
-                        {isOwnProfile && (
-                          <Button 
-                            variant="ghost" 
+                <div className="flex items-center text-muted-foreground mt-1">
+                  <Clock className="w-4 h-4 mr-2" />
+                  {user.LastLoginTime ? `Last login: ${user.LastLoginTime}` : 'Never logged in'}
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Active Roles */}
+            <div>
+              <Label className="text-base font-medium">Active Roles</Label>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {user.Roles && user.Roles.length > 0 ? (
+                  user.Roles.map(role => (
+                    <div key={role} className="flex items-center">
+                      <Badge variant="secondary" className="text-sm">
+                        <Shield className="w-3 h-3 mr-1" />
+                        {role}
+                        {!isOwnProfile && (
+                          <Button
+                            variant="ghost"
                             size="sm"
-                            onClick={() => setEditingProfile(true)}
+                            className="ml-2 h-auto p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveRole(role)}
+                            disabled={managingRoles}
                           >
-                            <Edit className="w-4 h-4" />
+                            <X className="w-3 h-3" />
                           </Button>
                         )}
-                      </div>
-                      <p className="text-muted-foreground flex items-center">
-                        <Mail className="w-4 h-4 mr-2" />
-                        {user.Email}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-2">
-                        {getUserRoles().map(role => (
-                          <Badge key={role} variant="secondary">
-                            <Shield className="w-3 h-3 mr-1" />
-                            {role}
-                          </Badge>
-                        ))}
-                      </div>
+                      </Badge>
                     </div>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground">No roles assigned</span>
+                )}
+              </div>
+            </div>
+
+            {/* Assign New Role - Only for non-own profiles */}
+            {!isOwnProfile && (
+              <>
+                <Separator />
+                <div>
+                  <Label className="text-base font-medium">Assign New Role</Label>
+                  <div className="flex items-center space-x-3 mt-3">
+                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select a role to assign" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableRolesToAssign().map(role => (
+                          <SelectItem key={role.Role} value={role.Role || ""}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{role.Role}</span>
+                              {role.Description && (
+                                <span className="text-xs text-muted-foreground">{role.Description}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      onClick={handleAssignRole} 
+                      disabled={!selectedRole || managingRoles}
+                      size="sm"
+                    >
+                      {managingRoles ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <Plus className="w-4 h-4 mr-2" />
+                      )}
+                      Assign
+                    </Button>
+                  </div>
+                  {getAvailableRolesToAssign().length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      All available roles are already assigned to this user.
+                    </p>
                   )}
                 </div>
-              </div>
+              </>
+            )}
 
-              {/* User Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Account Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-medium text-muted-foreground">User ID</Label>
-                      <div className="mt-1">
-                        <code className="bg-muted px-2 py-1 rounded text-sm">{user.UserId}</code>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                      <div className="flex items-center mt-1">
-                        <Mail className="w-4 h-4 mr-2 text-muted-foreground" />
-                        <span>{user.Email}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Statistics</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Active Roles</Label>
-                      <div className="flex items-center mt-1">
-                        <Shield className="w-4 h-4 mr-2 text-muted-foreground" />
-                        <span>{getUserRoles().length} role{getUserRoles().length !== 1 ? 's' : ''}</span>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>
-                      <div className="flex items-center mt-1">
-                        <Activity className="w-4 h-4 mr-2 text-green-500" />
-                        <span className="text-green-600">Active</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="activity" className="space-y-6">
+            {/* User Statistics */}
+            <Separator />
+            <div className="grid grid-cols-2 gap-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>User's recent actions and events</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 text-sm">
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-muted-foreground">Profile accessed</span>
-                      <span className="text-muted-foreground">Just now</span>
-                    </div>
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-muted-foreground">Last login to system</span>
-                      <span className="text-muted-foreground">2 hours ago</span>
-                    </div>
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-muted-foreground">Profile information updated</span>
-                      <span className="text-muted-foreground">1 day ago</span>
-                    </div>
-                    <div className="flex justify-between py-3">
-                      <span className="text-muted-foreground">Account created</span>
-                      <span className="text-muted-foreground">30 days ago</span>
-                    </div>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{user.Roles?.length || 0}</div>
+                    <div className="text-sm text-muted-foreground">Active Roles</div>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            {!isOwnProfile && (
-              <TabsContent value="roles" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Role Management</CardTitle>
-                    <CardDescription>Assign or remove roles for this user</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Current Roles */}
-                    <div>
-                      <Label className="text-sm font-medium">Current Roles</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {getUserRoles().map(role => (
-                          <div key={role} className="flex items-center space-x-2">
-                            <Badge variant="secondary">
-                              <Shield className="w-3 h-3 mr-1" />
-                              {role}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveRole(role)}
-                              disabled={managingRoles}
-                              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ))}
-                        {getUserRoles().length === 0 && (
-                          <span className="text-muted-foreground text-sm">No roles assigned</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Assign New Role */}
-                    {getAvailableRolesToAssign().length > 0 && (
-                      <div>
-                        <Label className="text-sm font-medium">Assign New Role</Label>
-                        <div className="flex space-x-2 mt-2">
-                          <Select value={selectedRole} onValueChange={setSelectedRole}>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Select a role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getAvailableRolesToAssign().map(role => (
-                                <SelectItem key={role.Role} value={role.Role}>
-                                  {role.Role}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button 
-                            onClick={handleAssignRole}
-                            disabled={!selectedRole || managingRoles}
-                          >
-                            {managingRoles ? (
-                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 mr-2" />
-                            )}
-                            Assign
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
-          </Tabs>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">Active</div>
+                    <div className="text-sm text-muted-foreground">Account Status</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             Failed to load user data

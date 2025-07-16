@@ -4,7 +4,7 @@ export interface User {
   UserId: string;
   Username: string;
   Email: string;
-  Roles: string[] | string;
+  Roles: string[];
   ProfileImageURL?: string;
   LastLoginTime?: string;
 }
