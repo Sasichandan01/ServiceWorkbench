@@ -692,7 +692,8 @@ def main():
         'AURORA_S3_PREFIX',
         'WAIT_FOR_SYNC',
         'AWS_REGION',
-        'AWS_ACCOUNT_ID'
+        'AWS_ACCOUNT_ID',
+        'ACTION'
     ])
     
     sc = SparkContext()
@@ -810,7 +811,7 @@ def main():
             job_name=args['JOB_NAME'],
             region=args['AWS_REGION']
         )
-
+        action = args['ACTION']
         def run_web_scraping_and_trigger_ingestion_task():
             logger.info("Web Scraper: Starting internal process for parallel execution...")
             web_scraper.clean_s3_data()
@@ -828,8 +829,16 @@ def main():
             logger.info("Submitting DynamoDB Export and Web Scraping processes to run in parallel...")
             webscrape_future=None
             ddb_future=None
-            ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
-            # webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
+            if action =='docsapp':
+                ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
+                webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
+            elif action =='docs':
+                webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)   
+            elif action =='app':
+                ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
+            else:
+                logger.error("Invalid Action")
+                job.commit()
 
             monitoring_futures = []
             active_futures = [fut for fut in [ddb_future, webscrape_future] if fut is not None]
@@ -890,64 +899,6 @@ def main():
         raise
     finally:
         job.commit()
-
-        
-
-#         ddb_exporter.run_export_and_ingestion()
-#         logger.info("DynamoDB Export process completed.")
-
-#         # Web Scraping Section
-#         logger.info("\nStarting Web Scraping process...")
-
-        
-#         logger.info(f"Web Scraper: Starting job with {len(urls_to_process)} domains")
-#         logger.info(f"Web Scraper: Glue job: {args['JOB_NAME']}")
-#         logger.info(f"Web Scraper: S3 bucket: {args['OPENSEARCH_S3_BUCKET']}")
-#         logger.info(f"Web Scraper: Knowledge Base ID: {args['OPENSEARCH_KB_ID']}")
-        
-
-        
-#         web_scraper.clean_s3_data()
-        
-#         stats = web_scraper.process_urls(
-#             urls_to_process=urls_to_process,
-#             allowed_prefixes=allowed_prefixes
-#         )
-        
-#         summary = web_scraper.create_summary_report()
-        
-#         logger.info(f"Web Scraper: Job completed successfully. Final summary: {summary}")
-        
-#         try:
-#             ingestion_job_id = web_scraper.trigger_kb_ingestion()
-            
-#             if ingestion_job_id:
-#                 logger.info("Web Scraper: KB ingestion job started successfully")
-#                 if args['WAIT_FOR_SYNC'].lower() == 'true':
-#                     success = web_scraper.monitor_ingestion_job(ingestion_job_id)
-#                     if success:
-#                         logger.info("Web Scraper: All processed data successfully sent to knowledge base!")
-#                     else:
-#                         logger.error("Web Scraper ERROR: Ingestion job failed or timed out")
-#                 else:
-#                     logger.info("Web Scraper: WAIT_FOR_SYNC is false. Not waiting for Bedrock ingestion job completion.")
-#             else:
-#                 logger.error("Web Scraper ERROR: Failed to start knowledge base ingestion job")
-                
-#         except Exception as ingestion_error:
-#             logger.error(f"Web Scraper ERROR: Error with KB ingestion: {str(ingestion_error)}")
-#             logger.error("Web Scraper ERROR: Data was staged but KB ingestion failed")
-        
-#         logger.info("Web Scraper: Process completed.")
-        
-#         logger.info("Overall Glue job completed.")
-#         return True
-        
-#     except Exception as e:
-#         logger.error(f"Overall Job Failed with error: {str(e)}")
-#         raise
-#     finally:
-#         job.commit()
 
 if __name__ == "__main__":
     main()
