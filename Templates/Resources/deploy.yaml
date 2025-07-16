@@ -736,7 +736,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-    
+  
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
