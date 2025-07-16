@@ -926,7 +926,7 @@ Resources:
           FixedSizeChunkingConfiguration:
             MaxTokens: 300
             OverlapPercentage: 20
-
+ 
   GlueJob:
     Type: AWS::Glue::Job
     Properties:
