@@ -819,6 +819,8 @@ Resources:
           - Fn::ImportValue:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt UserExecutionRole.Arn
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: "service-workbench-artifacts"
         S3Key: !Sub "lambda-${LambdaArtifactVersion}/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
