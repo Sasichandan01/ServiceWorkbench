@@ -1115,7 +1115,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
