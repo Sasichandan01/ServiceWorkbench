@@ -141,7 +141,7 @@ definitions:
             echo "[ERROR] Infra deployment failed"
             exit 1
           }
-
+ 
     - script: &upload_cf_templates
         |
         set -e
@@ -395,10 +395,12 @@ definitions:
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
             echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
-            aws s3 rm "s3://${DEST_BUCKET}/" --recursive --exclude "*" --include "lambda-*/${CATEGORY_NAME,,}/*.zip" || true
+            aws s3 rm "s3://${DEST_BUCKET}/" \
+              --recursive \
+              --exclude "*" \
+              --include "lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
 
-
-            S3_PREFIX="lambda-${LAMBDA_VERSION}/${CATEGORY_NAME,,}"
+            S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
             # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
 
             # Get all .py files in the category
@@ -582,7 +584,7 @@ definitions:
           
           # Look for zip file in S3 under lambda/<base_function_lowercase>/
           S3_BUCKET="service-workbench-artifacts"
-          S3_PREFIX="lambda/${BASE_FUNCTION_LOWER}/"
+          S3_PREFIX="lambda-${LambdaArtifactVersion}-${pPrefix}/${BASE_FUNCTION_LOWER}/"
           
           echo "Looking for zip files in S3 prefix: s3://${S3_BUCKET}/${S3_PREFIX}"
           
@@ -813,9 +815,9 @@ pipelines:
     wb-mayank:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -823,9 +825,9 @@ pipelines:
     wb-abhishek:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -833,9 +835,9 @@ pipelines:
     wb-salma:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -843,9 +845,9 @@ pipelines:
     wb-bhargav:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *build_and_deploy_ui
@@ -856,9 +858,9 @@ pipelines:
     develop:
       - step: *lint_and_validate
       # - step: *zipping_and_uploading_layers
+      - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
-      - step: *update_cftemplates
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
       - step: *deploy_infra_stack
