@@ -3,13 +3,13 @@ import boto3
 import os
 import logging
 from boto3.dynamodb.conditions import Key
-from Utils.utils import paginate_list,  return_response
+from Utils.utils import paginate_list,return_response
 from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
-VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
+VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Roles', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
 
-# Setup logger
+# Setup logger for test
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
@@ -73,8 +73,6 @@ def lambda_handler(event, context):
 
             if action == 'profile_image':
                 return get_profile_image_upload_url(user_id, body)
-            elif action == 'role':
-                return update_user_roles(user_id, body)
             else:
                 return update_user_details(user_id, body)
 
@@ -111,8 +109,7 @@ def get_all_users(query_params):
             "Username": item.get("Username"),
             "Email": item.get("Email"),
             "Roles": item.get("Role", []),
-            "ProfileImageURL": item.get("ProfileImage"),
-            "LastLoginTime": item.get("LastLoginTime", "")
+            "ProfileImageURL": item.get("ProfileImage")
         } for item in items
     ]
     paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
@@ -150,7 +147,6 @@ def get_user_profile(user_id):
     LOGGER.info("Getting User Profile for %s", user_id)
     res = user_table.get_item(Key={"UserId": user_id})
     item = res.get("Item")
-    LOGGER.info("Item: %s", item)
 
     if not item:
         return return_response(404, {"message": "User not found"})
@@ -202,7 +198,7 @@ def get_profile_image_upload_url(user_id, body):
     LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
 
     if not MISC_BUCKET:
-        return return_response(500, {"message": "S3 bucket not configured"})
+        return response(500, {"message": "S3 bucket not configured"})
 
     file_name = user_id
 
@@ -242,7 +238,7 @@ def get_profile_image_upload_url(user_id, body):
 
         return return_response(200, {
             "message": "Pre-signed URL generated",
-            "PreSignedURL": presigned_url
+            "UploadURL": presigned_url
             # "ImageURL": object_url
         })
 
@@ -294,60 +290,14 @@ def update_profile_image_on_s3_upload(event, context):
 
             LOGGER.info("Updated profile image URL for user %s", user_id)
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"message": "Profile image URLs updated"})
-        }
+        return return_response({
+            200,
+            {"message": "Profile image URLs updated"}
+        })
 
     except Exception as e:
         LOGGER.error("Error processing S3 event: %s", e, exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": "Failed to update profile image URL"})
-        }
-
-def update_user_roles(user_id, body):
-    """
-    Appends a role to the user's existing list of roles.
-
-    Args:
-        user_id (str): Unique identifier for the user.
-        body (dict): JSON body containing the 'Role'.
-
-    Returns:
-        dict: HTTP response confirming update.
-    """
-    LOGGER.info("Updating roles for user: %s", user_id)
-
-    new_role = body.get("Role")
-    if not new_role:
-        return return_response(400, {"message": "Role is required"})
-
-    try:
-        # Fetch the current roles
-        result = user_table.get_item(Key={"UserId": user_id})
-        user = result.get("Item")
-        if not user:
-            return return_response(404, {"message": "User not found"})
-
-        current_roles = user.get("Role", [])
-        if not isinstance(current_roles, list):
-            current_roles = [current_roles]
-
-        if new_role in current_roles:
-            return return_response(200, {"message": f"Role '{new_role}' already assigned"})
-
-        updated_roles = current_roles + [new_role]
-
-        user_table.update_item(
-            Key={"UserId": user_id},
-            UpdateExpression="SET #r = :roles",
-            ExpressionAttributeNames={"#r": "Role"},
-            ExpressionAttributeValues={":roles": updated_roles}
-        )
-
-        return return_response(200, {"message": f"Role '{new_role}' added successfully"})
-
-    except Exception as e:
-        LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
-        return return_response(500, {"message": "Error updating user roles"})
+        return return_response({
+            500,
+            {"message": "Failed to update profile image URL"}
+        })
