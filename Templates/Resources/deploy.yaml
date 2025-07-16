@@ -957,7 +957,7 @@ Resources:
         '--enable-metrics': 'true'
         '--enable-continuous-cloudwatch-log': 'true'
         '--enable-continuous-log-filter': 'true'
-        '--DYNAMODB_TABLE_PREFIX': "Workbench-develop"
+        '--DYNAMODB_TABLE_PREFIX': !Sub "Workbench-${pPrefix}"
         '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
         '--AURORA_DS_ID': !Ref AuroraDataSource
         '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
