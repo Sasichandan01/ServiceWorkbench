@@ -1526,6 +1526,32 @@ paths:
         passthroughBehavior: "when_no_match"
         timeoutInMillis: 29000
         contentHandling: "CONVERT_TO_TEXT"
+    post:
+      parameters:
+        - name: "datasource_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:wb-mayank-DatasourcesLambdaFunction/invocations"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
     put:
       parameters:
         - name: "datasource_id"
