@@ -37,6 +37,7 @@ def lambda_handler(event,context):
     elif route_key == '$disconnect':
         LOGGER.info("Connection %s disconnected", connection_id)
     elif route_key == 'sendMessage':
+        LOGGER.info("Sending message to connection %s", connection_id)
         send_message(apigw_client, connection_id, "Hello")
     else:
         LOGGER.error("Invalid route key: %s", route_key)

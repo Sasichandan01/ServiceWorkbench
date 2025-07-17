@@ -55,41 +55,57 @@ const AIGenerator = () => {
       setWsConnected(false);
     });
     wsClient.on('message', (event) => {
+      console.log('[Chat] WebSocket message received:', event);
+      console.log('[Chat] Raw event data:', event.data);
+      setIsGenerating(false);
+      
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (isValidMessage(data)) {
-          setMessages(prev => [
-            ...prev,
-            {
+        console.log('[Chat] Parsed data:', data);
+        
+        // Handle different message formats
+        let content = '';
+        if (typeof data === 'string') {
+          content = data;
+        } else if (data && typeof data.response === 'string') {
+          content = data.response;
+        } else if (data && typeof data.content === 'string') {
+          content = data.content;
+        } else if (data && typeof data.message === 'string') {
+          content = data.message;
+        } else if (data && typeof data.text === 'string') {
+          content = data.text;
+        } else {
+          content = JSON.stringify(data);
+        }
+        
+        if (content.trim()) {
+          setMessages(prev => {
+            const msg: Message = {
               id: prev.length + 1,
-              content: data.content,
-              sender: data.sender,
+              content: content,
+              sender: 'ai' as const,
               timestamp: new Date().toLocaleTimeString(),
-            },
-          ]);
-        } else if (data && data.content) {
-          // fallback: treat as AI if sender is not valid
-          setMessages(prev => [
-            ...prev,
-            {
-              id: prev.length + 1,
-              content: data.content,
-              sender: 'ai' as 'ai',
-              timestamp: new Date().toLocaleTimeString(),
-            },
-          ]);
+            };
+            console.log('[Chat] Adding AI message:', msg);
+            return [...prev, msg];
+          });
         }
       } catch (err) {
-        // fallback: treat as plain text
-        setMessages(prev => [
-          ...prev,
-          {
-            id: prev.length + 1,
-            content: event.data,
-            sender: 'ai' as 'ai',
-            timestamp: new Date().toLocaleTimeString(),
-          },
-        ]);
+        console.error('[Chat] Error parsing message:', err);
+        // Fallback: treat the raw data as string content
+        const content = typeof event.data === 'string' ? event.data : String(event.data);
+        if (content.trim()) {
+          setMessages(prev => {
+            const msg: Message = {
+              id: prev.length + 1,
+              content: content,
+              sender: 'ai' as const,
+              timestamp: new Date().toLocaleTimeString(),
+            };
+            return [...prev, msg];
+          });
+        }
       }
     });
     return () => {
@@ -98,24 +114,29 @@ const AIGenerator = () => {
   }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) return;
-    const userMessage = {
+    console.log('[Chat] handleSendMessage called');
+    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) {
+      console.log('[Chat] Cannot send: input empty, wsClientRef', wsClientRef.current, 'wsConnected', wsConnected);
+      return;
+    }
+    const userMessage: Message = {
       id: messages.length + 1,
       content: inputValue,
-      sender: 'user',
+      sender: 'user' as const,
       timestamp: new Date().toLocaleTimeString(),
     };
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
     // Send message via websocket using AWS API Gateway action format
-    wsClientRef.current.send(JSON.stringify({
+    const payload = JSON.stringify({
       action: "sendMessage",
       data: {
         content: userMessage.content,
-        // Add more fields if your backend expects them
       }
-    }));
+    });
+    console.log('[Chat] Sending over websocket:', payload);
+    wsClientRef.current.send(payload);
     setIsGenerating(false);
   };
 

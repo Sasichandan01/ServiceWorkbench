@@ -32,16 +32,33 @@ export function createWebSocketClient(): WebSocketClient {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
-    ws = new WebSocket(getUrlWithToken());
-    ws.onopen = (event) => listeners.open?.forEach(fn => fn(event));
-    ws.onclose = (event) => listeners.close?.forEach(fn => fn(event));
-    ws.onerror = (event) => listeners.error?.forEach(fn => fn(event));
-    ws.onmessage = (event) => listeners.message?.forEach(fn => fn(event));
+    const url = getUrlWithToken();
+    console.log('[WebSocket] Connecting to', url);
+    ws = new WebSocket(url);
+    ws.onopen = (event) => {
+      console.log('[WebSocket] Connection opened', event);
+      listeners.open?.forEach(fn => fn(event));
+    };
+    ws.onclose = (event) => {
+      console.log('[WebSocket] Connection closed', event);
+      listeners.close?.forEach(fn => fn(event));
+    };
+    ws.onerror = (event) => {
+      console.error('[WebSocket] Error', event);
+      listeners.error?.forEach(fn => fn(event));
+    };
+    ws.onmessage = (event) => {
+      console.log('[WebSocket] Message received', event);
+      listeners.message?.forEach(fn => fn(event));
+    };
   }
 
   function send(data: string) {
     if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[WebSocket] Sending:', data);
       ws.send(data);
+    } else {
+      console.warn('[WebSocket] Not open, cannot send:', data);
     }
   }
 
