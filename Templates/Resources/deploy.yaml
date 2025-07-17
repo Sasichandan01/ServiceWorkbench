@@ -1733,7 +1733,7 @@ Resources:
       AuthorizationType: NONE
       Target: !Join ["/", ["integrations", !Ref IntegrationDisconnect]]
 
-  SendMessage:
+  RouteSendMessage:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocketApi
