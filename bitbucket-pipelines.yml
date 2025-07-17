@@ -218,7 +218,7 @@ definitions:
         VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
         VITE_COGNITO_REGION="${REGION_VALUE}"
         VITE_API_URL="${API_URL}"
-        VITE_WEBSOCKET_API_URL="${WEBSOCKET_API_URL}"
+        VITE_WEBSOCKET_URL="${WEBSOCKET_API_URL}"
         EOF
 
         if ! command -v npm &> /dev/null; then

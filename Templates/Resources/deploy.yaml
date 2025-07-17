@@ -1676,7 +1676,7 @@ Resources:
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: "$request.body.action"
 
-  IntegrationAnalysis:
+  IntegrationSendMessage:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
@@ -1732,13 +1732,13 @@ Resources:
       AuthorizationType: NONE
       Target: !Join ["/", ["integrations", !Ref IntegrationDisconnect]]
 
-  RouteAnalysis:
+  SendMessage:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocketApi
-      RouteKey: analysis
+      RouteKey: sendMessage
       AuthorizationType: NONE
-      Target: !Join ["/", ["integrations", !Ref IntegrationAnalysis]]
+      Target: !Join ["/", ["integrations", !Ref IntegrationSendMessage]]
 
 
   Deployment:
@@ -1746,7 +1746,7 @@ Resources:
     DependsOn:
       - RouteConnect
       - RouteDisconnect
-      - RouteAnalysis
+      - RouteSendMessage
     Properties:
       ApiId: !Ref WebSocketApi
   
@@ -1757,7 +1757,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       AuthorizerType: REQUEST
       IdentitySource:
-        - route.request.header.Authorization
+        - route.request.querystring.token
       AuthorizerUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
         - {FunctionName: !Ref LambdaAuthorizerFunction}
