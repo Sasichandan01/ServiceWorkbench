@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 bedrock_client=boto3.client('bedrock-agent')
 
+
 class DynamoDBExportGlueJob:
     def __init__(self, dynamodb_table_prefix, s3_export_bucket_name, s3_export_prefix,
                  bedrock_knowledge_base_id, bedrock_data_source_id, wait_for_sync,
