@@ -285,8 +285,7 @@ def update_profile_image_on_s3_upload(event, context):
                 continue
 
             user_id = parts[1]
-
-            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
+           # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
             image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
 
             # Update DynamoDB record
