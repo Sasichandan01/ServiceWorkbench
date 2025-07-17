@@ -55,5 +55,8 @@
         "PUT": ["datasources.manage"],
         "DELETE": ["datasources.fullaccess"],
         "POST": ["datasources.manage"]
+    },
+    "/rag-sync": {
+        "POST": ["rag.fullaccess"]
     }
 }
