@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+bedrock_client=boto3.client('bedrock-agent')
 
 class DynamoDBExportGlueJob:
     def __init__(self, dynamodb_table_prefix, s3_export_bucket_name, s3_export_prefix,
@@ -367,8 +367,6 @@ class DynamoDBExportGlueJob:
             logger.error(f"DynamoDB Export ERROR: Failed to trigger or monitor Bedrock KB sync: {e}")
 
         logger.info("DynamoDB Export: Process completed.")
-
-
 
 class WebScraperGlueJob:
     def __init__(self, s3_bucket, s3_prefix, kb_id, ds_id, job_name, region):
@@ -812,6 +810,7 @@ def main():
             region=args['AWS_REGION']
         )
         action = args['ACTION']
+        
         def run_web_scraping_and_trigger_ingestion_task():
             logger.info("Web Scraper: Starting internal process for parallel execution...")
             web_scraper.clean_s3_data()
@@ -825,16 +824,52 @@ def main():
             logger.info(f"Web Scraper: Triggered Bedrock ingestion job with ID: {ingestion_job_id}")
             return ingestion_job_id
 
+
+        def check_running_ingestion_jobs(kb_id,ds_id):
+            """
+            Check for any running ingestion jobs (IN_PROGRESS or STARTING status)
+            Returns True if running jobs found, False otherwise
+            """
+            try:
+                logger.info("Checking for running ingestion jobs...")
+                
+                response = bedrock_client.list_ingestion_jobs(
+                    knowledgeBaseId=kb_id,
+                    dataSourceId=ds_id,
+                    filters=[
+                        {
+                            'attribute': 'STATUS',
+                            'operator': 'EQ',
+                            'values': ['IN_PROGRESS', 'STARTING']
+                        }
+                    ],
+                    maxResults=10  # We only need to know if ANY jobs are running
+                )
+                
+                running_jobs = response.get('ingestionJobSummaries', [])
+                
+                if running_jobs:
+                    logger.warning(f"Found {len(running_jobs)} running ingestion jobs:")
+                    return False
+                
+                logger.info("No running ingestion jobs found")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error checking running ingestion jobs: {e}")
+                return False
+
+
         with ThreadPoolExecutor(max_workers=70) as executor: 
             logger.info("Submitting DynamoDB Export and Web Scraping processes to run in parallel...")
             webscrape_future=None
             ddb_future=None
-            if action =='docsapp':
+            if action =='docsapp' and check_running_ingestion_jobs(args['AURORA_KB_ID'],args['AURORA_DS_ID'].split('|')[-1]) and check_running_ingestion_jobs(args['OPENSEARCH_KB_ID'],args['OPENSEARCH_DS_ID'].split('|')[-1]):
                 ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
                 webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
-            elif action =='docs':
+            elif action =='docs' and check_running_ingestion_jobs(args['OPENSEARCH_KB_ID'],args['OPENSEARCH_DS_ID'].split('|')[-1]):
                 webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)   
-            elif action =='app':
+            elif action =='app' and check_running_ingestion_jobs(args['AURORA_KB_ID'],args['AURORA_DS_ID'].split('|')[-1]):
                 ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
             else:
                 logger.error("Invalid Action")
