@@ -17,7 +17,8 @@ LOGGER.setLevel(logging.INFO)
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 MISC_BUCKET = os.environ.get("MISC_BUCKET")
 ROLES_TABLE = os.environ.get("ROLES_TABLE")
-
+GLUE_JOB_NAME = os.environ.get('GLUE_JOB_NAME')
+glue=boto3.client('glue')
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
 table = dynamodb.Table(ROLES_TABLE)
@@ -284,8 +285,7 @@ def update_profile_image_on_s3_upload(event, context):
                 continue
 
             user_id = parts[1]
-
-            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
+           # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
             image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
 
             # Update DynamoDB record
@@ -356,32 +356,27 @@ def update_user_roles(user_id, body):
         return return_response(500, {"message": "Error updating user roles"})
 
 def rag_sync(event):
-    # Example of dynamic parameter
-    print(event)
-    queryStringParameters=event.get("queryStringParameters", {})
-    action = queryStringParameters.get("action")
-    arguments={}
+    '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
+    LOGGER.info("Event: %s", event)
+    query_string_parameters = event.get("queryStringParameters", {})
+    action = query_string_parameters.get("action")
+    arguments = {}
     if action is not None and action == 'web':
-        arguments['--ACTION']=='web'
+        arguments['--ACTION'] = 'web'
     elif action is not None and action == 'app':
-        arguments['--ACTION']=='app'
-
+        arguments['--ACTION'] = 'app'
+    else:
+        return return_response(400, {"message": "Invalid or missing action parameter"})
 
     try:
         response = glue.start_job_run(
-            JobName='my-glue-job',  # Replace with your actual Glue job name
+            JobName=GLUE_JOB_NAME,
             Arguments=arguments
         )
-        
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Glue job started successfully',
-                'job_run_id': response['JobRunId'],
-                's3_prefix': s3_prefix
+        return return_response(200,{
+                "message": "Glue job started successfully",
+                "job_run_id": response['JobRunId']
             })
-        }
-
     except Exception as e:
         return {
             'statusCode': 500,
