@@ -994,8 +994,6 @@ Resources:
           - Fn::ImportValue:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt UserExecutionRole.Arn
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: "service-workbench-artifacts"
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
@@ -1004,6 +1002,8 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           USERS_TABLE: !Ref UserTable
           CLIENT_ID: !Ref UserPoolClient
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2" 
