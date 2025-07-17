@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Brain, Send, User } from "lucide-react";
+import { createWebSocketClient } from "@/lib/websocketClient";
 
 interface Message {
   id: number;
@@ -25,6 +26,9 @@ const AIGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (workspaceId) {
@@ -35,28 +39,84 @@ const AIGenerator = () => {
     }
   }, [workspaceId, solutionId]);
 
+  useEffect(() => {
+    const wsClient = createWebSocketClient();
+    wsClientRef.current = wsClient;
+    wsClient.connect();
+    wsClient.on('open', () => {
+      setWsConnected(true);
+      setWsError(null);
+    });
+    wsClient.on('close', () => {
+      setWsConnected(false);
+    });
+    wsClient.on('error', (e) => {
+      setWsError('WebSocket error');
+      setWsConnected(false);
+    });
+    wsClient.on('message', (event) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (isValidMessage(data)) {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: prev.length + 1,
+              content: data.content,
+              sender: data.sender,
+              timestamp: new Date().toLocaleTimeString(),
+            },
+          ]);
+        } else if (data && data.content) {
+          // fallback: treat as AI if sender is not valid
+          setMessages(prev => [
+            ...prev,
+            {
+              id: prev.length + 1,
+              content: data.content,
+              sender: 'ai' as 'ai',
+              timestamp: new Date().toLocaleTimeString(),
+            },
+          ]);
+        }
+      } catch (err) {
+        // fallback: treat as plain text
+        setMessages(prev => [
+          ...prev,
+          {
+            id: prev.length + 1,
+            content: event.data,
+            sender: 'ai' as 'ai',
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
+      }
+    });
+    return () => {
+      wsClient.close();
+    };
+  }, []);
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
-    const userMessage: Message = {
+    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) return;
+    const userMessage = {
       id: messages.length + 1,
       content: inputValue,
       sender: 'user',
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString(),
     };
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: messages.length + 2,
-        content: "I'll help you generate a comprehensive solution. Please provide more details about your requirements.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setIsGenerating(false);
-    }, 2000);
+    // Send message via websocket using AWS API Gateway action format
+    wsClientRef.current.send(JSON.stringify({
+      action: "sendMessage",
+      data: {
+        content: userMessage.content,
+        // Add more fields if your backend expects them
+      }
+    }));
+    setIsGenerating(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -88,6 +148,12 @@ const AIGenerator = () => {
       {/* Chat Window */}
       <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20">
         <CardContent className="p-0">
+          {wsError && (
+            <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
+          )}
+          {!wsConnected && !wsError && (
+            <div className="text-yellow-500 text-center">Connecting to chat server...</div>
+          )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
             <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 animate-fade-in">
@@ -248,3 +314,12 @@ const AIGenerator = () => {
 };
 
 export default AIGenerator;
+
+// Add a type guard for Message
+function isValidMessage(data: any): data is Message {
+  return (
+    typeof data === 'object' &&
+    typeof data.content === 'string' &&
+    (data.sender === 'user' || data.sender === 'ai')
+  );
+}
