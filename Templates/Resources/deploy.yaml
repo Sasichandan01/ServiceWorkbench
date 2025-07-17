@@ -1757,7 +1757,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       AuthorizerType: REQUEST
       IdentitySource:
-        - route.request.header.Authorization
+        - route.request.querystring.Token
       AuthorizerUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
         - {FunctionName: !Ref LambdaAuthorizerFunction}
