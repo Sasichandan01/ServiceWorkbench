@@ -159,6 +159,10 @@ def share_resource(event):
         workspace_id = resource_id
         solutions_granted = 0
         solutions_updated = 0
+        solutions_skipped = 0
+
+        # Define permission hierarchy
+        LEVEL_RANK = {"read_only": 1, "editor": 2, "owner": 3}
 
         try:
             solutions_response = SOLUTIONS_TABLE.query(
@@ -170,44 +174,78 @@ def share_resource(event):
                 solution_id = sol['SolutionId']
                 solution_access_key = f'SOLUTION#{workspace_id}#{solution_id}'
 
-                # Delete existing access if present
+                # Check existing access to this solution
                 existing_solution_items = RESOURCE_ACCESS_TABLE.scan(
                     FilterExpression=Attr('Id').begins_with(f"{user_id}#") & Attr('AccessKey').eq(solution_access_key),
                     ProjectionExpression='Id, AccessKey'
                 ).get('Items', [])
 
+                # Determine current access level for this solution
+                current_access_level = 0
+                current_access_type = None
                 for item in existing_solution_items:
-                    RESOURCE_ACCESS_TABLE.delete_item(Key={
-                        'Id': item['Id'],
-                        'AccessKey': item['AccessKey']
+                    item_id = item.get('Id', '')
+                    if '#' in item_id:
+                        existing_access_type = item_id.split('#', 1)[1]
+                        if existing_access_type in LEVEL_RANK:
+                            current_access_level = LEVEL_RANK[existing_access_type]
+                            current_access_type = existing_access_type
+                            break
+
+                new_access_level = LEVEL_RANK.get(access_type, 0)
+
+                if current_access_level > new_access_level:
+                    # User already has higher access, skip
+                    solutions_skipped += 1
+                    continue
+                elif current_access_level == new_access_level and current_access_level != 0:
+                    # User already has same access, skip
+                    solutions_skipped += 1
+                    continue
+                elif current_access_level < new_access_level and current_access_level != 0:
+                    # User had lower access, upgrade
+                    for item in existing_solution_items:
+                        RESOURCE_ACCESS_TABLE.delete_item(Key={
+                            'Id': item['Id'],
+                            'AccessKey': item['AccessKey']
+                        })
+                    RESOURCE_ACCESS_TABLE.put_item(Item={
+                        'Id': f"{user_id}#{access_type}",
+                        'AccessKey': solution_access_key,
+                        'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                     })
-
-                # Grant access
-                RESOURCE_ACCESS_TABLE.put_item(Item={
-                    'Id': f"{user_id}#{access_type}",
-                    'AccessKey': solution_access_key,
-                    'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-                })
-
-                if ACTIVITY_LOGS_TABLE:
-                    log_activity(
-                        ACTIVITY_LOGS_TABLE,
-                        resource_type='SOLUTION',
-                        resource_name=f'Solution in workspace {workspace_id}',
-                        resource_id=f'{workspace_id}#{solution_id}',
-                        user_id=user_id,
-                        action=f'GRANT_{access_type.upper()}_ACCESS'
-                    )
-
-                if existing_solution_items:
+                    if ACTIVITY_LOGS_TABLE:
+                        log_activity(
+                            ACTIVITY_LOGS_TABLE,
+                            resource_type='SOLUTION',
+                            resource_name=f'Solution in workspace {workspace_id}',
+                            resource_id=f'{workspace_id}#{solution_id}',
+                            user_id=user_id,
+                            action=f'GRANT_{access_type.upper()}_ACCESS'
+                        )
                     solutions_updated += 1
-                else:
+                elif current_access_level == 0:
+                    # User had no access, grant
+                    RESOURCE_ACCESS_TABLE.put_item(Item={
+                        'Id': f"{user_id}#{access_type}",
+                        'AccessKey': solution_access_key,
+                        'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                    if ACTIVITY_LOGS_TABLE:
+                        log_activity(
+                            ACTIVITY_LOGS_TABLE,
+                            resource_type='SOLUTION',
+                            resource_name=f'Solution in workspace {workspace_id}',
+                            resource_id=f'{workspace_id}#{solution_id}',
+                            user_id=user_id,
+                            action=f'GRANT_{access_type.upper()}_ACCESS'
+                        )
                     solutions_granted += 1
 
         except Exception as e:
             print(f"Error granting solution access: {e}")
 
-        msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated."
+        msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated, {solutions_skipped} skipped (higher permissions already exist)."
         return return_response(200, {'Message': msg})
 
     return return_response(200, {'Message': 'Access granted'})
@@ -258,14 +296,12 @@ def revoke_access(event):
         if item['Id'].startswith(f"{body['UserId']}#")
     ]
 
-    deleted_count = 0
     for item in items:
         key = {
             'Id': item['Id'],
             'AccessKey': item['AccessKey']
         }
         RESOURCE_ACCESS_TABLE.delete_item(Key=key)
-        deleted_count += 1
 
     # If revoking workspace access, also revoke access to all solutions in that workspace
     if resource_type == 'WORKSPACE':
@@ -332,6 +368,6 @@ def revoke_access(event):
         )
 
     if resource_type == 'WORKSPACE':
-        return return_response(200, {'Message': f'Access revoked for workspace and {solutions_revoked} solutions ({deleted_count + solutions_revoked} total records)'})
+        return return_response(200, {'Message': f'Access revoked for workspace and {solutions_revoked} solutions'})
     else:
-        return return_response(200, {'Message': f'Access revoked for {deleted_count} record(s)'})
+        return return_response(200, {'Message': f'Access revoked'})
