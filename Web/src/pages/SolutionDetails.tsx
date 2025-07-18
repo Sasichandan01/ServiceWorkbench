@@ -7,8 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
 import SolutionOverviewCards from "@/components/SolutionOverviewCards";
 import SolutionInformation from "@/components/SolutionInformation";
-import ArchitectureDiagram from "@/components/ArchitectureDiagram";
-import RunHistory from "@/components/RunHistory";
+import SolutionTabs from "@/components/SolutionTabs";
 import { Play, Brain, Trash2, Plus } from "lucide-react";
 import { SolutionService } from "../services/solutionService";
 import { WorkspaceService } from "../services/workspaceService";
@@ -112,7 +111,9 @@ const SolutionDetails = () => {
     navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`);
   };
 
-  const isNewSolution = !solution.CftS3Path;
+  // Determine if the solution is new based on SolutionsStatus
+  const isNewSolution = solution.SolutionsStatus === "YET_TO_BE_PREPARED" || solution.SolutionsStatus === "DRAFT";
+  const isReadySolution = solution.SolutionsStatus === "READY";
 
   // Handler to open add datasource dialog
   const handleOpenAddDatasource = () => {
@@ -158,7 +159,7 @@ const SolutionDetails = () => {
   const handleOpenEditDialog = () => {
     setEditName(solution.SolutionName || "");
     setEditDescription(solution.Description || "");
-    setEditTags(Array.isArray(solution.Tags) ? solution.Tags : []);
+    setEditTags(Array.isArray(solution.Tags) ? solution.Tags : (solution.Tags ? [solution.Tags] : []));
     setEditTagInput("");
     setEditDialogOpen(true);
   };
@@ -212,10 +213,6 @@ const SolutionDetails = () => {
         </div>
         <div className="flex items-center space-x-3">
           <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
-          <Button onClick={handleRunSolution} disabled={isNewSolution}>
-            <Play className="w-4 h-4 mr-2" />
-            Run Solution
-          </Button>
           {/* Delete Solution Button */}
           <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
             <Trash2 className="w-4 h-4 mr-2" />
@@ -317,45 +314,45 @@ const SolutionDetails = () => {
       {/* Solution Information */}
       <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
 
-      {/* Datasources Table or Empty State */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Datasources</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {Array.isArray(solution.Datasources) && solution.Datasources.length > 0 ? (
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left p-2">Name</th>
-                  <th className="text-left p-2">ID</th>
-                  <th className="text-left p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {solution.Datasources.map((ds: any, idx: number) => (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">{ds.DatasourceName}</td>
-                    <td className="p-2">{ds.DatasourceId}</td>
-                    <td className="p-2">
-                      <Button variant="destructive" size="sm" onClick={() => handleDetachDatasource(ds.DatasourceId)}>
-                        <Trash2 className="w-4 h-4" /> Detach
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8">
-              <p className="text-gray-500 mb-4">No datasources attached to this solution.</p>
-              <Button onClick={handleOpenAddDatasource}>
-                <Plus className="w-4 h-4 mr-2" /> Add Datasource
+      {/* Solution Tabs */}
+      {!isNewSolution ? (
+        <SolutionTabs
+          workspaceId={workspaceId!}
+          solutionId={solutionId!}
+          solution={solution}
+          isReadySolution={isReadySolution}
+          onRunSolution={handleRunSolution}
+          onOpenAddDatasource={handleOpenAddDatasource}
+          onDetachDatasource={handleDetachDatasource}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Brain className="w-6 h-6 text-purple-600" />
+              <span>Generate Your Solution</span>
+            </CardTitle>
+            <CardDescription>
+              Use AI to generate architecture, code, and implementation details for your solution
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Brain className="w-8 h-8 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to build your solution?</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Describe your requirements and let AI generate a comprehensive solution with architecture diagrams, code examples, and implementation guidance.
+              </p>
+              <Button onClick={handleGenerateSolution} size="lg" className="bg-purple-600 hover:bg-purple-700">
+                <Brain className="w-5 h-5 mr-2" />
+                Start AI Generation
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Datasource Dialog */}
       <Dialog open={addDatasourceDialogOpen} onOpenChange={setAddDatasourceDialogOpen}>
@@ -416,62 +413,29 @@ const SolutionDetails = () => {
             <CardTitle>Resources</CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left p-2">Type</th>
-                  <th className="text-left p-2">Name</th>
-                  <th className="text-left p-2">ARN</th>
-                </tr>
-              </thead>
-              <tbody>
-                {solution.Resources.map((res: any, idx: number) => (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">{res.ResourceType}</td>
-                    <td className="p-2">{res.ResourceName}</td>
-                    <td className="p-2 break-all">{res.ResourceArn}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-medium">Type</th>
+                    <th className="text-left p-3 font-medium">Name</th>
+                    <th className="text-left p-3 font-medium">ARN</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Architecture Diagram or Generate Solution Card */}
-      {!isNewSolution ? (
-        <ArchitectureDiagram />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Brain className="w-6 h-6 text-purple-600" />
-              <span>Generate Your Solution</span>
-            </CardTitle>
-            <CardDescription>
-              Use AI to generate architecture, code, and implementation details for your solution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Brain className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to build your solution?</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Describe your requirements and let AI generate a comprehensive solution with architecture diagrams, code examples, and implementation guidance.
-              </p>
-              <Button onClick={handleGenerateSolution} size="lg" className="bg-purple-600 hover:bg-purple-700">
-                <Brain className="w-5 h-5 mr-2" />
-                Start AI Generation
-              </Button>
+                </thead>
+                <tbody>
+                  {solution.Resources.map((res: any, idx: number) => (
+                    <tr key={idx} className="border-b hover:bg-muted/50">
+                      <td className="p-3">{res.ResourceType}</td>
+                      <td className="p-3">{res.ResourceName}</td>
+                      <td className="p-3 break-all font-mono text-xs">{res.ResourceArn}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Run History - only show if not a new solution */}
-      {/* {!isNewSolution && <RunHistory allRunHistory={allRunHistory} getStatusBadgeClass={getStatusBadgeClass} />} */}
     </div>
   );
 };

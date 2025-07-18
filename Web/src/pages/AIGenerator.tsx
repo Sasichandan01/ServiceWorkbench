@@ -56,56 +56,37 @@ const AIGenerator = () => {
     });
     wsClient.on('message', (event) => {
       console.log('[Chat] WebSocket message received:', event);
-      console.log('[Chat] Raw event data:', event.data);
-      setIsGenerating(false);
-      
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        console.log('[Chat] Parsed data:', data);
-        
-        // Handle different message formats
-        let content = '';
-        if (typeof data === 'string') {
-          content = data;
-        } else if (data && typeof data.response === 'string') {
-          content = data.response;
-        } else if (data && typeof data.content === 'string') {
-          content = data.content;
-        } else if (data && typeof data.message === 'string') {
-          content = data.message;
-        } else if (data && typeof data.text === 'string') {
-          content = data.text;
-        } else {
-          content = JSON.stringify(data);
-        }
-        
-        if (content.trim()) {
+        if (isValidMessage(data)) {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: prev.length + 1,
+              content: data.content,
+              sender: data.sender as 'user' | 'ai',
+              timestamp: new Date().toLocaleTimeString(),
+            },
+          ]);
+        } else if (data && data.content) {
           setMessages(prev => {
             const msg: Message = {
               id: prev.length + 1,
-              content: content,
-              sender: 'ai' as const,
+              content: data.content,
+              sender: 'ai',
               timestamp: new Date().toLocaleTimeString(),
             };
-            console.log('[Chat] Adding AI message:', msg);
             return [...prev, msg];
           });
         }
       } catch (err) {
-        console.error('[Chat] Error parsing message:', err);
-        // Fallback: treat the raw data as string content
-        const content = typeof event.data === 'string' ? event.data : String(event.data);
-        if (content.trim()) {
-          setMessages(prev => {
-            const msg: Message = {
-              id: prev.length + 1,
-              content: content,
-              sender: 'ai' as const,
-              timestamp: new Date().toLocaleTimeString(),
-            };
-            return [...prev, msg];
-          });
-        }
+        const msg: Message = {
+          id: messages.length + 1,
+          content: event.data,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setMessages(prev => [...prev, msg]);
       }
     });
     return () => {
@@ -122,7 +103,7 @@ const AIGenerator = () => {
     const userMessage: Message = {
       id: messages.length + 1,
       content: inputValue,
-      sender: 'user' as const,
+      sender: 'user',
       timestamp: new Date().toLocaleTimeString(),
     };
     setMessages(prev => [...prev, userMessage]);
