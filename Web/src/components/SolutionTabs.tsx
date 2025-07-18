@@ -6,6 +6,7 @@ import ExecutionHistory from "./ExecutionHistory";
 import CodeEditor from "./CodeEditor";
 import SolutionOverviewCards from "./SolutionOverviewCards";
 import { Button } from "@/components/ui/button";
+import SolutionInformation from "./SolutionInformation";
 
 interface SolutionTabsProps {
   workspaceId: string;
@@ -15,6 +16,7 @@ interface SolutionTabsProps {
   onRunSolution: () => void;
   onOpenAddDatasource: () => void;
   onDetachDatasource: (datasourceId: string) => void;
+  getStatusBadgeClass: (status: string) => string;
 }
 
 const SolutionTabs = ({ 
@@ -24,7 +26,8 @@ const SolutionTabs = ({
   isReadySolution, 
   onRunSolution,
   onOpenAddDatasource,
-  onDetachDatasource
+  onDetachDatasource,
+  getStatusBadgeClass
 }: SolutionTabsProps) => {
   return (
     <Tabs defaultValue="overview" className="w-full">
@@ -53,6 +56,9 @@ const SolutionTabs = ({
 
       <TabsContent value="overview" className="mt-6">
         <SolutionOverviewCards solutionData={solution} />
+        <div className="mt-6">
+          <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
+        </div>
       </TabsContent>
 
       <TabsContent value="codes" className="mt-6">

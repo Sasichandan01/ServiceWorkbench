@@ -309,10 +309,10 @@ const SolutionDetails = () => {
       </Dialog>
 
       {/* Overview Cards */}
-      <SolutionOverviewCards solutionData={solution} />
+      {/* <SolutionOverviewCards solutionData={solution} /> */}
 
       {/* Solution Information */}
-      <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
+      {/* <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} /> */}
 
       {/* Solution Tabs */}
       {!isNewSolution ? (
@@ -324,6 +324,7 @@ const SolutionDetails = () => {
           onRunSolution={handleRunSolution}
           onOpenAddDatasource={handleOpenAddDatasource}
           onDetachDatasource={handleDetachDatasource}
+          getStatusBadgeClass={getStatusBadgeClass} // Pass this down for SolutionInformation
         />
       ) : (
         <Card>

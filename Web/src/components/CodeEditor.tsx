@@ -356,8 +356,9 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         <div className="flex-1 flex min-h-0">
           <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
             {/* Line Numbers */}
-            <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col`}>
-              <div className={`flex-1 py-4 px-2 font-mono text-xs select-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}>
+            <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-y-auto`}>
+              <div className={`flex-1 py-4 px-2 font-mono text-xs select-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
+                style={{ maxHeight: '100%', overflowY: 'auto' }}>
                 {Array.from({ length: lineCount }, (_, i) => (
                   <div key={i + 1} className="text-right leading-6 h-6">
                     {i + 1}
