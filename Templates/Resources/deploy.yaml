@@ -813,7 +813,15 @@ Resources:
                 Effect: Allow
                 Action:
                   - bedrock:Invoke
-                Resource: '*'         
+                Resource: '*'     
+        - PolicyName: WebSocketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1677,7 +1685,7 @@ Resources:
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: "$request.body.action"
 
-  IntegrationAnalysis:
+  IntegrationSendMessage:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocketApi
@@ -1733,13 +1741,13 @@ Resources:
       AuthorizationType: NONE
       Target: !Join ["/", ["integrations", !Ref IntegrationDisconnect]]
 
-  RouteAnalysis:
+  RouteSendMessage:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocketApi
-      RouteKey: analysis
+      RouteKey: sendMessage
       AuthorizationType: NONE
-      Target: !Join ["/", ["integrations", !Ref IntegrationAnalysis]]
+      Target: !Join ["/", ["integrations", !Ref IntegrationSendMessage]]
 
 
   Deployment:
@@ -1747,7 +1755,7 @@ Resources:
     DependsOn:
       - RouteConnect
       - RouteDisconnect
-      - RouteAnalysis
+      - RouteSendMessage
     Properties:
       ApiId: !Ref WebSocketApi
   
@@ -1758,7 +1766,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       AuthorizerType: REQUEST
       IdentitySource:
-        - route.request.header.Authorization
+        - route.request.querystring.token
       AuthorizerUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
         - {FunctionName: !Ref LambdaAuthorizerFunction}
@@ -1837,4 +1845,8 @@ Outputs:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
-                 
+
+  WebSocketApiUrl:
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${pWebSocketStage}"
+    Export:
+      Name: !Sub "${pPrefix}-WebSocketApiUrl"
