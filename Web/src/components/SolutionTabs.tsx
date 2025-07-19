@@ -5,8 +5,8 @@ import ArchitectureDiagram from "./ArchitectureDiagram";
 import ExecutionHistory from "./ExecutionHistory";
 import CodeEditor from "./CodeEditor";
 import SolutionOverviewCards from "./SolutionOverviewCards";
-import { Button } from "@/components/ui/button";
 import SolutionInformation from "./SolutionInformation";
+import { Button } from "@/components/ui/button";
 
 interface SolutionTabsProps {
   workspaceId: string;
@@ -54,11 +54,9 @@ const SolutionTabs = ({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="overview" className="mt-6">
+      <TabsContent value="overview" className="mt-6 space-y-6">
         <SolutionOverviewCards solutionData={solution} />
-        <div className="mt-6">
-          <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
-        </div>
+        <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
       </TabsContent>
 
       <TabsContent value="codes" className="mt-6">

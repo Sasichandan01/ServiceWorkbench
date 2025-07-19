@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
-import SolutionOverviewCards from "@/components/SolutionOverviewCards";
-import SolutionInformation from "@/components/SolutionInformation";
 import SolutionTabs from "@/components/SolutionTabs";
 import { Play, Brain, Trash2, Plus } from "lucide-react";
 import { SolutionService } from "../services/solutionService";
@@ -240,79 +238,105 @@ const SolutionDetails = () => {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Solution Details</DialogTitle>
-            <DialogDescription>Update the solution name, description, and tags.</DialogDescription>
+            <DialogTitle>Edit Solution</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-solution-name">Solution Name</Label>
-              <Input id="edit-solution-name" value={editName} onChange={e => setEditName(e.target.value)} />
+          <DialogContent className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Solution Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter solution name"
+              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-solution-description">Description</Label>
-              <Textarea id="edit-solution-description" value={editDescription} onChange={e => setEditDescription(e.target.value)} rows={3} />
+            <div>
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Enter solution description"
+                rows={3}
+              />
             </div>
-            <div className="space-y-2">
+            <div>
               <Label>Tags</Label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 mt-2">
+                {editTags.map((tag, index) => (
+                  <span key={index} className="inline-flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                    {tag}
+                    <button
+                      onClick={() => setEditTags(editTags.filter((_, i) => i !== index))}
+                      className="ml-1 text-blue-600 hover:text-blue-800"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
                 <Input
-                  placeholder="Add a tag and press Enter"
                   value={editTagInput}
-                  onChange={e => setEditTagInput(e.target.value)}
-                  onKeyDown={e => {
+                  onChange={(e) => setEditTagInput(e.target.value)}
+                  placeholder="Add tag"
+                  onKeyPress={(e) => {
                     if (e.key === 'Enter' && editTagInput.trim()) {
-                      e.preventDefault();
-                      if (!editTags.includes(editTagInput.trim())) {
-                        setEditTags([...editTags, editTagInput.trim()]);
-                      }
-                      setEditTagInput("");
+                      setEditTags([...editTags, editTagInput.trim()]);
+                      setEditTagInput('');
                     }
                   }}
                 />
                 <Button
-                  type="button"
                   onClick={() => {
-                    if (editTagInput.trim() && !editTags.includes(editTagInput.trim())) {
+                    if (editTagInput.trim()) {
                       setEditTags([...editTags, editTagInput.trim()]);
+                      setEditTagInput('');
                     }
-                    setEditTagInput("");
                   }}
-                  variant="outline"
-                  size="sm"
+                  disabled={!editTagInput.trim()}
                 >
                   Add
                 </Button>
               </div>
-              {editTags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {editTags.map((tag, idx) => (
-                    <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
-                      {tag}
-                      <button
-                        type="button"
-                        className="ml-1 text-blue-600 hover:text-red-600"
-                        onClick={() => setEditTags(editTags.filter(t => t !== tag))}
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
+            <div>
+              <Label>Datasources</Label>
+              <Popover open={datasourcePopoverOpen} onOpenChange={setDatasourcePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    {editDatasources.length > 0 ? `${editDatasources.length} datasource(s) selected` : "Select datasources"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-2">
+                    {allDatasources.map((ds) => (
+                      <div key={ds.DatasourceId} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={ds.DatasourceId}
+                          checked={editDatasources.includes(ds.DatasourceId)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setEditDatasources([...editDatasources, ds.DatasourceId]);
+                            } else {
+                              setEditDatasources(editDatasources.filter(id => id !== ds.DatasourceId));
+                            }
+                          }}
+                        />
+                        <label htmlFor={ds.DatasourceId} className="text-sm">{ds.DatasourceName}</label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </DialogContent>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleEditSave}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Overview Cards */}
-      {/* <SolutionOverviewCards solutionData={solution} /> */}
-
-      {/* Solution Information */}
-      {/* <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} /> */}
 
       {/* Solution Tabs */}
       {!isNewSolution ? (
@@ -324,7 +348,7 @@ const SolutionDetails = () => {
           onRunSolution={handleRunSolution}
           onOpenAddDatasource={handleOpenAddDatasource}
           onDetachDatasource={handleDetachDatasource}
-          getStatusBadgeClass={getStatusBadgeClass} // Pass this down for SolutionInformation
+          getStatusBadgeClass={getStatusBadgeClass}
         />
       ) : (
         <Card>

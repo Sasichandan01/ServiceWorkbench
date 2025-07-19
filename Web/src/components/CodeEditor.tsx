@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send } from "lucide-react";
+import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CodeFile {
@@ -38,8 +38,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     { id: 1, role: "assistant", content: "Hello! I'm here to help you with your code. Ask me anything!" }
   ]);
   const [chatInput, setChatInput] = useState("");
-  const [showChat, setShowChat] = useState(true);
+  const [showChat, setShowChat] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const activeFile = files.find(f => f.id === activeFileId);
@@ -57,10 +59,42 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Sync scroll between textarea and line numbers
+  const handleTextareaScroll = () => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
   const handleContentChange = (content: string) => {
     setFiles(prev => prev.map(file => 
       file.id === activeFileId ? { ...file, content, isDirty: true } : file
     ));
+  };
+
+  const handleCloseFile = (fileId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (files.length <= 1) {
+      toast({
+        title: "Cannot Close",
+        description: "You must have at least one file open.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const fileIndex = files.findIndex(f => f.id === fileId);
+    setFiles(prev => prev.filter(f => f.id !== fileId));
+    
+    if (activeFileId === fileId) {
+      // Switch to the next file or previous if it was the last one
+      const nextFileIndex = fileIndex < files.length - 1 ? fileIndex : fileIndex - 1;
+      const nextFile = files[nextFileIndex];
+      if (nextFile) {
+        setActiveFileId(nextFile.id);
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -158,10 +192,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
   // Calculate line numbers based on content
   const lines = activeFile?.content.split('\n') || [''];
-  const lineCount = Math.max(lines.length, 25);
+  const lineCount = lines.length;
 
   return (
-    <div className={`h-[calc(100vh-200px)] flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
       {/* File Explorer Sidebar */}
       {!sidebarCollapsed && (
         <div className={`w-80 ${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col`}>
@@ -294,6 +328,15 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4 mr-1" /> : <Maximize className="w-4 h-4 mr-1" />}
+              <span className="text-xs">{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowChat(!showChat)}
               className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
             >
@@ -339,11 +382,8 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               )}
               {files.length > 1 && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteFile(file.id);
-                  }}
-                  className={`ml-1 ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                  onClick={(e) => handleCloseFile(file.id, e)}
+                  className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -353,14 +393,22 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         </div>
 
         {/* Editor Content */}
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex min-h-0 overflow-hidden">
           <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
             {/* Line Numbers */}
-            <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-y-auto`}>
-              <div className={`flex-1 py-4 px-2 font-mono text-xs select-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
-                style={{ maxHeight: '100%', overflowY: 'auto' }}>
-                {Array.from({ length: lineCount }, (_, i) => (
-                  <div key={i + 1} className="text-right leading-6 h-6">
+            <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-hidden`}>
+              <div 
+                ref={lineNumbersRef}
+                className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-y-auto overflow-x-hidden scrollbar-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
+                style={{
+                  lineHeight: '24px',
+                  fontFamily: 'Consolas, "Courier New", monospace',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                }}
+              >
+                {Array.from({ length: Math.max(lineCount, 20) }, (_, i) => (
+                  <div key={i + 1} className="text-right h-6 leading-6 whitespace-nowrap">
                     {i + 1}
                   </div>
                 ))}
@@ -368,12 +416,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
             </div>
             
             {/* Code Editor */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative overflow-hidden">
               <Textarea
                 ref={textareaRef}
                 value={activeFile?.content || ""}
                 onChange={(e) => handleContentChange(e.target.value)}
-                className={`w-full h-full resize-none border-0 rounded-none font-mono text-sm leading-6 p-4 focus:ring-0 focus:border-0 focus:outline-none ${
+                onScroll={handleTextareaScroll}
+                className={`w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto ${
                   isDarkMode 
                     ? 'bg-[#1e1e1e] text-[#d4d4d4] placeholder:text-[#6a6a6a]' 
                     : 'bg-white text-gray-900 placeholder:text-gray-500'
