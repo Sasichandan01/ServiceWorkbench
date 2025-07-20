@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Prism from 'prismjs';
@@ -217,6 +218,36 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         .syntax-light .token.variable {
           color: #d73a49;
         }
+
+        /* Custom scrollbar styles for the editor */
+        .editor-scrollbar {
+          scrollbar-width: thin;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar {
+          width: 14px;
+          height: 14px;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(121, 121, 121, 0.4);
+          border-radius: 7px;
+          border: 3px solid transparent;
+          background-clip: content-box;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(121, 121, 121, 0.7);
+          background-clip: content-box;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-corner {
+          background: transparent;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -228,6 +259,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       }
     };
   }, []);
+
   const [files, setFiles] = useState<CodeFile[]>([
     {
       id: "1",
@@ -653,13 +685,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const lineCount = lines.length;
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>  {/* Changed to flex-col */}
-      {/* Main Content: Sidebar + Editor + Chat */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* File Explorer Sidebar */}
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full overflow-x-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+      {/* Main Content: Sidebar + Editor + Chat in horizontal layout */}
+      <div className="flex-1 flex min-h-0 overflow-hidden w-full max-w-full">
+        {/* Sidebar (left) */}
         {!sidebarCollapsed && (
           <div 
-            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative`}
+            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative flex-shrink-0`}
             style={{ width: `${sidebarWidth}px` }}
           >
             {/* Sidebar Header */}
@@ -777,8 +809,8 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           </div>
         )}
 
-        {/* Main Editor Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Main Editor Area (center) */}
+        <div className="flex-1 flex flex-col min-w-0 w-full max-w-full">
           {/* Top Bar */}
           <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
             <div className="flex items-center space-x-3">
@@ -840,32 +872,36 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
             </div>
           </div>
 
-          {/* File Tabs */}
+          {/* File Tabs - Fixed to always stay visible */}
           {openFiles.length > 0 && (
-            <div className={`flex items-center ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'} overflow-x-auto`}>
-              {openFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors ${
-                    activeFileId === file.id
-                      ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
-                      : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
-                  }`}
-                  onClick={() => setActiveFileId(file.id)}
-                >
-                  {getFileIcon(file.name)}
-                  <span className="text-xs">{file.name}</span>
-                  {file.isDirty && (
-                    <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
-                  )}
-                  <button
-                    onClick={(e) => handleCloseFile(file.id, e)}
-                    className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+            <div className={`${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
+              <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex">
+                  {openFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors flex-shrink-0 ${
+                        activeFileId === file.id
+                          ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
+                          : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
+                      }`}
+                      onClick={() => setActiveFileId(file.id)}
+                    >
+                      {getFileIcon(file.name)}
+                      <span className="text-xs">{file.name}</span>
+                      {file.isDirty && (
+                        <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
+                      )}
+                      <button
+                        onClick={(e) => handleCloseFile(file.id, e)}
+                        className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </ScrollArea>
             </div>
           )}
 
@@ -891,17 +927,15 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               </div>
             </div>
           ) : (
-            <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
-              {/* Line Numbers */}
+            <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'} overflow-hidden min-w-0 w-full max-w-full`}>
+              {/* Line Numbers - Fixed positioning and scrolling */}
               <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-hidden`}>
                 <div 
                   ref={lineNumbersRef}
-                  className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-y-auto overflow-x-hidden scrollbar-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
+                  className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-hidden ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
                   style={{
                     lineHeight: '24px',
-                    fontFamily: 'Consolas, "Courier New", monospace',
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none'
+                    fontFamily: 'Consolas, "Courier New", monospace'
                   }}
                 >
                   {Array.from({ length: lineCount }, (_, i) => (
@@ -912,41 +946,38 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                 </div>
               </div>
               
-              {/* Code Editor with Syntax Highlighting */}
-              <div className="flex-1 relative overflow-hidden">
+              {/* Code Editor with Syntax Highlighting - Enhanced scrolling */}
+              <div className="flex-1 relative overflow-hidden min-w-0 w-full max-w-full">
                 {/* Syntax Highlighting Layer */}
                 <pre 
                   ref={highlightRef}
-                  className={`absolute inset-0 p-4 font-mono text-sm leading-6 pointer-events-none select-none overflow-auto whitespace-pre-wrap break-words scrollbar-none ${
+                  className={`absolute inset-0 p-4 font-mono text-sm leading-6 pointer-events-none select-none overflow-hidden whitespace-pre-wrap break-words w-full max-w-full min-w-0 ${
                     isDarkMode ? 'syntax-dark' : 'syntax-light'
                   }`}
                   style={{ 
                     lineHeight: '24px',
                     fontFamily: 'Consolas, "Courier New", monospace',
                     zIndex: 1,
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
                     margin: 0,
                     background: 'transparent'
                   }}
                   aria-hidden="true"
                 />
                 
-                {/* Editable Textarea (Transparent text) */}
+                {/* Editable Textarea - Enhanced with proper scrollbars */}
                 <Textarea
                   ref={textareaRef}
                   value={activeFile?.content || ""}
                   onChange={(e) => handleContentChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
-                  className={`absolute inset-0 w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto scrollbar-thin ${
-                    isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-transparent caret-white' : 'scrollbar-thumb-gray-400 scrollbar-track-transparent caret-black'
-                  }`}
+                  className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar`}
                   placeholder="Start typing your code..."
                   style={{ 
                     lineHeight: '24px',
                     fontFamily: 'Consolas, "Courier New", monospace',
                     color: 'transparent',
+                    caretColor: isDarkMode ? '#d4d4d4' : '#000000',
                     zIndex: 2,
                     background: 'transparent'
                   }}
@@ -954,79 +985,81 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               </div>
             </div>
           )}
-
-          {/* AI Chat Panel */}
-          {showChat && (
-            <div 
-              className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative`}
-              style={{ width: `${chatWidth}px` }}
-            >
-              <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
-                <div className="flex items-center justify-between">
-                  <h3 className={`text-sm font-medium ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>AI Assistant</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowChat(false)}
-                    className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
-                      message.role === 'user'
-                        ? isDarkMode ? 'bg-[#0e639c] text-white' : 'bg-blue-500 text-white'
-                        : isDarkMode ? 'bg-[#2d2d30] text-[#cccccc] border border-[#3c3c3c]' : 'bg-white text-gray-900 border border-gray-300'
-                    }`}>
-                      {message.content}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div className={`p-4 ${isDarkMode ? 'border-t border-[#3c3c3c]' : 'border-t border-gray-300'}`}>
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder="Ask me anything..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    className={`flex-1 text-sm ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    size="sm"
-                    className={`px-3 ${isDarkMode ? 'bg-[#0e639c] hover:bg-[#1177bb]' : 'bg-blue-500 hover:bg-blue-600'}`}
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Chat Panel Resize Handle */}
-              <div
-                className={`resize-handle left-0 ${isDraggingChat ? 'dragging' : ''}`}
-                onMouseDown={(e) => {
-                  setDragStartX(e.clientX);
-                  setInitialChatWidth(chatWidth);
-                  setIsDraggingChat(true);
-                }}
-              />
-            </div>
-          )}
         </div>
+
+        {/* AI Chat Panel (right side) */}
+        {showChat && (
+          <div 
+            className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0`}
+            style={{ width: `${chatWidth}px`, maxWidth: '70vw', position: 'relative', zIndex: 10 }}
+          >
+            <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
+              <div className="flex items-center justify-between">
+                <h3 className={`text-sm font-medium ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>AI Assistant</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowChat(false)}
+                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.map((message) => (
+                <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
+                    message.role === 'user'
+                      ? isDarkMode ? 'bg-[#0e639c] text-white' : 'bg-blue-500 text-white'
+                      : isDarkMode ? 'bg-[#2d2d30] text-[#cccccc] border border-[#3c3c3c]' : 'bg-white text-gray-900 border border-gray-300'
+                  }`}>
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className={`p-4 ${isDarkMode ? 'border-t border-[#3c3c3c]' : 'border-t border-gray-300'}`}>
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Ask me anything..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  className={`flex-1 text-sm ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  size="sm"
+                  className={`px-3 ${isDarkMode ? 'bg-[#0e639c] hover:bg-[#1177bb]' : 'bg-blue-500 hover:bg-blue-600'}`}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Chat Panel Resize Handle */}
+            <div
+              className={`resize-handle absolute left-0 top-0 bottom-0 z-20 ${isDraggingChat ? 'dragging' : ''}`}
+              style={{ cursor: 'col-resize', width: 4 }}
+              onMouseDown={(e) => {
+                setDragStartX(e.clientX);
+                setInitialChatWidth(chatWidth);
+                setIsDraggingChat(true);
+              }}
+            />
+          </div>
+        )}
       </div>
-      {/* Status Bar - moved here, outside the main content flex */}
+
+      {/* Status Bar */}
       {activeFile && (
         <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${isDarkMode ? 'bg-[#007acc] text-white border-[#3c3c3c]' : 'bg-blue-600 text-white border-gray-300'}`}>
           <div className="flex items-center space-x-4">
