@@ -42,6 +42,12 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       const style = document.createElement('style');
       style.id = styleId;
       style.textContent = `
+        .syntax-dark {
+          color: #fff;
+        }
+        .syntax-light {
+          color: #000;
+        }
         /* Dark theme syntax highlighting - VSCode like */
         .syntax-dark .token.comment,
         .syntax-dark .token.prolog,
@@ -222,27 +228,34 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         /* Custom scrollbar styles for the editor */
         .editor-scrollbar {
           scrollbar-width: thin;
+          scrollbar-color: rgba(121, 121, 121, 0.6) transparent;
         }
         
         .editor-scrollbar::-webkit-scrollbar {
-          width: 14px;
-          height: 14px;
+          width: 12px;
+          height: 12px;
         }
         
         .editor-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 6px;
         }
         
         .editor-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(121, 121, 121, 0.4);
-          border-radius: 7px;
-          border: 3px solid transparent;
-          background-clip: content-box;
+          background: rgba(121, 121, 121, 0.6);
+          border-radius: 6px;
+          border: 2px solid transparent;
+          background-clip: padding-box;
         }
         
         .editor-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(121, 121, 121, 0.7);
-          background-clip: content-box;
+         background: rgba(121, 121, 121, 0.8);
+          background-clip: padding-box;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-thumb:active {
+          background: rgba(121, 121, 121, 1);
+          background-clip: padding-box;
         }
         
         .editor-scrollbar::-webkit-scrollbar-corner {
@@ -328,7 +341,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [activeFileId, files]); // Add dependencies to ensure latest state
 
   // Update syntax highlighting
   useEffect(() => {
@@ -341,8 +354,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingSidebar) {
+        const containerWidth = window.innerWidth;
+        const maxSidebarWidth = Math.min(600, containerWidth * 0.4);
         const deltaX = e.clientX - dragStartX;
-        const newWidth = Math.max(200, Math.min(600, initialSidebarWidth + deltaX));
+        const newWidth = Math.max(200, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX));
         setSidebarWidth(newWidth);
       }
     };
@@ -370,8 +385,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingChat) {
+        const containerWidth = window.innerWidth;
+        const maxChatWidth = Math.min(600, containerWidth * 0.5);
         const deltaX = dragStartX - e.clientX; // Reverse for chat panel
-        const newWidth = Math.max(200, Math.min(600, initialChatWidth + deltaX));
+        const newWidth = Math.max(200, Math.min(maxChatWidth, initialChatWidth + deltaX));
         setChatWidth(newWidth);
       }
     };
@@ -532,6 +549,23 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       textarea.value = newValue;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
       handleContentChange(newValue);
+      
+      // Auto-scroll to ensure the new line is visible (like standard code editors)
+      setTimeout(() => {
+        if (textarea.scrollHeight > textarea.clientHeight) {
+          const cursorLinePosition = textarea.value.substring(0, newCursorPos).split('\n').length;
+          const lineHeight = 24; // Line height as defined in the styles
+          const scrollTop = (cursorLinePosition - 1) * lineHeight;
+          const visibleHeight = textarea.clientHeight;
+          const maxVisibleLines = Math.floor(visibleHeight / lineHeight);
+          
+          // If cursor is near the bottom of visible area, scroll to keep it in view
+          if (scrollTop > textarea.scrollTop + visibleHeight - lineHeight * 3) {
+            textarea.scrollTop = Math.max(0, scrollTop - visibleHeight + lineHeight * 3);
+          }
+        }
+      }, 0);
+      
       return;
     }
 
@@ -578,13 +612,11 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
   const handleSave = async () => {
     if (!activeFile) return;
-    
     try {
-      // TODO: Implement actual save API call
+      // Use functional update to ensure latest state
       setFiles(prev => prev.map(file => 
         file.id === activeFileId ? { ...file, isDirty: false } : file
       ));
-      
       toast({
         title: "File Saved",
         description: `${activeFile.name} has been saved successfully.`
@@ -685,13 +717,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const lineCount = lines.length;
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full overflow-x-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full max-w-full overflow-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
       {/* Main Content: Sidebar + Editor + Chat in horizontal layout */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 w-full max-w-full overflow-hidden">
         {/* Sidebar (left) */}
         {!sidebarCollapsed && (
           <div 
-            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative flex-shrink-0`}
+            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative flex-shrink-0 max-w-[40%]`}
             style={{ width: `${sidebarWidth}px` }}
           >
             {/* Sidebar Header */}
@@ -810,7 +842,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         )}
 
         {/* Main Editor Area (center) */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 w-0">
           {/* Top Bar */}
           <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
             <div className="flex items-center space-x-3">
@@ -826,11 +858,20 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               )}
               {/* Breadcrumbs */}
               <div className={`flex items-center space-x-1 text-sm ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
-                <span>src</span>
-                <ChevronRight className="w-3 h-3" />
-                <span>pages</span>
-                <ChevronRight className="w-3 h-3" />
-                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>{activeFile?.name}</span>
+                {activeFile?.name
+                  ? activeFile.name.split('/').map((part, idx, arr) => (
+                      <span key={idx} className="flex items-center">
+                        <span className={
+                          idx === arr.length - 1
+                            ? isDarkMode ? 'text-white font-semibold' : 'text-gray-900 font-semibold'
+                            : undefined
+                        }>{part}</span>
+                        {idx < arr.length - 1 && (
+                          <ChevronRight className="w-3 h-3 mx-1" />
+                        )}
+                      </span>
+                    ))
+                  : null}
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -971,7 +1012,9 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   onChange={(e) => handleContentChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
-                  className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar`}
+                  className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar ${
+                    isDarkMode ? 'text-[#d4d4d4] placeholder:text-[#6a6a6a]' : 'text-gray-900 placeholder:text-gray-500'
+                  }`}
                   placeholder="Start typing your code..."
                   style={{ 
                     lineHeight: '24px',
@@ -987,14 +1030,11 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           )}
         </div>
 
-        {/* AI Chat Panel (right side) */}
+        {/* AI Chat Panel (right) */}
         {showChat && (
           <div 
-            className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0`}
-            style={{ 
-              width: `${chatWidth}px`, 
-              minWidth: '200px'
-            }}
+            className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0 max-w-[50%]`}
+            style={{ width: `${chatWidth}px` }}
           >
             <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
               <div className="flex items-center justify-between">
@@ -1003,7 +1043,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowChat(false)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  className={`h-5 w-5 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -1064,15 +1104,19 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
       {/* Status Bar */}
       {activeFile && (
-        <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${isDarkMode ? 'bg-[#007acc] text-white border-[#3c3c3c]' : 'bg-blue-600 text-white border-gray-300'}`}>
+        <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${
+          isDarkMode 
+            ? 'bg-[#23272e] text-[#d4d4d4] border-[#23272e]' 
+            : 'bg-[#f3f3f3] text-[#222] border-[#e5e7eb]'
+        }`}>
           <div className="flex items-center space-x-4">
-            <span>Language: {activeFile.language}</span>
-            <span>Indent: {getIndentSize(activeFile.language)} spaces</span>
-            <span>Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
+            <span className="text-inherit">Language: {activeFile.language}</span>
+            <span className="text-inherit">Indent: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-inherit">Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span>Tab: {getIndentSize(activeFile.language)} spaces</span>
-            <span>Encoding: UTF-8</span>
+            <span className="text-inherit">Tab: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-inherit">Encoding: UTF-8</span>
           </div>
         </div>
       )}
