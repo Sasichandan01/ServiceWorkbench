@@ -6,6 +6,7 @@ interface AuthState {
     name?: string;
     email?: string;
     sub?: string;
+    username?: string;
     role?: string;
   } | null;
   loading: boolean;

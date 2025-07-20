@@ -21,9 +21,9 @@ const Profile = () => {
           <p className="text-gray-600">Manage your account and preferences</p>
         </div>
         <div className="flex space-x-2">
-          {user?.sub && (
+          {user?.username && (
             <UserProfileDialog 
-              userId={user.sub}
+              userId={user.username}
               isOwnProfile={true}
               trigger={
                 <Button variant="outline">

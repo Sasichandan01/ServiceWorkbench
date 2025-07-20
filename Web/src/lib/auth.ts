@@ -1,5 +1,5 @@
 
-import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand, ResendConfirmationCodeCommand, GlobalSignOutCommand } from "@aws-sdk/client-cognito-identity-provider";
+import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand, ResendConfirmationCodeCommand, GlobalSignOutCommand, UpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
 
 // AWS Cognito configuration from environment variables
 const COGNITO_CONFIG = {
@@ -155,6 +155,24 @@ export const clearAllAuthData = () => {
   sessionStorage.clear();
   
   console.log("All auth data cleared from browser");
+};
+
+export const updateUserAttributes = async (userAttributes: { Name: string; Value: string }[]) => {
+  const accessToken = localStorage.getItem('accessToken');
+  if (!accessToken) throw new Error('No access token available');
+
+  const command = new UpdateUserAttributesCommand({
+    AccessToken: accessToken,
+    UserAttributes: userAttributes,
+  });
+
+  try {
+    const response = await cognitoClient.send(command);
+    return response;
+  } catch (error) {
+    console.error('Update user attributes error:', error);
+    throw error;
+  }
 };
 
 export const refreshAccessToken = async () => {
