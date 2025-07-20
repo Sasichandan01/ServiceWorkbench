@@ -42,6 +42,12 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       const style = document.createElement('style');
       style.id = styleId;
       style.textContent = `
+        .syntax-dark {
+          color: #fff;
+        }
+        .syntax-light {
+          color: #000;
+        }
         /* Dark theme syntax highlighting - VSCode like */
         .syntax-dark .token.comment,
         .syntax-dark .token.prolog,
@@ -854,11 +860,20 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               )}
               {/* Breadcrumbs */}
               <div className={`flex items-center space-x-1 text-sm ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
-                <span>src</span>
-                <ChevronRight className="w-3 h-3" />
-                <span>pages</span>
-                <ChevronRight className="w-3 h-3" />
-                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>{activeFile?.name}</span>
+                {activeFile?.name
+                  ? activeFile.name.split('/').map((part, idx, arr) => (
+                      <span key={idx} className="flex items-center">
+                        <span className={
+                          idx === arr.length - 1
+                            ? isDarkMode ? 'text-white font-semibold' : 'text-gray-900 font-semibold'
+                            : undefined
+                        }>{part}</span>
+                        {idx < arr.length - 1 && (
+                          <ChevronRight className="w-3 h-3 mx-1" />
+                        )}
+                      </span>
+                    ))
+                  : null}
               </div>
             </div>
             <div className="flex items-center space-x-2">
