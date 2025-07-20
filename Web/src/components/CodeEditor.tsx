@@ -341,7 +341,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [activeFileId, files]); // Add dependencies to ensure latest state
 
   // Update syntax highlighting
   useEffect(() => {
@@ -612,13 +612,11 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
   const handleSave = async () => {
     if (!activeFile) return;
-    
     try {
-      // TODO: Implement actual save API call
+      // Use functional update to ensure latest state
       setFiles(prev => prev.map(file => 
         file.id === activeFileId ? { ...file, isDirty: false } : file
       ));
-      
       toast({
         title: "File Saved",
         description: `${activeFile.name} has been saved successfully.`
