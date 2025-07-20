@@ -341,8 +341,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingSidebar) {
+        const containerWidth = window.innerWidth;
+        const maxSidebarWidth = Math.min(600, containerWidth * 0.4);
         const deltaX = e.clientX - dragStartX;
-        const newWidth = Math.max(200, Math.min(600, initialSidebarWidth + deltaX));
+        const newWidth = Math.max(200, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX));
         setSidebarWidth(newWidth);
       }
     };
@@ -370,8 +372,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingChat) {
+        const containerWidth = window.innerWidth;
+        const maxChatWidth = Math.min(600, containerWidth * 0.5);
         const deltaX = dragStartX - e.clientX; // Reverse for chat panel
-        const newWidth = Math.max(200, Math.min(600, initialChatWidth + deltaX));
+        const newWidth = Math.max(200, Math.min(maxChatWidth, initialChatWidth + deltaX));
         setChatWidth(newWidth);
       }
     };
@@ -685,13 +689,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const lineCount = lines.length;
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full overflow-x-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full max-w-full overflow-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
       {/* Main Content: Sidebar + Editor + Chat in horizontal layout */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 w-full max-w-full overflow-hidden">
         {/* Sidebar (left) */}
         {!sidebarCollapsed && (
           <div 
-            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative flex-shrink-0`}
+            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative flex-shrink-0 max-w-[40%]`}
             style={{ width: `${sidebarWidth}px` }}
           >
             {/* Sidebar Header */}
@@ -810,7 +814,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         )}
 
         {/* Main Editor Area (center) */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 w-0">
           {/* Top Bar */}
           <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
             <div className="flex items-center space-x-3">
@@ -987,14 +991,11 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           )}
         </div>
 
-        {/* AI Chat Panel (right side) */}
+        {/* AI Chat Panel (right) */}
         {showChat && (
           <div 
-            className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0`}
-            style={{ 
-              width: `${chatWidth}px`, 
-              minWidth: '200px'
-            }}
+            className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0 max-w-[50%]`}
+            style={{ width: `${chatWidth}px` }}
           >
             <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
               <div className="flex items-center justify-between">
