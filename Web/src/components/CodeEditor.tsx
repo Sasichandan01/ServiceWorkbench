@@ -119,6 +119,24 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           font-style: italic;
         }
         
+        /* Resize handles */
+        .resize-handle {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          cursor: col-resize;
+          transition: background-color 0.2s;
+        }
+        
+        .resize-handle:hover {
+          background-color: rgba(59, 130, 246, 0.5);
+        }
+        
+        .resize-handle.dragging {
+          background-color: rgb(59, 130, 246);
+        }
+        
         /* Light theme syntax highlighting */
         .syntax-light .token.comment,
         .syntax-light .token.prolog,
@@ -207,6 +225,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const [chatInput, setChatInput] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320); // Default 320px (w-80)
+  const [chatWidth, setChatWidth] = useState(320); // Default 320px (w-80)
+  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
+  const [isDraggingChat, setIsDraggingChat] = useState(false);
+  const [initialSidebarWidth, setInitialSidebarWidth] = useState(320);
+  const [initialChatWidth, setInitialChatWidth] = useState(320);
+  const [dragStartX, setDragStartX] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
@@ -234,6 +259,64 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       updateHighlighting();
     }
   }, [activeFile?.content, activeFile?.language, isDarkMode]);
+
+  // Handle sidebar dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingSidebar) {
+        const deltaX = e.clientX - dragStartX;
+        const newWidth = Math.max(200, Math.min(600, initialSidebarWidth + deltaX));
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingSidebar(false);
+    };
+
+    if (isDraggingSidebar) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDraggingSidebar, dragStartX, initialSidebarWidth]);
+
+  // Handle chat panel dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingChat) {
+        const deltaX = dragStartX - e.clientX; // Reverse for chat panel
+        const newWidth = Math.max(200, Math.min(600, initialChatWidth + deltaX));
+        setChatWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingChat(false);
+    };
+
+    if (isDraggingChat) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDraggingChat, dragStartX, initialChatWidth]);
 
   // Sync scroll between textarea, highlight layer, and line numbers
   const handleTextareaScroll = () => {
@@ -413,7 +496,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
       {/* File Explorer Sidebar */}
       {!sidebarCollapsed && (
-        <div className={`w-80 ${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col`}>
+        <div 
+          className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative`}
+          style={{ width: `${sidebarWidth}px` }}
+        >
           {/* Sidebar Header */}
           <div className={`px-4 py-2 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
             <div className="flex items-center justify-between mb-3">
@@ -516,6 +602,16 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               ))}
             </div>
           </div>
+          
+          {/* Sidebar Resize Handle */}
+          <div
+            className={`resize-handle right-0 ${isDraggingSidebar ? 'dragging' : ''}`}
+            onMouseDown={(e) => {
+              setDragStartX(e.clientX);
+              setInitialSidebarWidth(sidebarWidth);
+              setIsDraggingSidebar(true);
+            }}
+          />
         </div>
       )}
 
@@ -699,7 +795,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
           {/* AI Chat Panel */}
           {showChat && (
-            <div className={`w-80 ${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col`}>
+            <div 
+              className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative`}
+              style={{ width: `${chatWidth}px` }}
+            >
               <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
                 <div className="flex items-center justify-between">
                   <h3 className={`text-sm font-medium ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>AI Assistant</h3>
@@ -751,6 +850,16 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   </Button>
                 </div>
               </div>
+              
+              {/* Chat Panel Resize Handle */}
+              <div
+                className={`resize-handle left-0 ${isDraggingChat ? 'dragging' : ''}`}
+                onMouseDown={(e) => {
+                  setDragStartX(e.clientX);
+                  setInitialChatWidth(chatWidth);
+                  setIsDraggingChat(true);
+                }}
+              />
             </div>
           )}
         </div>
