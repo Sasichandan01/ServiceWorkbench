@@ -104,7 +104,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         }
         
         .syntax-dark .token.builtin-name {
-          color: #4EC9B0;
+          color:rgb(191, 121, 45);
         }
         
         /* Special variables like __name__, __main__ */
