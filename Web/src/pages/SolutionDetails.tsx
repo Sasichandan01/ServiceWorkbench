@@ -49,6 +49,7 @@ const SolutionDetails = () => {
   const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
   const [addingDatasource, setAddingDatasource] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("overview");
 
   // Fetch solution and workspace name on mount
   useEffect(() => {
@@ -103,6 +104,7 @@ const SolutionDetails = () => {
       title: "Solution Started",
       description: "Solution execution has been initiated successfully.",
     });
+    setActiveTab("runs");
   };
 
   const handleGenerateSolution = () => {
@@ -338,46 +340,31 @@ const SolutionDetails = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Solution Tabs */}
-      {!isNewSolution ? (
-        <SolutionTabs
-          workspaceId={workspaceId!}
-          solutionId={solutionId!}
-          solution={solution}
-          isReadySolution={isReadySolution}
-          onRunSolution={handleRunSolution}
-          onOpenAddDatasource={handleOpenAddDatasource}
-          onDetachDatasource={handleDetachDatasource}
-          getStatusBadgeClass={getStatusBadgeClass}
-        />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Brain className="w-6 h-6 text-purple-600" />
-              <span>Generate Your Solution</span>
-            </CardTitle>
-            <CardDescription>
-              Use AI to generate architecture, code, and implementation details for your solution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Brain className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to build your solution?</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Describe your requirements and let AI generate a comprehensive solution with architecture diagrams, code examples, and implementation guidance.
-              </p>
-              <Button onClick={handleGenerateSolution} size="lg" className="bg-purple-600 hover:bg-purple-700">
-                <Brain className="w-5 h-5 mr-2" />
-                Start AI Generation
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Run Solution Button */}
+      {isReadySolution && (
+        <div className="flex justify-center">
+          <Button onClick={handleRunSolution} size="lg" className="bg-green-600 hover:bg-green-700">
+            <Play className="w-5 h-5 mr-2" />
+            Run Solution
+          </Button>
+        </div>
       )}
+
+      {/* Solution Tabs */}
+      <SolutionTabs
+        workspaceId={workspaceId!}
+        solutionId={solutionId!}
+        solution={solution}
+        isReadySolution={isReadySolution}
+        onRunSolution={handleRunSolution}
+        onOpenAddDatasource={handleOpenAddDatasource}
+        onDetachDatasource={handleDetachDatasource}
+        getStatusBadgeClass={getStatusBadgeClass}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isNewSolution={isNewSolution}
+        onGenerateSolution={handleGenerateSolution}
+      />
 
       {/* Add Datasource Dialog */}
       <Dialog open={addDatasourceDialogOpen} onOpenChange={setAddDatasourceDialogOpen}>

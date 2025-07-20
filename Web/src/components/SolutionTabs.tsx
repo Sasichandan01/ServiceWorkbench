@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Play, Network, Database, Plus, Trash2, BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Code, Play, Network, Database, Plus, Trash2, BarChart3, Brain } from "lucide-react";
 import ArchitectureDiagram from "./ArchitectureDiagram";
 import ExecutionHistory from "./ExecutionHistory";
 import CodeEditor from "./CodeEditor";
@@ -17,6 +17,10 @@ interface SolutionTabsProps {
   onOpenAddDatasource: () => void;
   onDetachDatasource: (datasourceId: string) => void;
   getStatusBadgeClass: (status: string) => string;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
+  isNewSolution?: boolean;
+  onGenerateSolution?: () => void;
 }
 
 const SolutionTabs = ({ 
@@ -27,23 +31,35 @@ const SolutionTabs = ({
   onRunSolution,
   onOpenAddDatasource,
   onDetachDatasource,
-  getStatusBadgeClass
+  getStatusBadgeClass,
+  activeTab,
+  onTabChange,
+  isNewSolution = false,
+  onGenerateSolution
 }: SolutionTabsProps) => {
   return (
-    <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
+    <Tabs 
+      value={activeTab || "overview"} 
+      onValueChange={onTabChange}
+      className="w-full"
+    >
+      <TabsList className={`grid w-full ${isNewSolution ? 'grid-cols-3' : 'grid-cols-5'}`}>
         <TabsTrigger value="overview" className="flex items-center space-x-2">
           <BarChart3 className="w-4 h-4" />
           <span>Overview</span>
         </TabsTrigger>
-        <TabsTrigger value="codes" className="flex items-center space-x-2">
-          <Code className="w-4 h-4" />
-          <span>Codes</span>
-        </TabsTrigger>
-        <TabsTrigger value="runs" className="flex items-center space-x-2">
-          <Play className="w-4 h-4" />
-          <span>Runs</span>
-        </TabsTrigger>
+        {!isNewSolution && (
+          <TabsTrigger value="codes" className="flex items-center space-x-2">
+            <Code className="w-4 h-4" />
+            <span>Codes</span>
+          </TabsTrigger>
+        )}
+        {!isNewSolution && (
+          <TabsTrigger value="runs" className="flex items-center space-x-2">
+            <Play className="w-4 h-4" />
+            <span>Runs</span>
+          </TabsTrigger>
+        )}
         <TabsTrigger value="architecture" className="flex items-center space-x-2">
           <Network className="w-4 h-4" />
           <span>Architecture</span>
@@ -59,34 +75,67 @@ const SolutionTabs = ({
         <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
       </TabsContent>
 
-      <TabsContent value="codes" className="mt-6">
-        <CodeEditor workspaceId={workspaceId} solutionId={solutionId} />
-      </TabsContent>
+      {!isNewSolution && (
+        <TabsContent value="codes" className="mt-6">
+          <CodeEditor workspaceId={workspaceId} solutionId={solutionId} />
+        </TabsContent>
+      )}
 
-      <TabsContent value="runs" className="mt-6">
-        {isReadySolution ? (
-          <ExecutionHistory 
-            workspaceId={workspaceId} 
-            solutionId={solutionId}
-            onRunSolution={onRunSolution}
-            isReadySolution={isReadySolution}
-          />
-        ) : (
+      {!isNewSolution && (
+        <TabsContent value="runs" className="mt-6">
+          {isReadySolution ? (
+            <ExecutionHistory 
+              workspaceId={workspaceId} 
+              solutionId={solutionId}
+              onRunSolution={onRunSolution}
+              isReadySolution={isReadySolution}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Execution History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  Solution must be in "READY" status to view execution history.
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      )}
+
+      <TabsContent value="architecture" className="mt-6">
+        {isNewSolution ? (
           <Card>
             <CardHeader>
-              <CardTitle>Execution History</CardTitle>
+              <CardTitle className="flex items-center space-x-2">
+                <Brain className="w-6 h-6 text-purple-600" />
+                <span>Generate Your Solution</span>
+              </CardTitle>
+              <CardDescription>
+                Use AI to generate architecture, code, and implementation details for your solution
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Solution must be in "READY" status to view execution history.
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Brain className="w-8 h-8 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to build your solution?</h3>
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  Describe your requirements and let AI generate a comprehensive solution with architecture diagrams, code examples, and implementation guidance.
+                </p>
+                <Button onClick={onGenerateSolution} size="lg" className="bg-purple-600 hover:bg-purple-700">
+                  <Brain className="w-5 h-5 mr-2" />
+                  Start AI Generation
+                </Button>
               </div>
             </CardContent>
           </Card>
+        ) : (
+          <ArchitectureDiagram />
         )}
-      </TabsContent>
-
-      <TabsContent value="architecture" className="mt-6">
-        <ArchitectureDiagram />
       </TabsContent>
 
       <TabsContent value="datasources" className="mt-6">
