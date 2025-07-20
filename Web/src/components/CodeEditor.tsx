@@ -222,27 +222,34 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         /* Custom scrollbar styles for the editor */
         .editor-scrollbar {
           scrollbar-width: thin;
+          scrollbar-color: rgba(121, 121, 121, 0.6) transparent;
         }
         
         .editor-scrollbar::-webkit-scrollbar {
-          width: 14px;
-          height: 14px;
+          width: 12px;
+          height: 12px;
         }
         
         .editor-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 6px;
         }
         
         .editor-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(121, 121, 121, 0.4);
-          border-radius: 7px;
-          border: 3px solid transparent;
-          background-clip: content-box;
+          background: rgba(121, 121, 121, 0.6);
+          border-radius: 6px;
+          border: 2px solid transparent;
+          background-clip: padding-box;
         }
         
         .editor-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(121, 121, 121, 0.7);
-          background-clip: content-box;
+         background: rgba(121, 121, 121, 0.8);
+          background-clip: padding-box;
+        }
+        
+        .editor-scrollbar::-webkit-scrollbar-thumb:active {
+          background: rgba(121, 121, 121, 1);
+          background-clip: padding-box;
         }
         
         .editor-scrollbar::-webkit-scrollbar-corner {
@@ -536,6 +543,23 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       textarea.value = newValue;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
       handleContentChange(newValue);
+      
+      // Auto-scroll to ensure the new line is visible (like standard code editors)
+      setTimeout(() => {
+        if (textarea.scrollHeight > textarea.clientHeight) {
+          const cursorLinePosition = textarea.value.substring(0, newCursorPos).split('\n').length;
+          const lineHeight = 24; // Line height as defined in the styles
+          const scrollTop = (cursorLinePosition - 1) * lineHeight;
+          const visibleHeight = textarea.clientHeight;
+          const maxVisibleLines = Math.floor(visibleHeight / lineHeight);
+          
+          // If cursor is near the bottom of visible area, scroll to keep it in view
+          if (scrollTop > textarea.scrollTop + visibleHeight - lineHeight * 3) {
+            textarea.scrollTop = Math.max(0, scrollTop - visibleHeight + lineHeight * 3);
+          }
+        }
+      }, 0);
+      
       return;
     }
 
@@ -975,7 +999,9 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   onChange={(e) => handleContentChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
-                  className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar`}
+                  className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar ${
+                    isDarkMode ? 'text-[#d4d4d4] placeholder:text-[#6a6a6a]' : 'text-gray-900 placeholder:text-gray-500'
+                  }`}
                   placeholder="Start typing your code..."
                   style={{ 
                     lineHeight: '24px',
@@ -1065,15 +1091,19 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
       {/* Status Bar */}
       {activeFile && (
-        <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${isDarkMode ? 'bg-[#007acc] text-white border-[#3c3c3c]' : 'bg-blue-600 text-white border-gray-300'}`}>
+        <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${
+          isDarkMode 
+            ? 'bg-[#007acc] text-white border-[#007acc]' 
+            : 'bg-[#007acc] text-white border-[#007acc]'
+        }`}>
           <div className="flex items-center space-x-4">
-            <span>Language: {activeFile.language}</span>
-            <span>Indent: {getIndentSize(activeFile.language)} spaces</span>
-            <span>Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
+            <span className="text-white">Language: {activeFile.language}</span>
+            <span className="text-white">Indent: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-white">Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span>Tab: {getIndentSize(activeFile.language)} spaces</span>
-            <span>Encoding: UTF-8</span>
+            <span className="text-white">Tab: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-white">Encoding: UTF-8</span>
           </div>
         </div>
       )}
