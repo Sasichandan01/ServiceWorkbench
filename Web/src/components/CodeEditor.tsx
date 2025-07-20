@@ -1043,7 +1043,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowChat(false)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  className={`h-5 w-5 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
                 >
                   <X className="w-4 h-4" />
                 </Button>
