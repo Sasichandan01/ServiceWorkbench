@@ -28,6 +28,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       isDirty: false
     }
   ]);
+  const [openFileIds, setOpenFileIds] = useState<string[]>(["1"]);
   const [activeFileId, setActiveFileId] = useState("1");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [newFileName, setNewFileName] = useState("");
@@ -45,6 +46,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const { toast } = useToast();
 
   const activeFile = files.find(f => f.id === activeFileId);
+  const openFiles = files.filter(f => openFileIds.includes(f.id));
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -75,24 +77,19 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const handleCloseFile = (fileId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    if (files.length <= 1) {
-      toast({
-        title: "Cannot Close",
-        description: "You must have at least one file open.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const fileIndex = files.findIndex(f => f.id === fileId);
-    setFiles(prev => prev.filter(f => f.id !== fileId));
+    // Remove from open files but keep in project files
+    const newOpenFileIds = openFileIds.filter(id => id !== fileId);
+    setOpenFileIds(newOpenFileIds);
     
     if (activeFileId === fileId) {
-      // Switch to the next file or previous if it was the last one
-      const nextFileIndex = fileIndex < files.length - 1 ? fileIndex : fileIndex - 1;
-      const nextFile = files[nextFileIndex];
-      if (nextFile) {
-        setActiveFileId(nextFile.id);
+      if (newOpenFileIds.length > 0) {
+        // Switch to another open file
+        const fileIndex = openFileIds.indexOf(fileId);
+        const nextFileIndex = fileIndex < newOpenFileIds.length ? fileIndex : fileIndex - 1;
+        setActiveFileId(newOpenFileIds[nextFileIndex]);
+      } else {
+        // No files left open
+        setActiveFileId("");
       }
     }
   };
@@ -131,24 +128,24 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     };
     
     setFiles(prev => [...prev, newFile]);
+    setOpenFileIds(prev => [...prev, newFile.id]);
     setActiveFileId(newFile.id);
     setNewFileName("");
     setShowNewFileInput(false);
   };
 
   const handleDeleteFile = (fileId: string) => {
-    if (files.length <= 1) {
-      toast({
-        title: "Cannot Delete",
-        description: "You must have at least one file.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
+    // Remove from both project files and open files
     setFiles(prev => prev.filter(f => f.id !== fileId));
+    setOpenFileIds(prev => prev.filter(id => id !== fileId));
+    
     if (activeFileId === fileId) {
-      setActiveFileId(files.find(f => f.id !== fileId)?.id || "");
+      const remainingOpenFiles = openFileIds.filter(id => id !== fileId);
+      if (remainingOpenFiles.length > 0) {
+        setActiveFileId(remainingOpenFiles[0]);
+      } else {
+        setActiveFileId("");
+      }
     }
   };
 
@@ -275,24 +272,28 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                       ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
                       : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
                   }`}
-                  onClick={() => setActiveFileId(file.id)}
+                  onClick={() => {
+                    if (!openFileIds.includes(file.id)) {
+                      setOpenFileIds(prev => [...prev, file.id]);
+                    }
+                    setActiveFileId(file.id);
+                  }}
                 >
                   {getFileIcon(file.name)}
                   <span className="flex-1 text-xs">{file.name}</span>
+                  {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
                   {file.isDirty && (
                     <div className={`w-2 h-2 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
                   )}
-                  {files.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFile(file.id);
-                      }}
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteFile(file.id);
+                    }}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -364,77 +365,99 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         </div>
 
         {/* File Tabs */}
-        <div className={`flex items-center ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'} overflow-x-auto`}>
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors ${
-                activeFileId === file.id
-                  ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
-                  : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
-              }`}
-              onClick={() => setActiveFileId(file.id)}
-            >
-              {getFileIcon(file.name)}
-              <span className="text-xs">{file.name}</span>
-              {file.isDirty && (
-                <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
-              )}
-              {files.length > 1 && (
+        {openFiles.length > 0 && (
+          <div className={`flex items-center ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'} overflow-x-auto`}>
+            {openFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors ${
+                  activeFileId === file.id
+                    ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
+                    : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
+                }`}
+                onClick={() => setActiveFileId(file.id)}
+              >
+                {getFileIcon(file.name)}
+                <span className="text-xs">{file.name}</span>
+                {file.isDirty && (
+                  <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
+                )}
                 <button
                   onClick={(e) => handleCloseFile(file.id, e)}
                   className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Editor Content */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
-            {/* Line Numbers */}
-            <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-hidden`}>
-              <div 
-                ref={lineNumbersRef}
-                className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-y-auto overflow-x-hidden scrollbar-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
-                style={{
-                  lineHeight: '24px',
-                  fontFamily: 'Consolas, "Courier New", monospace',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none'
-                }}
-              >
-                {Array.from({ length: Math.max(lineCount, 20) }, (_, i) => (
-                  <div key={i + 1} className="text-right h-6 leading-6 whitespace-nowrap">
-                    {i + 1}
-                  </div>
-                ))}
+          {openFiles.length === 0 ? (
+            /* Empty State */
+            <div className={`flex-1 flex items-center justify-center ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+              <div className="text-center">
+                <FileText className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+                <h3 className={`text-lg font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  No files open
+                </h3>
+                <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Create a new file to start coding
+                </p>
+                <Button
+                  onClick={() => setShowNewFileInput(true)}
+                  className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New File
+                </Button>
               </div>
             </div>
-            
-            {/* Code Editor */}
-            <div className="flex-1 relative overflow-hidden">
-              <Textarea
-                ref={textareaRef}
-                value={activeFile?.content || ""}
-                onChange={(e) => handleContentChange(e.target.value)}
-                onScroll={handleTextareaScroll}
-                className={`w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto ${
-                  isDarkMode 
-                    ? 'bg-[#1e1e1e] text-[#d4d4d4] placeholder:text-[#6a6a6a]' 
-                    : 'bg-white text-gray-900 placeholder:text-gray-500'
-                } scrollbar-thin ${isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-gray-800' : 'scrollbar-thumb-gray-400 scrollbar-track-gray-200'}`}
-                placeholder="Start typing your code..."
-                style={{ 
-                  lineHeight: '24px',
-                  fontFamily: 'Consolas, "Courier New", monospace'
-                }}
-              />
+          ) : (
+            <div className={`flex-1 flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+              {/* Line Numbers */}
+              <div className={`w-12 ${isDarkMode ? 'bg-[#1e1e1e] border-r border-[#3c3c3c]' : 'bg-[#f8f8f8] border-r border-gray-300'} flex flex-col overflow-hidden`}>
+                <div 
+                  ref={lineNumbersRef}
+                  className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-y-auto overflow-x-hidden scrollbar-none ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
+                  style={{
+                    lineHeight: '24px',
+                    fontFamily: 'Consolas, "Courier New", monospace',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                  }}
+                >
+                  {Array.from({ length: lineCount }, (_, i) => (
+                    <div key={i + 1} className="text-right h-6 leading-6 whitespace-nowrap">
+                      {i + 1}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Code Editor */}
+              <div className="flex-1 relative overflow-hidden">
+                <Textarea
+                  ref={textareaRef}
+                  value={activeFile?.content || ""}
+                  onChange={(e) => handleContentChange(e.target.value)}
+                  onScroll={handleTextareaScroll}
+                  className={`w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto ${
+                    isDarkMode 
+                      ? 'bg-[#1e1e1e] text-[#d4d4d4] placeholder:text-[#6a6a6a]' 
+                      : 'bg-white text-gray-900 placeholder:text-gray-500'
+                  } scrollbar-thin ${isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-gray-800' : 'scrollbar-thumb-gray-400 scrollbar-track-gray-200'}`}
+                  placeholder="Start typing your code..."
+                  style={{ 
+                    lineHeight: '24px',
+                    fontFamily: 'Consolas, "Courier New", monospace'
+                  }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* AI Chat Panel */}
           {showChat && (
