@@ -1106,17 +1106,17 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       {activeFile && (
         <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${
           isDarkMode 
-            ? 'bg-[#007acc] text-white border-[#007acc]' 
-            : 'bg-[#007acc] text-white border-[#007acc]'
+            ? 'bg-[#23272e] text-[#d4d4d4] border-[#23272e]' 
+            : 'bg-[#f3f3f3] text-[#222] border-[#e5e7eb]'
         }`}>
           <div className="flex items-center space-x-4">
-            <span className="text-white">Language: {activeFile.language}</span>
-            <span className="text-white">Indent: {getIndentSize(activeFile.language)} spaces</span>
-            <span className="text-white">Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
+            <span className="text-inherit">Language: {activeFile.language}</span>
+            <span className="text-inherit">Indent: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-inherit">Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-white">Tab: {getIndentSize(activeFile.language)} spaces</span>
-            <span className="text-white">Encoding: UTF-8</span>
+            <span className="text-inherit">Tab: {getIndentSize(activeFile.language)} spaces</span>
+            <span className="text-inherit">Encoding: UTF-8</span>
           </div>
         </div>
       )}
