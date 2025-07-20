@@ -16,6 +16,7 @@ import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-yaml';
 
 interface CodeFile {
   id: string;
@@ -137,6 +138,30 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           background-color: rgb(59, 130, 246);
         }
         
+        /* Indentation guides */
+        .indent-guide {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 1px;
+          background-color: rgba(128, 128, 128, 0.2);
+          pointer-events: none;
+          z-index: 0;
+        }
+        
+        /* Python-specific indentation guides */
+        .python-indent-guide-4 { left: 4px; }
+        .python-indent-guide-8 { left: 8px; }
+        .python-indent-guide-12 { left: 12px; }
+        .python-indent-guide-16 { left: 16px; }
+        
+        /* YAML-specific indentation guides */
+        .yaml-indent-guide-2 { left: 2px; }
+        .yaml-indent-guide-4 { left: 4px; }
+        .yaml-indent-guide-6 { left: 6px; }
+        .yaml-indent-guide-8 { left: 8px; }
+        
         /* Light theme syntax highlighting */
         .syntax-light .token.comment,
         .syntax-light .token.prolog,
@@ -210,6 +235,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       content: "# Main application file\nprint('Hello, World!')\n\n# Add your code here\nif __name__ == '__main__':\n    print('Starting application...')",
       language: "python",
       isDirty: false
+    },
+    {
+      id: "2",
+      name: "config.yaml",
+      content: "# Application configuration\napp:\n  name: MyApp\n  version: 1.0.0\n  debug: true\n\ndatabase:\n  host: localhost\n  port: 5432\n  name: mydb\n\nfeatures:\n  - authentication\n  - logging\n  - caching",
+      language: "yaml",
+      isDirty: false
     }
   ]);
   const [openFileIds, setOpenFileIds] = useState<string[]>(["1"]);
@@ -237,20 +269,33 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  // Indentation settings
+  const getIndentSize = (language: string): number => {
+    switch (language) {
+      case 'python': return 4;
+      case 'yaml': return 2;
+      default: return 2;
+    }
+  };
+
+  const getIndentChar = (language: string): string => {
+    return ' '; // Always use spaces for consistency
+  };
+
   const activeFile = files.find(f => f.id === activeFileId);
   const openFiles = files.filter(f => openFileIds.includes(f.id));
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   // Update syntax highlighting
@@ -375,6 +420,110 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     ));
   };
 
+  // Handle indentation and special key behaviors
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    const language = activeFile?.language || 'text';
+    const indentSize = getIndentSize(language);
+    const indentChar = getIndentChar(language);
+
+    // Handle Tab key
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+Tab: Remove indentation
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const lineEnd = value.indexOf('\n', start);
+        const lineEndPos = lineEnd === -1 ? value.length : lineEnd;
+        const line = value.substring(lineStart, lineEndPos);
+        const indentMatch = line.match(/^(\s*)/);
+        const currentIndent = indentMatch ? indentMatch[1] : '';
+        
+        if (currentIndent.length >= indentSize) {
+          const newIndent = currentIndent.slice(indentSize);
+          const newValue = value.substring(0, lineStart) + newIndent + value.substring(lineStart + currentIndent.length);
+          const newCursorPos = start - indentSize;
+          textarea.value = newValue;
+          textarea.setSelectionRange(newCursorPos, newCursorPos);
+          handleContentChange(newValue);
+        }
+      } else {
+        // Tab: Add indentation
+        const indent = indentChar.repeat(indentSize);
+        const newValue = value.substring(0, start) + indent + value.substring(end);
+        const newCursorPos = start + indentSize;
+        textarea.value = newValue;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        handleContentChange(newValue);
+      }
+      return;
+    }
+
+    // Handle Enter key with auto-indentation
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const line = value.substring(lineStart, start);
+      const indentMatch = line.match(/^(\s*)/);
+      const currentIndent = indentMatch ? indentMatch[1] : '';
+      
+      let newIndent = currentIndent;
+      
+      // Python-specific auto-indentation
+      if (language === 'python') {
+        const trimmedLine = line.trim();
+        if (trimmedLine.endsWith(':')) {
+          // Increase indent after colon (if, for, while, def, class, etc.)
+          newIndent += indentChar.repeat(indentSize);
+        } else if (trimmedLine.startsWith('elif ') || trimmedLine.startsWith('else:') || trimmedLine.startsWith('except') || trimmedLine.startsWith('finally:')) {
+          // Decrease indent for elif, else, except, finally
+          if (newIndent.length >= indentSize) {
+            newIndent = newIndent.slice(indentSize);
+          }
+        }
+      }
+      
+      // YAML-specific auto-indentation
+      if (language === 'yaml') {
+        const trimmedLine = line.trim();
+        if (trimmedLine.endsWith(':') && !trimmedLine.startsWith('#')) {
+          // Increase indent after colon in YAML
+          newIndent += indentChar.repeat(indentSize);
+        }
+      }
+      
+      const newValue = value.substring(0, start) + '\n' + newIndent + value.substring(end);
+      const newCursorPos = start + 1 + newIndent.length;
+      textarea.value = newValue;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      handleContentChange(newValue);
+      return;
+    }
+
+    // Handle auto-closing brackets and quotes
+    const autoClosePairs: { [key: string]: string } = {
+      '(': ')',
+      '[': ']',
+      '{': '}',
+      '"': '"',
+      "'": "'"
+    };
+
+    if (autoClosePairs[e.key]) {
+      e.preventDefault();
+      const closingChar = autoClosePairs[e.key];
+      const newValue = value.substring(0, start) + e.key + closingChar + value.substring(end);
+      const newCursorPos = start + 1;
+      textarea.value = newValue;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      handleContentChange(newValue);
+      return;
+    }
+  };
+
   const handleCloseFile = (fileId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -464,6 +613,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       case 'json': return 'json';
       case 'xml': return 'xml';
       case 'sql': return 'sql';
+      case 'yml': case 'yaml': return 'yaml';
       default: return 'text';
     }
   };
@@ -481,10 +631,20 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
     
-    setChatMessages(prev => [...prev, 
-      { id: Date.now(), role: "user", content: chatInput },
-      { id: Date.now() + 1, role: "assistant", content: "I'll help you with that! This is a demo response." }
-    ]);
+    const userMessage = { id: Date.now(), role: "user" as const, content: chatInput };
+    
+    // Simple AI responses based on keywords
+    let assistantResponse = "I'll help you with that! This is a demo response.";
+    
+    if (chatInput.toLowerCase().includes('python') || chatInput.toLowerCase().includes('indent')) {
+      assistantResponse = "For Python indentation:\n\n• Use **Tab** to insert 4 spaces\n• Use **Shift+Tab** to remove indentation\n• Press **Enter** after a line ending with ':' for auto-indent\n• The editor automatically handles if/for/while/def/class blocks\n\nTry typing:\n```python\nif True:\n    print('Hello')\n```";
+    } else if (chatInput.toLowerCase().includes('yaml')) {
+      assistantResponse = "For YAML indentation:\n\n• Use **Tab** to insert 2 spaces\n• Use **Shift+Tab** to remove indentation\n• Press **Enter** after a line ending with ':' for auto-indent\n• YAML is sensitive to indentation - be careful!\n\nTry typing:\n```yaml\napp:\n  name: MyApp\n  version: 1.0.0\n```";
+    } else if (chatInput.toLowerCase().includes('format') || chatInput.toLowerCase().includes('beautify')) {
+      assistantResponse = "To format your code:\n\n• **Python**: The editor auto-indents based on syntax\n• **YAML**: Auto-indents after colons and list items\n• Use **Tab** and **Shift+Tab** for manual indentation\n• The status bar shows current language and indent size";
+    }
+    
+    setChatMessages(prev => [...prev, userMessage, { id: Date.now() + 1, role: "assistant", content: assistantResponse }]);
     setChatInput("");
   };
 
@@ -493,222 +653,223 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const lineCount = lines.length;
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
-      {/* File Explorer Sidebar */}
-      {!sidebarCollapsed && (
-        <div 
-          className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative`}
-          style={{ width: `${sidebarWidth}px` }}
-        >
-          {/* Sidebar Header */}
-          <div className={`px-4 py-2 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
-                Explorer
-              </span>
-              <div className="flex items-center space-x-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowNewFileInput(true)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-                >
-                  <FolderPlus className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSidebarCollapsed(true)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-                >
-                  <PanelLeftClose className="w-4 h-4" />
-                </Button>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>  {/* Changed to flex-col */}
+      {/* Main Content: Sidebar + Editor + Chat */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* File Explorer Sidebar */}
+        {!sidebarCollapsed && (
+          <div 
+            className={`${isDarkMode ? 'bg-[#252526] border-r border-[#3c3c3c]' : 'bg-[#f3f3f3] border-r border-gray-300'} flex flex-col relative`}
+            style={{ width: `${sidebarWidth}px` }}
+          >
+            {/* Sidebar Header */}
+            <div className={`px-4 py-2 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <span className={`text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
+                  Explorer
+                </span>
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowNewFileInput(true)}
+                    className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSidebarCollapsed(true)}
+                    className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            
-            {/* Search */}
-            <div className="relative mb-3">
-              <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              <Input
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`pl-7 h-7 text-xs ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
-              />
-            </div>
-            
-            {showNewFileInput && (
-              <div className="mb-2">
+              
+              {/* Search */}
+              <div className="relative mb-3">
+                <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                 <Input
-                  placeholder="filename.ext"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddFile();
-                    if (e.key === 'Escape') setShowNewFileInput(false);
-                  }}
-                  className={`h-7 text-xs ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white' : 'bg-white border-gray-300'}`}
-                  autoFocus
+                  placeholder="Search files..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={`pl-7 h-7 text-xs ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
                 />
               </div>
-            )}
-          </div>
-          
-          {/* File List */}
-          <div className="flex-1 px-2 py-1 overflow-auto">
-            <div className={`text-xs font-medium mb-2 flex items-center px-2 ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>
-              <ChevronDown className="w-3 h-3 mr-1" />
-              PROJECT
+              
+              {showNewFileInput && (
+                <div className="mb-2">
+                  <Input
+                    placeholder="filename.ext"
+                    value={newFileName}
+                    onChange={(e) => setNewFileName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddFile();
+                      if (e.key === 'Escape') setShowNewFileInput(false);
+                    }}
+                    className={`h-7 text-xs ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white' : 'bg-white border-gray-300'}`}
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
-            <div className="space-y-0.5">
-              {filteredFiles.map((file) => (
+            
+            {/* File List */}
+            <div className="flex-1 px-2 py-1 overflow-auto">
+              <div className={`text-xs font-medium mb-2 flex items-center px-2 ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>
+                <ChevronDown className="w-3 h-3 mr-1" />
+                PROJECT
+              </div>
+              <div className="space-y-0.5">
+                {filteredFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className={`flex items-center space-x-2 px-2 py-1 rounded cursor-pointer text-sm group transition-colors ${
+                      activeFileId === file.id
+                        ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
+                        : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                    onClick={() => {
+                      if (!openFileIds.includes(file.id)) {
+                        setOpenFileIds(prev => [...prev, file.id]);
+                      }
+                      setActiveFileId(file.id);
+                    }}
+                  >
+                    {getFileIcon(file.name)}
+                    <span className="flex-1 text-xs">{file.name}</span>
+                    {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
+                    {file.isDirty && (
+                      <div className={`w-2 h-2 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFile(file.id);
+                      }}
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Sidebar Resize Handle */}
+            <div
+              className={`resize-handle right-0 ${isDraggingSidebar ? 'dragging' : ''}`}
+              onMouseDown={(e) => {
+                setDragStartX(e.clientX);
+                setInitialSidebarWidth(sidebarWidth);
+                setIsDraggingSidebar(true);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Main Editor Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Top Bar */}
+          <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
+            <div className="flex items-center space-x-3">
+              {sidebarCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSidebarCollapsed(false)}
+                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </Button>
+              )}
+              {/* Breadcrumbs */}
+              <div className={`flex items-center space-x-1 text-sm ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
+                <span>src</span>
+                <ChevronRight className="w-3 h-3" />
+                <span>pages</span>
+                <ChevronRight className="w-3 h-3" />
+                <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>{activeFile?.name}</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4 mr-1" /> : <Maximize className="w-4 h-4 mr-1" />}
+                <span className="text-xs">{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowChat(!showChat)}
+                className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+              >
+                <MessageSquare className="w-4 h-4 mr-1" />
+                <span className="text-xs">AI Chat</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className={`h-7 w-7 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+              >
+                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleSave} 
+                className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
+              >
+                <Save className="w-4 h-4 mr-1" />
+                <span className="text-xs">Save</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* File Tabs */}
+          {openFiles.length > 0 && (
+            <div className={`flex items-center ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'} overflow-x-auto`}>
+              {openFiles.map((file) => (
                 <div
                   key={file.id}
-                  className={`flex items-center space-x-2 px-2 py-1 rounded cursor-pointer text-sm group transition-colors ${
+                  className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors ${
                     activeFileId === file.id
-                      ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
-                      : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
+                      ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
+                      : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
                   }`}
-                  onClick={() => {
-                    if (!openFileIds.includes(file.id)) {
-                      setOpenFileIds(prev => [...prev, file.id]);
-                    }
-                    setActiveFileId(file.id);
-                  }}
+                  onClick={() => setActiveFileId(file.id)}
                 >
                   {getFileIcon(file.name)}
-                  <span className="flex-1 text-xs">{file.name}</span>
-                  {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
+                  <span className="text-xs">{file.name}</span>
                   {file.isDirty && (
-                    <div className={`w-2 h-2 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
+                    <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
                   )}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteFile(file.id);
-                    }}
-                    className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                    onClick={(e) => handleCloseFile(file.id, e)}
+                    className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               ))}
             </div>
-          </div>
-          
-          {/* Sidebar Resize Handle */}
-          <div
-            className={`resize-handle right-0 ${isDraggingSidebar ? 'dragging' : ''}`}
-            onMouseDown={(e) => {
-              setDragStartX(e.clientX);
-              setInitialSidebarWidth(sidebarWidth);
-              setIsDraggingSidebar(true);
-            }}
-          />
-        </div>
-      )}
+          )}
 
-      {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
-          <div className="flex items-center space-x-3">
-            {sidebarCollapsed && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarCollapsed(false)}
-                className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-              >
-                <PanelLeft className="w-4 h-4" />
-              </Button>
-            )}
-            {/* Breadcrumbs */}
-            <div className={`flex items-center space-x-1 text-sm ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-600'}`}>
-              <span>src</span>
-              <ChevronRight className="w-3 h-3" />
-              <span>pages</span>
-              <ChevronRight className="w-3 h-3" />
-              <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>{activeFile?.name}</span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-            >
-              {isFullscreen ? <Minimize className="w-4 h-4 mr-1" /> : <Maximize className="w-4 h-4 mr-1" />}
-              <span className="text-xs">{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowChat(!showChat)}
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-            >
-              <MessageSquare className="w-4 h-4 mr-1" />
-              <span className="text-xs">AI Chat</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`h-7 w-7 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-            >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleSave} 
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
-            >
-              <Save className="w-4 h-4 mr-1" />
-              <span className="text-xs">Save</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* File Tabs */}
-        {openFiles.length > 0 && (
-          <div className={`flex items-center ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'} overflow-x-auto`}>
-            {openFiles.map((file) => (
-              <div
-                key={file.id}
-                className={`flex items-center space-x-2 px-3 py-2 cursor-pointer text-sm border-r whitespace-nowrap transition-colors ${
-                  activeFileId === file.id
-                    ? isDarkMode ? "bg-[#1e1e1e] text-white border-[#3c3c3c]" : "bg-white text-gray-900 border-gray-300"
-                    : isDarkMode ? "bg-[#2d2d30] text-[#cccccc] hover:bg-[#37373d] border-[#3c3c3c]" : "bg-[#f8f8f8] text-gray-600 hover:bg-gray-100 border-gray-300"
-                }`}
-                onClick={() => setActiveFileId(file.id)}
-              >
-                {getFileIcon(file.name)}
-                <span className="text-xs">{file.name}</span>
-                {file.isDirty && (
-                  <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
-                )}
-                <button
-                  onClick={(e) => handleCloseFile(file.id, e)}
-                  className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Editor Content */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+          {/* Editor Content */}
           {openFiles.length === 0 ? (
             /* Empty State */
             <div className={`flex-1 flex items-center justify-center ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
@@ -776,6 +937,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   ref={textareaRef}
                   value={activeFile?.content || ""}
                   onChange={(e) => handleContentChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
                   className={`absolute inset-0 w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto scrollbar-thin ${
                     isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-transparent caret-white' : 'scrollbar-thumb-gray-400 scrollbar-track-transparent caret-black'
@@ -864,6 +1026,20 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           )}
         </div>
       </div>
+      {/* Status Bar - moved here, outside the main content flex */}
+      {activeFile && (
+        <div className={`h-7 px-4 py-1 text-xs border-t flex items-center justify-between ${isDarkMode ? 'bg-[#007acc] text-white border-[#3c3c3c]' : 'bg-blue-600 text-white border-gray-300'}`}>
+          <div className="flex items-center space-x-4">
+            <span>Language: {activeFile.language}</span>
+            <span>Indent: {getIndentSize(activeFile.language)} spaces</span>
+            <span>Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>Tab: {getIndentSize(activeFile.language)} spaces</span>
+            <span>Encoding: UTF-8</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
