@@ -687,7 +687,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   return (
     <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full overflow-x-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
       {/* Main Content: Sidebar + Editor + Chat in horizontal layout */}
-      <div className="flex-1 flex min-h-0 overflow-hidden w-full max-w-full">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Sidebar (left) */}
         {!sidebarCollapsed && (
           <div 
@@ -810,7 +810,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         )}
 
         {/* Main Editor Area (center) */}
-        <div className="flex-1 flex flex-col min-w-0 w-full max-w-full">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top Bar */}
           <div className={`flex items-center justify-between px-4 py-2 ${isDarkMode ? 'bg-[#2d2d30] border-b border-[#3c3c3c]' : 'bg-[#f8f8f8] border-b border-gray-300'}`}>
             <div className="flex items-center space-x-3">
@@ -991,7 +991,10 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         {showChat && (
           <div 
             className={`${isDarkMode ? 'bg-[#252526] border-l border-[#3c3c3c]' : 'bg-[#f3f3f3] border-l border-gray-300'} flex flex-col relative flex-shrink-0`}
-            style={{ width: `${chatWidth}px`, maxWidth: '70vw', position: 'relative', zIndex: 10 }}
+            style={{ 
+              width: `${chatWidth}px`, 
+              minWidth: '200px'
+            }}
           >
             <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
               <div className="flex items-center justify-between">
@@ -1047,9 +1050,9 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
             
             {/* Chat Panel Resize Handle */}
             <div
-              className={`resize-handle absolute left-0 top-0 bottom-0 z-20 ${isDraggingChat ? 'dragging' : ''}`}
-              style={{ cursor: 'col-resize', width: 4 }}
+              className={`absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-500 cursor-col-resize z-20 ${isDraggingChat ? 'bg-blue-500' : ''}`}
               onMouseDown={(e) => {
+                e.preventDefault();
                 setDragStartX(e.clientX);
                 setInitialChatWidth(chatWidth);
                 setIsDraggingChat(true);

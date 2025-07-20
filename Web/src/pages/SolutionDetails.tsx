@@ -111,9 +111,9 @@ const SolutionDetails = () => {
     navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`);
   };
 
-  // Determine if the solution is new based on SolutionsStatus
-  const isNewSolution = solution.SolutionsStatus === "YET_TO_BE_PREPARED" || solution.SolutionsStatus === "DRAFT";
-  const isReadySolution = solution.SolutionsStatus === "READY";
+  // Determine if the solution is new based on SolutionStatus
+  const isNewSolution = solution.SolutionStatus === "YET_TO_BE_PREPARED" || solution.SolutionStatus === "DRAFT";
+  const isReadySolution = solution.SolutionStatus === "READY";
 
   // Handler to open add datasource dialog
   const handleOpenAddDatasource = () => {
@@ -339,16 +339,6 @@ const SolutionDetails = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Run Solution Button */}
-      {isReadySolution && (
-        <div className="flex justify-center">
-          <Button onClick={handleRunSolution} size="lg" className="bg-green-600 hover:bg-green-700">
-            <Play className="w-5 h-5 mr-2" />
-            Run Solution
-          </Button>
-        </div>
-      )}
 
       {/* Solution Tabs */}
       <SolutionTabs
