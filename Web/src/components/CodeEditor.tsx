@@ -4,6 +4,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import Prism from 'prismjs';
+import 'prismjs/themes/prism-tomorrow.css';
+// Load languages in correct dependency order
+import 'prismjs/components/prism-c';           // C must be loaded before C++
+import 'prismjs/components/prism-cpp';         // C++ extends C
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-sql';
 
 interface CodeFile {
   id: string;
@@ -19,6 +31,160 @@ interface CodeEditorProps {
 }
 
 const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
+  // Add custom CSS for syntax highlighting
+  useEffect(() => {
+    const styleId = 'syntax-highlighting-styles';
+    let existingStyle = document.getElementById(styleId);
+    
+    if (!existingStyle) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        /* Dark theme syntax highlighting - VSCode like */
+        .syntax-dark .token.comment,
+        .syntax-dark .token.prolog,
+        .syntax-dark .token.doctype,
+        .syntax-dark .token.cdata {
+          color: #6A9955;
+          font-style: italic;
+        }
+        
+        .syntax-dark .token.punctuation {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.property,
+        .syntax-dark .token.tag,
+        .syntax-dark .token.boolean,
+        .syntax-dark .token.number,
+        .syntax-dark .token.constant,
+        .syntax-dark .token.symbol,
+        .syntax-dark .token.deleted {
+          color: #B5CEA8;
+        }
+        
+        .syntax-dark .token.selector,
+        .syntax-dark .token.attr-name,
+        .syntax-dark .token.string,
+        .syntax-dark .token.char,
+        .syntax-dark .token.builtin,
+        .syntax-dark .token.inserted {
+          color: #CE9178;
+        }
+        
+        .syntax-dark .token.operator,
+        .syntax-dark .token.entity,
+        .syntax-dark .token.url,
+        .syntax-dark .language-css .token.string,
+        .syntax-dark .style .token.string {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.atrule,
+        .syntax-dark .token.attr-value,
+        .syntax-dark .token.keyword {
+          color: #569CD6;
+        }
+        
+        .syntax-dark .token.function,
+        .syntax-dark .token.class-name {
+          color: #DCDCAA;
+        }
+        
+        .syntax-dark .token.regex,
+        .syntax-dark .token.important,
+        .syntax-dark .token.variable {
+          color: #9CDCFE;
+        }
+        
+        /* Python-specific tokens */
+        .syntax-dark .token.decorator,
+        .syntax-dark .token.annotation {
+          color: #FFD700;
+        }
+        
+        .syntax-dark .token.builtin-name {
+          color: #4EC9B0;
+        }
+        
+        /* Special variables like __name__, __main__ */
+        .syntax-dark .token.magic-variable {
+          color:rgb(53, 145, 195);
+          font-weight: bold;
+        }
+        
+        /* Triple quoted strings */
+        .syntax-dark .token.triple-quoted-string {
+          color: #6A9955;
+          font-style: italic;
+        }
+        
+        /* Light theme syntax highlighting */
+        .syntax-light .token.comment,
+        .syntax-light .token.prolog,
+        .syntax-light .token.doctype,
+        .syntax-light .token.cdata {
+          color: #008000;
+        }
+        
+        .syntax-light .token.punctuation {
+          color: #000000;
+        }
+        
+        .syntax-light .token.property,
+        .syntax-light .token.tag,
+        .syntax-light .token.boolean,
+        .syntax-light .token.number,
+        .syntax-light .token.constant,
+        .syntax-light .token.symbol,
+        .syntax-light .token.deleted {
+          color: #0070f3;
+        }
+        
+        .syntax-light .token.selector,
+        .syntax-light .token.attr-name,
+        .syntax-light .token.string,
+        .syntax-light .token.char,
+        .syntax-light .token.builtin,
+        .syntax-light .token.inserted {
+          color: #a31515;
+        }
+        
+        .syntax-light .token.operator,
+        .syntax-light .token.entity,
+        .syntax-light .token.url,
+        .syntax-light .language-css .token.string,
+        .syntax-light .style .token.string {
+          color: #000000;
+        }
+        
+        .syntax-light .token.atrule,
+        .syntax-light .token.attr-value,
+        .syntax-light .token.keyword {
+          color: #0000ff;
+        }
+        
+        .syntax-light .token.function,
+        .syntax-light .token.class-name {
+          color: #795e26;
+        }
+        
+        .syntax-light .token.regex,
+        .syntax-light .token.important,
+        .syntax-light .token.variable {
+          color: #d73a49;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    return () => {
+      const style = document.getElementById(styleId);
+      if (style) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
   const [files, setFiles] = useState<CodeFile[]>([
     {
       id: "1",
@@ -42,6 +208,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const [showChat, setShowChat] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -61,10 +228,61 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Sync scroll between textarea and line numbers
+  // Update syntax highlighting
+  useEffect(() => {
+    if (activeFile && highlightRef.current) {
+      updateHighlighting();
+    }
+  }, [activeFile?.content, activeFile?.language, isDarkMode]);
+
+  // Sync scroll between textarea, highlight layer, and line numbers
   const handleTextareaScroll = () => {
-    if (textareaRef.current && lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    if (textareaRef.current && lineNumbersRef.current && highlightRef.current) {
+      const scrollTop = textareaRef.current.scrollTop;
+      const scrollLeft = textareaRef.current.scrollLeft;
+      lineNumbersRef.current.scrollTop = scrollTop;
+      highlightRef.current.scrollTop = scrollTop;
+      highlightRef.current.scrollLeft = scrollLeft;
+    }
+  };
+
+  const updateHighlighting = () => {
+    if (!activeFile || !highlightRef.current) return;
+    
+    try {
+      const language = activeFile.language === 'text' ? 'javascript' : activeFile.language;
+      let highlighted = Prism.highlight(
+        activeFile.content,
+        Prism.languages[language] || Prism.languages.javascript,
+        language
+      );
+      
+      // Post-process for Python special variables like __name__, __main__, etc.
+      if (activeFile.language === 'python') {
+        highlighted = highlighted.replace(
+          /\b(__\w+__)\b/g, 
+          '<span class="token magic-variable">$1</span>'
+        );
+        
+        // Handle decorators
+        highlighted = highlighted.replace(
+          /@(\w+)/g,
+          '<span class="token decorator">@$1</span>'
+        );
+        
+        // Handle built-in functions
+        highlighted = highlighted.replace(
+          /\b(print|len|range|type|str|int|float|list|dict|set|tuple|bool|input|open|enumerate|zip|map|filter|sorted|min|max|sum|any|all|abs|round|pow|divmod|hex|oct|bin|ord|chr|repr|eval|exec|compile|hasattr|getattr|setattr|delattr|isinstance|issubclass|super|vars|locals|globals|dir|help|id|hash|callable|iter|next|reversed|slice)\b/g,
+          '<span class="token builtin-name">$1</span>'
+        );
+      }
+      
+      highlightRef.current.innerHTML = highlighted;
+    } catch (error) {
+      // Fallback to plain text if highlighting fails
+      if (highlightRef.current) {
+        highlightRef.current.textContent = activeFile.content;
+      }
     }
   };
 
@@ -207,14 +425,14 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowNewFileInput(true)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
                 >
                   <FolderPlus className="w-4 h-4" />
                 </Button>
@@ -222,7 +440,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setSidebarCollapsed(true)}
-                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
                 >
                   <PanelLeftClose className="w-4 h-4" />
                 </Button>
@@ -311,7 +529,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSidebarCollapsed(false)}
-                className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                className={`h-6 w-6 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
               >
                 <PanelLeft className="w-4 h-4" />
               </Button>
@@ -330,7 +548,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               variant="ghost"
               size="sm"
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
             >
               {isFullscreen ? <Minimize className="w-4 h-4 mr-1" /> : <Maximize className="w-4 h-4 mr-1" />}
               <span className="text-xs">{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
@@ -339,7 +557,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               variant="ghost"
               size="sm"
               onClick={() => setShowChat(!showChat)}
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
             >
               <MessageSquare className="w-4 h-4 mr-1" />
               <span className="text-xs">AI Chat</span>
@@ -348,7 +566,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               variant="ghost"
               size="sm"
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`h-7 w-7 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+              className={`h-7 w-7 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
             >
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
@@ -356,7 +574,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
               variant="ghost" 
               size="sm" 
               onClick={handleSave} 
-              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+              className={`h-7 px-2 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'}`}
             >
               <Save className="w-4 h-4 mr-1" />
               <span className="text-xs">Save</span>
@@ -437,22 +655,42 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                 </div>
               </div>
               
-              {/* Code Editor */}
+              {/* Code Editor with Syntax Highlighting */}
               <div className="flex-1 relative overflow-hidden">
+                {/* Syntax Highlighting Layer */}
+                <pre 
+                  ref={highlightRef}
+                  className={`absolute inset-0 p-4 font-mono text-sm leading-6 pointer-events-none select-none overflow-auto whitespace-pre-wrap break-words scrollbar-none ${
+                    isDarkMode ? 'syntax-dark' : 'syntax-light'
+                  }`}
+                  style={{ 
+                    lineHeight: '24px',
+                    fontFamily: 'Consolas, "Courier New", monospace',
+                    zIndex: 1,
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                    margin: 0,
+                    background: 'transparent'
+                  }}
+                  aria-hidden="true"
+                />
+                
+                {/* Editable Textarea (Transparent text) */}
                 <Textarea
                   ref={textareaRef}
                   value={activeFile?.content || ""}
                   onChange={(e) => handleContentChange(e.target.value)}
                   onScroll={handleTextareaScroll}
-                  className={`w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto ${
-                    isDarkMode 
-                      ? 'bg-[#1e1e1e] text-[#d4d4d4] placeholder:text-[#6a6a6a]' 
-                      : 'bg-white text-gray-900 placeholder:text-gray-500'
-                  } scrollbar-thin ${isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-gray-800' : 'scrollbar-thumb-gray-400 scrollbar-track-gray-200'}`}
+                  className={`absolute inset-0 w-full h-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-auto scrollbar-thin ${
+                    isDarkMode ? 'scrollbar-thumb-gray-600 scrollbar-track-transparent caret-white' : 'scrollbar-thumb-gray-400 scrollbar-track-transparent caret-black'
+                  }`}
                   placeholder="Start typing your code..."
                   style={{ 
                     lineHeight: '24px',
-                    fontFamily: 'Consolas, "Courier New", monospace'
+                    fontFamily: 'Consolas, "Courier New", monospace',
+                    color: 'transparent',
+                    zIndex: 2,
+                    background: 'transparent'
                   }}
                 />
               </div>
