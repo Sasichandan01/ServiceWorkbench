@@ -425,7 +425,7 @@ const Workspaces = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Loading workspaces...</span>
@@ -434,13 +434,13 @@ const Workspaces = () => {
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-red-500">
+                  <TableCell colSpan={6} className="text-center py-8 text-red-500">
                     Failed to load workspaces. Please try again later.
                   </TableCell>
                 </TableRow>
               ) : workspaces.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                     No workspaces found
                   </TableCell>
                 </TableRow>
