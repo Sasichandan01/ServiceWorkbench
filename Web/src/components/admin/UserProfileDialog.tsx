@@ -54,7 +54,16 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     setLoading(true);
     try {
       const userData = await UserService.getUser(userId);
-      setUser(userData);
+      // Normalize roles for compatibility
+      let normalizedUser = { ...userData };
+      if (Array.isArray(userData.Roles)) {
+        (normalizedUser as any).Role = userData.Roles;
+      } else if (typeof (userData as any).Role === 'string') {
+        (normalizedUser as any).Role = [(userData as any).Role];
+      } else if (!(userData as any).Role) {
+        (normalizedUser as any).Role = [];
+      }
+      setUser(normalizedUser);
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast({

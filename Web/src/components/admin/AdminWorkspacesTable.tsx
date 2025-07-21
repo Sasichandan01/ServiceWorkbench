@@ -180,7 +180,7 @@ const AdminWorkspacesTable = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedWorkspaces = filteredWorkspaces.slice(startIndex, startIndex + itemsPerPage);
 
-  const totalWorkspaces = workspaces.length;
+  const totalWorkspaces = totalCount;
   const activeWorkspaces = workspaces.filter(w => w.status === "Active").length;
   const archivedWorkspaces = workspaces.filter(w => w.status === "Archived").length;
   const defaultWorkspaces = workspaces.filter(w => w.status === "Default").length;

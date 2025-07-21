@@ -116,6 +116,19 @@ export const apiSlice = createApi({
         { type: 'Workspace', id: workspaceId },
       ],
     }),
+     shareResource: builder.mutation<any, {
+      Username: string;
+      ResourceType: 'workspace' | 'solution' | 'datasource';
+      ResourceId: string;
+      AccessType: 'owner' | 'read-only' | 'editor';
+    }>({
+      query: (body) => ({
+        url: '/share',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (result, error, args) => [{ type: 'Workspace', id: args.ResourceId }],
+    }),
   }),
 });
 
@@ -130,4 +143,5 @@ export const {
   useUpdateSolutionMutation,
   useDeleteSolutionMutation,
   useGetSolutionQuery,
+  useShareResourceMutation,
 } = apiSlice;
