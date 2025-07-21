@@ -17,6 +17,8 @@ import { DatasourceService } from "../services/datasourceService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery } from '../services/apiSlice';
+import { Loader2 } from 'lucide-react';
 
 interface RunHistoryItem {
   id: number;
@@ -33,56 +35,32 @@ const SolutionDetails = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [solution, setSolution] = useState<any>(null);
+  // Remove manual solution state and fetching
+  const { data: solution, isLoading: loading, isError, refetch } = useGetSolutionQuery({ workspaceId: workspaceId!, solutionId: solutionId! });
   const [workspaceName, setWorkspaceName] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editTagInput, setEditTagInput] = useState("");
-  const [editDatasources, setEditDatasources] = useState<string[]>([]);
-  const [allDatasources, setAllDatasources] = useState<any[]>([]);
-  const [datasourcePopoverOpen, setDatasourcePopoverOpen] = useState(false);
-  const [addDatasourceDialogOpen, setAddDatasourceDialogOpen] = useState(false);
-  const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
-  const [addingDatasource, setAddingDatasource] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
 
-  // Fetch solution and workspace name on mount
-  useEffect(() => {
-    if (!workspaceId || !solutionId) return;
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      SolutionService.getSolution(workspaceId, solutionId),
-      WorkspaceService.getWorkspace(workspaceId)
-    ])
-      .then(([solutionData, workspaceData]) => {
-        setSolution(solutionData);
-        setWorkspaceName(workspaceData.WorkspaceName);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to load solution details.");
-        setLoading(false);
-      });
-  }, [workspaceId, solutionId]);
+  const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
+  const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
 
+  // Remove useEffect for fetching solution
+  // Fetch workspace name only
   useEffect(() => {
-    if (!datasourcePopoverOpen) return;
-    DatasourceService.getDatasources({ limit: 50 }).then(res => {
-      setAllDatasources(res.Datasources || []);
-    });
-  }, [datasourcePopoverOpen]);
+    if (!workspaceId) return;
+    WorkspaceService.getWorkspace(workspaceId).then(ws => setWorkspaceName(ws.WorkspaceName));
+  }, [workspaceId]);
 
   if (loading) {
     return <div className="p-8 text-center text-gray-500">Loading solution details...</div>;
   }
-  if (error) {
-    return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (isError) {
+    return <div className="p-8 text-center text-red-500">Failed to load solution details.</div>;
   }
   if (!solution) {
     return <div className="p-8 text-center text-gray-500">Solution not found.</div>;
@@ -115,46 +93,6 @@ const SolutionDetails = () => {
   const isNewSolution = solution.SolutionStatus === "YET_TO_BE_PREPARED" || solution.SolutionStatus === "DRAFT";
   const isReadySolution = solution.SolutionStatus === "READY";
 
-  // Handler to open add datasource dialog
-  const handleOpenAddDatasource = () => {
-    setAddingDatasource(true);
-    DatasourceService.getDatasources({ limit: 50 }).then(res => {
-      setAllDatasources(res.Datasources || []);
-      setSelectedDatasources([]);
-    }).finally(() => setAddingDatasource(false));
-    setAddDatasourceDialogOpen(true);
-  };
-
-  // Handler to attach datasources
-  const handleAttachDatasources = async () => {
-    if (!workspaceId || !solutionId) return;
-    try {
-      await SolutionService.updateSolutionDatasources(workspaceId, solutionId, selectedDatasources);
-      toast({ title: "Datasources Added", description: "Datasources attached to solution." });
-      setAddDatasourceDialogOpen(false);
-      // Refresh solution details
-      const updated = await SolutionService.getSolution(workspaceId, solutionId);
-      setSolution(updated);
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to add datasources.", variant: "destructive" });
-    }
-  };
-
-  // Handler to detach a datasource
-  const handleDetachDatasource = async (datasourceId: string) => {
-    if (!workspaceId || !solutionId) return;
-    try {
-      const remaining = (solution.Datasources || []).filter((ds: any) => ds.DatasourceId !== datasourceId).map((ds: any) => ds.DatasourceId);
-      await SolutionService.updateSolutionDatasources(workspaceId, solutionId, remaining);
-      toast({ title: "Datasource Detached", description: "Datasource removed from solution." });
-      // Refresh solution details
-      const updated = await SolutionService.getSolution(workspaceId, solutionId);
-      setSolution(updated);
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to detach datasource.", variant: "destructive" });
-    }
-  };
-
   // Handler to open edit dialog
   const handleOpenEditDialog = () => {
     setEditName(solution.SolutionName || "");
@@ -166,21 +104,29 @@ const SolutionDetails = () => {
 
   // Handler to save edit details
   const handleEditSave = async () => {
-    if (!workspaceId || !solutionId) return;
-    try {
-      await SolutionService.updateSolution(workspaceId, solutionId, {
-        SolutionName: editName,
-        Description: editDescription,
-        Tags: editTags,
-        Datasources: Array.isArray(solution.Datasources) ? solution.Datasources.map((ds: any) => ds.DatasourceId) : [],
+    if (!workspaceId || !solutionId || !editName.trim() || !editDescription.trim() || editTags.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'All fields are required.',
+        variant: 'destructive',
       });
-      toast({ title: "Success", description: "Solution details updated." });
+      return;
+    }
+    try {
+      await updateSolution({
+        workspaceId,
+        solutionId,
+        body: {
+          SolutionName: editName,
+          Description: editDescription,
+          Tags: editTags,
+        },
+      }).unwrap();
+      toast({ title: 'Success', description: 'Solution details updated.' });
       setEditDialogOpen(false);
-      // Refresh solution details
-      const updated = await SolutionService.getSolution(workspaceId, solutionId);
-      setSolution(updated);
+      refetch();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: 'Error', description: err?.data?.message || err.message || 'Failed to update solution.', variant: 'destructive' });
     }
   };
 
@@ -188,11 +134,11 @@ const SolutionDetails = () => {
   const handleDeleteSolution = async () => {
     if (!workspaceId || !solutionId) return;
     try {
-      await SolutionService.deleteSolution(workspaceId, solutionId);
-      toast({ title: "Solution Deleted", description: "The solution has been deleted." });
+      await deleteSolution({ workspaceId, solutionId }).unwrap();
+      toast({ title: 'Solution Deleted', description: 'The solution has been deleted.' });
       navigate(`/workspaces/${workspaceId}`);
     } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to delete solution.", variant: "destructive" });
+      toast({ title: 'Error', description: err?.data?.message || err.message || 'Failed to delete solution.', variant: 'destructive' });
     }
   };
 
@@ -231,7 +177,9 @@ const SolutionDetails = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeleteSolution}>Delete</Button>
+            <Button variant="destructive" onClick={handleDeleteSolution} disabled={isDeletingSolution}>
+              {isDeletingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -242,7 +190,8 @@ const SolutionDetails = () => {
           <DialogHeader>
             <DialogTitle>Edit Solution</DialogTitle>
           </DialogHeader>
-          <DialogContent className="space-y-4">
+          {/* Remove nested DialogContent, just use a div for spacing */}
+          <div className="space-y-4">
             <div>
               <Label htmlFor="edit-name">Solution Name</Label>
               <Input
@@ -302,40 +251,13 @@ const SolutionDetails = () => {
                 </Button>
               </div>
             </div>
-            <div>
-              <Label>Datasources</Label>
-              <Popover open={datasourcePopoverOpen} onOpenChange={setDatasourcePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    {editDatasources.length > 0 ? `${editDatasources.length} datasource(s) selected` : "Select datasources"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                  <div className="space-y-2">
-                    {allDatasources.map((ds) => (
-                      <div key={ds.DatasourceId} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={ds.DatasourceId}
-                          checked={editDatasources.includes(ds.DatasourceId)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setEditDatasources([...editDatasources, ds.DatasourceId]);
-                            } else {
-                              setEditDatasources(editDatasources.filter(id => id !== ds.DatasourceId));
-                            }
-                          }}
-                        />
-                        <label htmlFor={ds.DatasourceId} className="text-sm">{ds.DatasourceName}</label>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </DialogContent>
+            {/* Datasources section removed */}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditSave}>Save</Button>
+            <Button onClick={handleEditSave} disabled={isUpdatingSolution}>
+              {isUpdatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -347,66 +269,14 @@ const SolutionDetails = () => {
         solution={solution}
         isReadySolution={isReadySolution}
         onRunSolution={handleRunSolution}
-        onOpenAddDatasource={handleOpenAddDatasource}
-        onDetachDatasource={handleDetachDatasource}
+        onOpenAddDatasource={() => {}} // No longer needed
+        onDetachDatasource={() => {}} // No longer needed
         getStatusBadgeClass={getStatusBadgeClass}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         isNewSolution={isNewSolution}
         onGenerateSolution={handleGenerateSolution}
       />
-
-      {/* Add Datasource Dialog */}
-      <Dialog open={addDatasourceDialogOpen} onOpenChange={setAddDatasourceDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Datasources</DialogTitle>
-            <DialogDescription>Select datasources to attach to this solution.</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-80 overflow-y-auto py-2">
-            {addingDatasource ? (
-              <div className="text-center text-gray-500">Loading datasources...</div>
-            ) : (
-              allDatasources.map((ds: any) => (
-                <div key={ds.DatasourceId} className="flex items-center gap-2 py-1">
-                  <input
-                    type="checkbox"
-                    id={`ds-${ds.DatasourceId}`}
-                    checked={selectedDatasources.includes(ds.DatasourceId)}
-                    onChange={e => {
-                      if (e.target.checked) {
-                        setSelectedDatasources(prev => [...prev, ds.DatasourceId]);
-                      } else {
-                        setSelectedDatasources(prev => prev.filter(id => id !== ds.DatasourceId));
-                      }
-                    }}
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900">{ds.DatasourceName}</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Array.isArray(ds.Tags) && ds.Tags.length > 0 ? (
-                        ds.Tags.map((tag: string, idx: number) => (
-                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
-                        ))
-                      ) : (
-                        <span className="text-gray-400 text-xs">No tags</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDatasourceDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAttachDatasources} disabled={selectedDatasources.length === 0}>
-              Add Selected
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Resources Table */}
       {Array.isArray(solution.Resources) && solution.Resources.length > 0 && (

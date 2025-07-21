@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Users, Database, Trash2, Power, Edit, X } from "lucide-react";
+import { Settings, Users, Database, Trash2, Power, Edit, X, Loader2 } from "lucide-react";
 import { ApiClient } from "../lib/apiClient";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { WorkspaceService } from "../services/workspaceService";
+import { useUpdateWorkspaceMutation } from '../services/apiSlice';
 
 interface WorkspaceSettingsProps {
   workspaceName: string;
@@ -36,6 +37,7 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -44,6 +46,8 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
   const [editType, setEditType] = useState(workspaceType || "Public");
   const [editTagInput, setEditTagInput] = useState("");
   const [editTags, setEditTags] = useState<string[]>(workspaceTags || []);
+
+  const [updateWorkspace, { isLoading: isUpdating }] = useUpdateWorkspaceMutation();
 
   // Tag input handlers
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -69,7 +73,8 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
   };
 
   const handleDeleteWorkspace = async () => {
-    if (!workspaceId) return;
+    if (!workspaceId || deleteInProgress) return;
+    setDeleteInProgress(true);
     setLoading(true);
     try {
       await WorkspaceService.deleteWorkspace(workspaceId);
@@ -88,6 +93,7 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
       });
     } finally {
       setLoading(false);
+      setDeleteInProgress(false);
     }
   };
 
@@ -115,29 +121,36 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
   };
 
   const handleSaveChanges = async () => {
-    if (!workspaceId) return;
-    try {
-      setLoading(true);
-      await WorkspaceService.updateWorkspace(workspaceId, {
-        WorkspaceName: editName,
-        Description: editDescription,
-        Tags: editTags,
-        WorkspaceType: editType,
-      });
+    if (!workspaceId || !editName.trim() || !editDescription.trim() || editTags.length === 0 || !editType.trim()) {
       toast({
-        title: "Workspace Updated",
-        description: "Workspace details updated successfully.",
+        title: 'Error',
+        description: 'All fields are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      await updateWorkspace({
+        id: workspaceId,
+        body: {
+          WorkspaceName: editName,
+          Description: editDescription,
+          Tags: editTags,
+          WorkspaceType: editType,
+        },
+      }).unwrap();
+      toast({
+        title: 'Workspace Updated',
+        description: 'Workspace details updated successfully.',
       });
       setIsEditDialogOpen(false);
       onWorkspaceUpdated?.();
     } catch (err: any) {
       toast({
-        title: "Error",
-        description: err?.message || "Failed to update workspace.",
-        variant: "destructive",
+        title: 'Error',
+        description: err?.data?.message || err.message || 'Failed to update workspace.',
+        variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -185,8 +198,8 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteWorkspace}>
-              Delete Permanently
+            <Button variant="destructive" onClick={handleDeleteWorkspace} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete Permanently'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -268,8 +281,8 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveChanges} disabled={loading}>
-              Save Changes
+            <Button onClick={handleSaveChanges} disabled={isUpdating}>
+              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

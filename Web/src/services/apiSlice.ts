@@ -50,6 +50,15 @@ export const apiSlice = createApi({
         { type: 'Workspace', id: 'LIST' },
       ],
     }),
+    deleteWorkspace: builder.mutation<any, string>({
+      query: (id) => ({
+        url: `/workspaces/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: [
+        { type: 'Workspace', id: 'LIST' },
+      ],
+    }),
     getSolutions: builder.query<any, { workspaceId: string; limit?: number; offset?: number; filterBy?: string }>({
       query: ({ workspaceId, limit = 10, offset = 1, filterBy }) => {
         const params = new URLSearchParams();
@@ -58,6 +67,44 @@ export const apiSlice = createApi({
         if (filterBy) params.append('filterBy', filterBy);
         return `/workspaces/${workspaceId}/solutions${params.toString() ? `?${params}` : ''}`;
       },
+      providesTags: (result, error, { workspaceId }) => [
+        { type: 'Workspace', id: workspaceId },
+      ],
+    }),
+    createSolution: builder.mutation<any, { workspaceId: string; body: any }>({
+      query: ({ workspaceId, body }) => ({
+        url: `/workspaces/${workspaceId}/solutions`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (result, error, { workspaceId }) => [
+        { type: 'Workspace', id: workspaceId },
+        { type: 'Workspace', id: 'LIST' },
+      ],
+    }),
+    updateSolution: builder.mutation<any, { workspaceId: string; solutionId: string; body: any }>({
+      query: ({ workspaceId, solutionId, body }) => ({
+        url: `/workspaces/${workspaceId}/solutions/${solutionId}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (result, error, { workspaceId, solutionId }) => [
+        { type: 'Workspace', id: workspaceId },
+        { type: 'Workspace', id: 'LIST' },
+      ],
+    }),
+    deleteSolution: builder.mutation<any, { workspaceId: string; solutionId: string }>({
+      query: ({ workspaceId, solutionId }) => ({
+        url: `/workspaces/${workspaceId}/solutions/${solutionId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, { workspaceId }) => [
+        { type: 'Workspace', id: workspaceId },
+        { type: 'Workspace', id: 'LIST' },
+      ],
+    }),
+    getSolution: builder.query<any, { workspaceId: string; solutionId: string }>({
+      query: ({ workspaceId, solutionId }) => `/workspaces/${workspaceId}/solutions/${solutionId}`,
       providesTags: (result, error, { workspaceId }) => [
         { type: 'Workspace', id: workspaceId },
       ],
@@ -71,4 +118,9 @@ export const {
   useGetWorkspaceQuery,
   useUpdateWorkspaceMutation,
   useGetSolutionsQuery,
+  useDeleteWorkspaceMutation,
+  useCreateSolutionMutation,
+  useUpdateSolutionMutation,
+  useDeleteSolutionMutation,
+  useGetSolutionQuery,
 } = apiSlice; 

@@ -36,6 +36,7 @@ interface LocalWorkspace {
   owner: string;
   description: string;
   type: string;
+  tags: string[];
 }
 
 const Workspaces = () => {
@@ -64,6 +65,7 @@ const Workspaces = () => {
     owner: ws.CreatedBy,
     description: ws.Description,
     type: ws.WorkspaceType,
+    tags: Array.isArray(ws.Tags) ? ws.Tags : [],
   }));
 
   const itemsPerPage = 10;
@@ -413,6 +415,7 @@ const Workspaces = () => {
                 <TableHead>Owner</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Tags</TableHead>
                 <TableHead>Last Activity</TableHead>
               </TableRow>
             </TableHeader>
@@ -469,6 +472,17 @@ const Workspaces = () => {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
                       <span>{workspace.status}</span>
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {workspace.tags.length > 0 ? (
+                        workspace.tags.map((tag, idx) => (
+                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 text-xs">No tags</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
