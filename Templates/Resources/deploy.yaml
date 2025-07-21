@@ -30,7 +30,6 @@ Parameters:
     Type: String
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
-
   pRAGPrefix:
     Type: String
     Default: "develop"
@@ -422,6 +421,7 @@ Resources:
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
 
       Tags:
         - Key: Name
