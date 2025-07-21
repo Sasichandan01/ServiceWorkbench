@@ -159,13 +159,10 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
   // Filter out roles the user already has and current user's role
   const getAvailableRolesToAssign = () => {
     const userRoles = user?.Role || [];
-    const currentUserRole = currentUser?.role;
     
     return availableRoles.filter(role => {
       // Exclude roles already assigned to the user
       if (role.Role && userRoles.includes(role.Role)) return false;
-      // Exclude current user's role from assignment
-      if (currentUserRole && role.Role === currentUserRole) return false;
       return true;
     });
   };
