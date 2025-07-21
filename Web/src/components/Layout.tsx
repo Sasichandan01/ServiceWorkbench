@@ -37,10 +37,12 @@ import { useAppSelector } from "@/hooks/useAppSelector";
 import { useAppDispatch } from "@/hooks/useAppDispatch";
 import { setAuth } from "@/store/slices/authSlice";
 import { clearPermissions } from "@/store/slices/permissionsSlice";
+import { RoleSwitchDialog } from "./RoleSwitchDialog";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -109,8 +111,7 @@ const Layout = () => {
   };
 
   const handleSwitchRole = () => {
-    console.log("Switching role...");
-    // Add switch role logic here
+    setShowRoleSwitchDialog(true);
   };
 
   // Check if user has any permissions
@@ -395,6 +396,12 @@ const Layout = () => {
             )}
           </main>
         </div>
+
+        {/* Role Switch Dialog */}
+        <RoleSwitchDialog 
+          open={showRoleSwitchDialog} 
+          onOpenChange={setShowRoleSwitchDialog} 
+        />
       </div>
     </TooltipProvider>
   );
