@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+bedrock_client=boto3.client('bedrock-agent')
 
 class DynamoDBExportGlueJob:
     def __init__(self, dynamodb_table_prefix, s3_export_bucket_name, s3_export_prefix,
@@ -207,6 +207,49 @@ class DynamoDBExportGlueJob:
         print(delete_ddb_folder)
         
         return total_files_processed
+
+    def monitor_ingestion_job(self, ingestion_job_id):
+        try:
+            logger.info(f"Web Scraper: Monitoring ingestion job: {ingestion_job_id}")
+            max_wait_time = 3600
+            start_time = time.time()
+            
+            while time.time() - start_time < max_wait_time:
+                response = self.bedrock_agent_client.get_ingestion_job(
+                    knowledgeBaseId=self.kb_id,
+                    dataSourceId=self.kb_ds_id,
+                    ingestionJobId=ingestion_job_id
+                )
+                
+                status = response['ingestionJob']['status']
+                logger.info(f"Web Scraper: Ingestion job status: {status}")
+                
+                if status == 'COMPLETE':
+                    logger.info("Web Scraper: Ingestion job completed successfully!")
+                    if 'statistics' in response['ingestionJob']:
+                        stats = response['ingestionJob']['statistics']
+                        logger.info(f"Web Scraper: Ingestion statistics: {json.dumps(stats, indent=2)}")
+                    return True
+                elif status == 'FAILED':
+                    logger.error("Web Scraper ERROR: Ingestion job failed!")
+                    if 'failureReasons' in response['ingestionJob']:
+                        reasons = response['ingestionJob']['failureReasons']
+                        logger.error(f"Web Scraper: Failure reasons: {reasons}")
+                    return False
+                elif status in ['STARTING', 'IN_PROGRESS']:
+                    logger.info("Web Scraper: Ingestion job is still running, waiting 30 seconds...")
+                    time.sleep(30)
+                else:
+                    logger.warning(f"Web Scraper WARNING: Unknown status: {status}")
+                    time.sleep(30)
+            
+            logger.error("Web Scraper ERROR: Ingestion job monitoring timed out")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Web Scraper ERROR: Error monitoring ingestion job: {str(e)}")
+            return False
+
 
     def run_export_and_ingestion(self):
         logger.info(f"DynamoDB Export: Discovering tables with prefix: {self.dynamodb_table_prefix}")
@@ -711,6 +754,11 @@ def main():
             "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/",
             "https://docs.aws.amazon.com/step-functions/latest/dg/",
             "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.types",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.pandas/api/pyspark.pandas.DataFrame",
+            "https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkContext"
         ],
         "cft": [
             "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-apigateway",
@@ -761,7 +809,12 @@ def main():
             "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html",
             "https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html",
             "https://docs.aws.amazon.com/ses/latest/dg/Welcome.html",
-            "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html"
+            "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/data_types.html",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/functions.html",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/spark_session.html",
+            "https://spark.apache.org/docs/latest/api/python/reference/pyspark.pandas/frame.html",
+            "https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkContext.html"
         ],
         "cft": [
             "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/AWS_ApiGateway.html",
@@ -790,6 +843,7 @@ def main():
             "https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/stepfunctions.html"
         ]
     }
+   
     try:
         logger.info("Starting DynamoDB Export process...")
         ddb_exporter = DynamoDBExportGlueJob(
@@ -812,6 +866,11 @@ def main():
             region=args['AWS_REGION']
         )
         action = args['ACTION']
+        
+        if action not in ['docsapp','docs','app']:
+            logger.error("Invalid action")
+            job.commit()
+            
         def run_web_scraping_and_trigger_ingestion_task():
             logger.info("Web Scraper: Starting internal process for parallel execution...")
             web_scraper.clean_s3_data()
@@ -824,21 +883,40 @@ def main():
             ingestion_job_id = web_scraper.trigger_kb_ingestion()
             logger.info(f"Web Scraper: Triggered Bedrock ingestion job with ID: {ingestion_job_id}")
             return ingestion_job_id
-
+        
+        def check_ingestion_jobs(kb_id,ds_id):
+            try:
+                response = bedrock_client.list_ingestion_jobs(
+                    dataSourceId=ds_id,
+                    knowledgeBaseId=kb_id,
+                    filters=[
+                        {
+                            'attribute': 'STATUS',
+                            'operator': 'EQ',
+                            'values': [
+                                'STARTING','IN_PROGRESS','STOPPING'
+                            ]
+                        },
+                    ],
+                )
+                logger.info(response)
+                if response.get('ingestionJobSummaries',[]):
+                    return False
+                return True
+            except Exception as e:
+                logger.info(f"Error while checking ingestion jobs, {e}")
+                return False
+                    
         with ThreadPoolExecutor(max_workers=70) as executor: 
             logger.info("Submitting DynamoDB Export and Web Scraping processes to run in parallel...")
             webscrape_future=None
             ddb_future=None
-            if action =='docsapp':
+            if action in ['docsapp','app'] and check_ingestion_jobs(args['AURORA_KB_ID'],args['AURORA_DS_ID'].split('|')[-1]):
                 ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
-                webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)
-            elif action =='docs':
+                
+            if action in ['docsapp','docs'] and check_ingestion_jobs(args['OPENSEARCH_KB_ID'],args['OPENSEARCH_DS_ID'].split('|')[-1]):
                 webscrape_future = executor.submit(run_web_scraping_and_trigger_ingestion_task)   
-            elif action =='app':
-                ddb_future = executor.submit(ddb_exporter.run_export_and_ingestion)
-            else:
-                logger.error("Invalid Action")
-                job.commit()
+
 
             monitoring_futures = []
             active_futures = [fut for fut in [ddb_future, webscrape_future] if fut is not None]

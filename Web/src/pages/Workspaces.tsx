@@ -24,6 +24,7 @@ import {
   Loader2
 } from "lucide-react";
 import { WorkspaceService, type Workspace as ApiWorkspace } from "../services/workspaceService";
+import { useGetWorkspacesQuery, useCreateWorkspaceMutation } from '../services/apiSlice';
 
 interface LocalWorkspace {
   id: string;
@@ -49,56 +50,24 @@ const Workspaces = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const { data, isLoading, isError, refetch } = useGetWorkspacesQuery();
+  const [createWorkspace, { isLoading: isCreating }] = useCreateWorkspaceMutation();
+
+  // Map RTK Query response to LocalWorkspace[]
+  const workspaces: LocalWorkspace[] = (data?.Workspaces ?? []).map(ws => ({
+    id: ws.WorkspaceId,
+    name: ws.WorkspaceName,
+    status: ws.WorkspaceStatus,
+    members: ws.Users?.Pagination?.TotalCount ?? 0,
+    projects: 0, // Placeholder, update if you have project info
+    lastActivity: ws.LastUpdationTime || ws.CreationTime,
+    owner: ws.CreatedBy,
+    description: ws.Description,
+    type: ws.WorkspaceType,
+  }));
+
   const itemsPerPage = 10;
   const { toast } = useToast();
-
-  const fetchWorkspaces = async () => {
-    setLoading(true);
-    try {
-      const searchParams: any = {
-        limit: itemsPerPage,
-        offset: currentPage,
-      };
-
-      if (searchTerm.trim()) {
-        searchParams.filterBy = searchTerm.trim();
-      }
-
-      const response = await WorkspaceService.getWorkspaces(searchParams);
-      
-      if (response && response.Workspaces && Array.isArray(response.Workspaces)) {
-        const transformedWorkspaces: LocalWorkspace[] = response.Workspaces.map(ws => ({
-          id: ws.WorkspaceId,
-          name: ws.WorkspaceName,
-          status: ws.WorkspaceStatus,
-          members: Math.floor(Math.random() * 15) + 1, // Mock data
-          projects: Math.floor(Math.random() * 20) + 1, // Mock data
-          lastActivity: formatLastActivity(ws.LastUpdationTime),
-          owner: ws.CreatedBy,
-          description: ws.Description,
-          type: ws.WorkspaceType
-        }));
-        setWorkspaces(transformedWorkspaces);
-        setTotalCount(response.Pagination?.TotalCount || transformedWorkspaces.length);
-      } else {
-        setWorkspaces([]);
-        setTotalCount(0);
-      }
-    } catch (error: any) {
-      console.error('Error fetching workspaces:', error);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-      setWorkspaces([]);
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatLastActivity = (timestamp: string): string => {
     if (!timestamp) return "Unknown";
@@ -127,7 +96,7 @@ const Workspaces = () => {
   };
 
   useEffect(() => {
-    fetchWorkspaces();
+    // Remove manual fetchWorkspaces and loading state
   }, [currentPage, searchTerm]);
 
   const filteredWorkspaces = workspaces.filter(workspace => {
@@ -136,9 +105,15 @@ const Workspaces = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const totalPages = Math.ceil(filteredWorkspaces.length / itemsPerPage);
+  const totalPages = Math.ceil(workspaces.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedWorkspaces = filteredWorkspaces.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedWorkspaces = workspaces
+    .filter(workspace => {
+      const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || workspace.status.toLowerCase() === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .slice(startIndex, startIndex + itemsPerPage);
 
   const totalWorkspaces = workspaces.length;
   const activeWorkspaces = workspaces.filter(w => w.status === "Active").length;
@@ -223,31 +198,23 @@ const Workspaces = () => {
     }
 
     try {
-      const createData = {
+      await createWorkspace({
         WorkspaceName: workspaceName,
         Description: workspaceDescription,
         Tags: tags,
         WorkspaceType: workspaceType
-      };
-
-      const response = await WorkspaceService.createWorkspace(createData);
-
+      }).unwrap();
       toast({
         title: "Success",
         description: `Workspace "${workspaceName}" created successfully!`,
       });
-
-      // Reset form
       resetForm();
       setIsCreateDialogOpen(false);
-      
-      // Refresh workspaces list
-      await fetchWorkspaces();
+      refetch();
     } catch (error: any) {
-      console.error('Error creating workspace:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error.message || 'Failed to create workspace',
         variant: "destructive"
       });
     }
@@ -355,8 +322,8 @@ const Workspaces = () => {
               >
                 Cancel
               </Button>
-              <Button onClick={handleCreateWorkspace} className="bg-blue-600 hover:bg-blue-700">
-                Create Workspace
+              <Button onClick={handleCreateWorkspace} disabled={isCreating} className="bg-blue-600 hover:bg-blue-700">
+                {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Workspace'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -450,13 +417,19 @@ const Workspaces = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Loading workspaces...</span>
                     </div>
+                  </TableCell>
+                </TableRow>
+              ) : isError ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-red-500">
+                    Failed to load workspaces. Please try again later.
                   </TableCell>
                 </TableRow>
               ) : filteredWorkspaces.length === 0 ? (
@@ -509,7 +482,7 @@ const Workspaces = () => {
             </TableBody>
           </Table>
           
-          {Math.ceil(totalCount / itemsPerPage) > 1 && (
+          {Math.ceil(totalWorkspaces / itemsPerPage) > 1 && (
             <div className="flex justify-center mt-4">
               <Pagination>
                 <PaginationContent>
@@ -519,7 +492,7 @@ const Workspaces = () => {
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
-                  {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: Math.ceil(totalWorkspaces / itemsPerPage) }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -532,8 +505,8 @@ const Workspaces = () => {
                   ))}
                   <PaginationItem>
                      <PaginationNext 
-                      onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / itemsPerPage), currentPage + 1))}
-                      className={currentPage === Math.ceil(totalCount / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      onClick={() => setCurrentPage(Math.min(Math.ceil(totalWorkspaces / itemsPerPage), currentPage + 1))}
+                      className={currentPage === Math.ceil(totalWorkspaces / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
                 </PaginationContent>
@@ -544,7 +517,7 @@ const Workspaces = () => {
       </Card>
 
       {/* No workspaces state */}
-      {filteredWorkspaces.length === 0 && (
+      {!isLoading && filteredWorkspaces.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />

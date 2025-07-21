@@ -378,11 +378,5 @@ def rag_sync(event):
                 "job_run_id": response['JobRunId']
             })
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'message': 'Error starting Glue job',
-                'error': str(e)
-            })
-        }
-    
+        return return_response(500, {"message": f"Error starting Glue job {str(e)}"})
+        
