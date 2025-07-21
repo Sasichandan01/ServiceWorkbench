@@ -8,7 +8,7 @@ import asyncio
 import json
 import boto3
 import os
-
+ 
 dynamodb = boto3.resource("dynamodb")
 roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 
@@ -39,6 +39,7 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_workspace(event,context)
             elif httpMethod == 'PUT':
+                
                 return update_workspace(event,context)
             elif httpMethod == 'DELETE':
                 return delete_workspace(event,context)
@@ -55,7 +56,7 @@ def lambda_handler(event, context):
                 return get_solution(workspace_id, solution_id, query_params,user_id)
             elif httpMethod == 'PUT':
                 body = json.loads(event.get('body', '{}'))
-                return update_solution(workspace_id, solution_id, body,user_id)
+                return update_solution(workspace_id, solution_id, body,user_id,query_params)
             elif httpMethod == 'DELETE':
                 return delete_solution(workspace_id, solution_id,user_id)
 

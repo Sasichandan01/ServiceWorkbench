@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Brain, Send, User } from "lucide-react";
+import { createWebSocketClient } from "@/lib/websocketClient";
 
 interface Message {
   id: number;
@@ -25,6 +26,9 @@ const AIGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (workspaceId) {
@@ -35,28 +39,105 @@ const AIGenerator = () => {
     }
   }, [workspaceId, solutionId]);
 
+  useEffect(() => {
+    const wsClient = createWebSocketClient();
+    wsClientRef.current = wsClient;
+    wsClient.connect();
+    wsClient.on('open', () => {
+      setWsConnected(true);
+      setWsError(null);
+    });
+    wsClient.on('close', () => {
+      setWsConnected(false);
+    });
+    wsClient.on('error', (e) => {
+      setWsError('WebSocket error');
+      setWsConnected(false);
+    });
+    wsClient.on('message', (event) => {
+      console.log('[Chat] WebSocket message received:', event);
+      console.log('[Chat] Raw event data:', event.data);
+      setIsGenerating(false);
+      
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        console.log('[Chat] Parsed data:', data);
+        
+        // Handle different message formats
+        let content = '';
+        if (typeof data === 'string') {
+          content = data;
+        } else if (data && typeof data.response === 'string') {
+          content = data.response;
+        } else if (data && typeof data.content === 'string') {
+          content = data.content;
+        } else if (data && typeof data.message === 'string') {
+          content = data.message;
+        } else if (data && typeof data.text === 'string') {
+          content = data.text;
+        } else {
+          content = JSON.stringify(data);
+        }
+        
+        if (content.trim()) {
+          setMessages(prev => {
+            const msg: Message = {
+              id: prev.length + 1,
+              content: content,
+              sender: 'ai' as const,
+              timestamp: new Date().toLocaleTimeString(),
+            };
+            console.log('[Chat] Adding AI message:', msg);
+            return [...prev, msg];
+          });
+        }
+      } catch (err) {
+        console.error('[Chat] Error parsing message:', err);
+        // Fallback: treat the raw data as string content
+        const content = typeof event.data === 'string' ? event.data : String(event.data);
+        if (content.trim()) {
+          setMessages(prev => {
+            const msg: Message = {
+              id: prev.length + 1,
+              content: content,
+              sender: 'ai' as const,
+              timestamp: new Date().toLocaleTimeString(),
+            };
+            return [...prev, msg];
+          });
+        }
+      }
+    });
+    return () => {
+      wsClient.close();
+    };
+  }, []);
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    console.log('[Chat] handleSendMessage called');
+    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) {
+      console.log('[Chat] Cannot send: input empty, wsClientRef', wsClientRef.current, 'wsConnected', wsConnected);
+      return;
+    }
     const userMessage: Message = {
       id: messages.length + 1,
       content: inputValue,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString()
+      sender: 'user' as const,
+      timestamp: new Date().toLocaleTimeString(),
     };
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: messages.length + 2,
-        content: "I'll help you generate a comprehensive solution. Please provide more details about your requirements.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setIsGenerating(false);
-    }, 2000);
+    // Send message via websocket using AWS API Gateway action format
+    const payload = JSON.stringify({
+      action: "sendMessage",
+      data: {
+        content: userMessage.content,
+      }
+    });
+    console.log('[Chat] Sending over websocket:', payload);
+    wsClientRef.current.send(payload);
+    setIsGenerating(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -88,6 +169,12 @@ const AIGenerator = () => {
       {/* Chat Window */}
       <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20">
         <CardContent className="p-0">
+          {wsError && (
+            <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
+          )}
+          {!wsConnected && !wsError && (
+            <div className="text-yellow-500 text-center">Connecting to chat server...</div>
+          )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
             <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 animate-fade-in">
@@ -248,3 +335,12 @@ const AIGenerator = () => {
 };
 
 export default AIGenerator;
+
+// Add a type guard for Message
+function isValidMessage(data: any): data is Message {
+  return (
+    typeof data === 'object' &&
+    typeof data.content === 'string' &&
+    (data.sender === 'user' || data.sender === 'ai')
+  );
+}

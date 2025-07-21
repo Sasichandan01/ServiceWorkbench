@@ -2,6 +2,7 @@ import logging
 import json
 from datetime import datetime, timezone
 import boto3
+import os
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -9,7 +10,7 @@ LOGGER.setLevel(logging.INFO)
 LEVEL_RANK = {"read_only": 1, "editor": 2, "owner": 3}
 
 dynamodb = boto3.resource('dynamodb') 
-# RESOURCE_ACCESS_TABLE= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+RESOURCE_ACCESS_TABLE= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
 time=str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
 def create_workspace_fgac(table,user_id,access_type,workspace_id):

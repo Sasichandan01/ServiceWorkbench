@@ -2,7 +2,8 @@
 export interface UserInfo {
   name?: string;
   email?: string;
-  sub?: string;
+  sub?: string; // Cognito UUID
+  username?: string; // Cognito username
   role?: string;
 }
 
@@ -23,6 +24,7 @@ export const decodeIdToken = (idToken: string): UserInfo | null => {
       name: parsedPayload.name,
       email: parsedPayload.email,
       sub: parsedPayload.sub,
+      username: parsedPayload['cognito:username'] || parsedPayload['preferred_username'] || parsedPayload['username'],
       role: parsedPayload['custom:Role'] || parsedPayload['custom:role'] || 'Default'
     };
   } catch (error) {
