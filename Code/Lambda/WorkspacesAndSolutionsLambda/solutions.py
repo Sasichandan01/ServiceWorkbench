@@ -162,7 +162,7 @@ def create_solution(workspace_id, body, user_id):
         "SolutionId": solution_id,
         "SolutionName": solution_name,
         "Description": description,
-        "Tag":tags,
+        "Tags":tags,
         "CreatedBy": user_id,
         "CreationTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
         "LastUpdatedBy": user_id,

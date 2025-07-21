@@ -49,7 +49,7 @@ def create_workspace(event,context):
         )
         logger.info("Workspace query response: %s", response)
         if response.get('Count')>0:
-            return return_response(200, {"Message": "Workspace already exists"})
+            return return_response(400, {"Error": "Workspace already exists"})
 
         timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         workspace_id=str(uuid.uuid4())
@@ -71,7 +71,7 @@ def create_workspace(event,context):
         create_workspace_fgac(resource_access_table,user_id,"owner",workspace_id)
 
         logger.info("Activity log response: %s", resp)
-        return return_response(200, {"Message": "Workspace created successfully","WorkspaceId":workspace_id})
+        return return_response(201, {"Message": "Workspace created successfully", "WorkspaceId": workspace_id})
         
     except Exception as e:
         logger.error("Error in create_workspace: %s", e)
@@ -88,7 +88,7 @@ def update_workspace(event, context):
 
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
         if not workspace_response:
-            return return_response(400, {"Error": "Workspace does not exist"})
+            return return_response(404, {"Error": "Workspace does not exist"})
         
         access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
         if not access_type:
@@ -187,7 +187,7 @@ def delete_workspace(event,context):
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         if not workspace_response:
-            return return_response(400, {"Error": "Workspace does not exist"})
+            return return_response(404, {"Error": "Workspace does not exist"})
         
         # Check user's access to the workspace
         access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
@@ -236,7 +236,7 @@ def get_workspace(event,context):
         workspace_response=workspace_table.get_item(Key={'WorkspaceId': workspace_id}).get('Item')
 
         if not workspace_response:
-            return return_response(400, {"Error": "Workspace does not exist"})
+            return return_response(404, {"Error": "Workspace does not exist"})
         
         access_type = check_workspace_access(resource_access_table, user_id, workspace_id)
         if not access_type:
