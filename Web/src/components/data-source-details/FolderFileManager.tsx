@@ -166,7 +166,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     try {
       // Step 1: Get presigned URLs
       const fileData = files.map(file => ({
-        FileName: file.name,
+        FileName: currentFolder ? `${currentFolder}/${file.name}` : file.name,
         ContentType: file.type
       }));
 
@@ -174,7 +174,8 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       
       // Step 2: Upload files to S3 with progress tracking
       const uploadPromises = files.map(async (file) => {
-        const presignedUrl = response.PreSignedURL[file.name];
+        const key = currentFolder ? `${currentFolder}/${file.name}` : file.name;
+        const presignedUrl = response.PreSignedURL[key];
         if (!presignedUrl) {
           throw new Error(`No presigned URL found for ${file.name}`);
         }
@@ -405,7 +406,7 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
     try {
       // Step 1: Get presigned URLs
       const fileData = selectedUploadFiles.map(file => ({
-        FileName: file.name,
+        FileName: uploadTargetFolder ? `${uploadTargetFolder}/${file.name}` : file.name,
         ContentType: getContentType(file)
       }));
       const response = await DatasourceService.getPresignedUrls(datasourceId, fileData);
@@ -413,7 +414,8 @@ const FolderFileManager = ({ datasourceId, folders, onRefresh, deleteMode, setDe
       
       // Step 2: Upload files to S3 with progress tracking
       const uploadPromises = selectedUploadFiles.map(async (file) => {
-        const presignedUrl = response.PreSignedURL[file.name];
+        const key = uploadTargetFolder ? `${uploadTargetFolder}/${file.name}` : file.name;
+        const presignedUrl = response.PreSignedURL[key];
         if (!presignedUrl) {
           console.error(`No presigned URL found for ${file.name}`);
           throw new Error(`No presigned URL found for ${file.name}`);

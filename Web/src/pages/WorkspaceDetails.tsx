@@ -27,10 +27,14 @@ import {
   Settings,
   Trash2,
   Power,
-  Wand2
+  Wand2,
+  Loader2,
+  Pencil,
+  Tag // Add Tag icon
 } from "lucide-react";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
+import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation } from '../services/apiSlice';
 
 interface Solution {
   id: number;
@@ -74,6 +78,7 @@ const WorkspaceDetails = () => {
   const [newSolutionDescription, setNewSolutionDescription] = useState("");
   const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
+  const [createSolution, { isLoading: isCreatingSolution }] = useCreateSolutionMutation();
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -82,84 +87,58 @@ const WorkspaceDetails = () => {
   const [usersPage, setUsersPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Workspace state management
-  const [workspaceStatus, setWorkspaceStatus] = useState<string>("Active");
-  const [workspace, setWorkspace] = useState<any>(null);
-  const [workspaceLoading, setWorkspaceLoading] = useState(true);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  // Replace manual workspace state with RTK Query
+  const {
+    data,
+    isLoading: workspaceLoading,
+    isError: workspaceError,
+    refetch: refetchWorkspace
+  } = useGetWorkspaceQuery(id!);
+  const workspace = data ? {
+    id: data.WorkspaceId,
+    name: data.WorkspaceName,
+    description: data.Description,
+    status: data.WorkspaceStatus,
+    owner: data.CreatedBy,
+    created: data.CreationTime,
+    members: data.Users?.Pagination?.TotalCount || 0,
+    solutions: 0, // update if needed
+    dataSources: 0, // update if needed
+    monthlyCost: 0, // update if needed
+    type: data.WorkspaceType,
+    tags: data.Tags || [],
+  } : null;
 
-  // Solutions state
-  const [allSolutions, setAllSolutions] = useState<any[]>([]);
-  const [solutionsLoading, setSolutionsLoading] = useState(true);
-  const [solutionsError, setSolutionsError] = useState<string | null>(null);
-  const [solutionsTotalCount, setSolutionsTotalCount] = useState(0);
-
-  // Users: keep mock for now
-  const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([]);
+  // Fetch solutions count and list using RTK Query
+  const { data: solutionsData, isLoading: solutionsLoading, isError: solutionsError } = useGetSolutionsQuery({ workspaceId: id!, limit: 10, offset: solutionsPage });
+  const solutionsTotalCount = solutionsData?.Pagination?.TotalCount || 0;
 
   // Add a function to refetch workspace details
-  const fetchWorkspaceDetails = () => {
-    if (!id) return;
-    setWorkspaceLoading(true);
-    setWorkspaceError(null);
-    WorkspaceService.getWorkspace(id, { limit: 10, offset: 1 })
-      .then((data) => {
-        setWorkspace({
-          id: data.WorkspaceId,
-          name: data.WorkspaceName,
-          description: data.Description,
-          status: data.WorkspaceStatus,
-          owner: data.CreatedBy,
-          created: data.CreationTime,
-          members: data.Users?.Pagination?.TotalCount || 0,
-          solutions: 0,
-          dataSources: 0,
-          monthlyCost: 0,
-          type: data.WorkspaceType,
-          tags: data.Tags || [],
-        });
-        setWorkspaceStatus(data.WorkspaceStatus || "Active");
-        const apiUsers = data.Users?.Users || [];
-        setAllUsers(
-          apiUsers.map((u: any, idx: number) => ({
-            id: u.UserId || idx + 1,
-            name: u.Username || u.Email || "Unknown",
-            email: u.Email || "",
-            role: Array.isArray(u.Roles) ? (u.Roles[0] || "Viewer") : (u.Roles || "Viewer"),
-            joinedDate: u.JoinedDate || "",
-          }))
-        );
-        setWorkspaceLoading(false);
-      })
-      .catch((err: any) => {
-        setWorkspaceError(err.message);
-        setWorkspaceLoading(false);
-      });
-  };
+  // Remove old workspace state, loading, error, and fetchWorkspaceDetails
 
   // Fetch solutions from API
   const fetchSolutions = (search: string, page: number) => {
-    setSolutionsLoading(true);
-    setSolutionsError(null);
+    // setSolutionsLoading(true); // This state is removed
+    // setSolutionsError(null); // This state is removed
     SolutionService.getSolutions(id, {
       limit: 10,
       offset: page,
       filterBy: search.trim() ? search : undefined,
     })
       .then((data) => {
-        setAllSolutions(data.Solutions || []);
-        setSolutionsTotalCount(data.Pagination?.TotalCount || 0);
-        setSolutionsLoading(false);
+        // setAllSolutions(data.Solutions || []); // This state is removed
+        // setSolutionsTotalCount(data.Pagination?.TotalCount || 0); // This state is removed
+        // setSolutionsLoading(false); // This state is removed
       })
       .catch((err: any) => {
-        setSolutionsError(err.message);
-        setSolutionsLoading(false);
+        // setSolutionsError(err.message); // This state is removed
+        // setSolutionsLoading(false); // This state is removed
       });
   };
 
   // Fetch workspace details only on mount or when id changes
   useEffect(() => {
-    fetchWorkspaceDetails();
+    // Remove old workspace state, loading, error, and fetchWorkspaceDetails
   }, [id]);
 
   // Fetch solutions when search or page changes
@@ -168,13 +147,14 @@ const WorkspaceDetails = () => {
   }, [id, solutionsSearch, solutionsPage]);
 
   // Filter and paginate users
-  const filteredUsers = allUsers.filter(user =>
-    user.name.toLowerCase().includes(usersSearch.toLowerCase()) ||
-    user.email.toLowerCase().includes(usersSearch.toLowerCase()) ||
-    user.role.toLowerCase().includes(usersSearch.toLowerCase())
+  const apiUsers = Array.isArray(data?.Users) ? data.Users : [];
+  const filteredApiUsers = apiUsers.filter(user =>
+    user.Username.toLowerCase().includes(usersSearch.toLowerCase()) ||
+    user.Email.toLowerCase().includes(usersSearch.toLowerCase()) ||
+    user.Access.toLowerCase().includes(usersSearch.toLowerCase())
   );
-  const totalUsersPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = filteredUsers.slice(
+  const totalApiUsersPages = Math.ceil(filteredApiUsers.length / itemsPerPage);
+  const paginatedApiUsers = filteredApiUsers.slice(
     (usersPage - 1) * itemsPerPage,
     usersPage * itemsPerPage
   );
@@ -209,14 +189,14 @@ const WorkspaceDetails = () => {
 
     // Add new user to the list
     const newUser: WorkspaceUser = {
-      id: allUsers.length + 1,
+      id: apiUsers.length + 1,
       name: newUserEmail.split('@')[0], // Simple name extraction
       email: newUserEmail,
       role: newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1),
       joinedDate: new Date().toISOString().split('T')[0]
     };
 
-    setAllUsers(prev => [...prev, newUser]);
+    // setAllUsers(prev => [...prev, newUser]);
 
     toast({
       title: "Success",
@@ -229,7 +209,7 @@ const WorkspaceDetails = () => {
   };
 
   const handleRemoveUser = (userId: number) => {
-    setAllUsers(prev => prev.filter(user => user.id !== userId));
+    // setAllUsers(prev => prev.filter(user => user.id !== userId));
     toast({
       title: "User Removed",
       description: "User has been removed from the workspace.",
@@ -237,14 +217,45 @@ const WorkspaceDetails = () => {
     });
   };
 
-  const handleWorkspaceDeleted = () => {
-    // Navigate back to workspaces list after deletion
-    navigate('/workspaces');
+  const [deleteWorkspace, { isLoading: isDeleting }] = useDeleteWorkspaceMutation();
+
+  const handleWorkspaceDeleted = async () => {
+    if (!workspace?.id) return;
+    try {
+      await deleteWorkspace(workspace.id).unwrap();
+      toast({
+        title: "Workspace Deleted",
+        description: "The workspace has been deleted successfully.",
+        variant: "destructive",
+      });
+      navigate('/workspaces', { replace: true });
+    } catch (error: any) {
+      let errorMsg = '';
+      if (error && typeof error.error === 'string') {
+        try {
+          const parsed = JSON.parse(error.error);
+          if (parsed && parsed.Error) {
+            errorMsg = parsed.Error;
+          } else {
+            errorMsg = error.error;
+          }
+        } catch {
+          errorMsg = error.error;
+        }
+      } else {
+        errorMsg = error?.data?.message || error.message || 'Failed to delete workspace';
+      }
+      toast({
+        title: 'Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleWorkspaceDeactivated = () => {
     // Update workspace status
-    setWorkspaceStatus("Inactive");
+    // setWorkspaceStatus("Inactive"); // This state is removed, so this function is no longer relevant
   };
 
   const handleCreateSolution = async () => {
@@ -273,11 +284,14 @@ const WorkspaceDetails = () => {
       return;
     }
     try {
-      const response = await SolutionService.createSolution(id, {
-        SolutionName: newSolutionName,
-        Description: newSolutionDescription,
-        Tags: newSolutionTags,
-      });
+      const response = await createSolution({
+        workspaceId: id!,
+        body: {
+          SolutionName: newSolutionName,
+          Description: newSolutionDescription,
+          Tags: newSolutionTags,
+        },
+      }).unwrap();
       toast({
         title: "Success",
         description: "Solution created successfully!",
@@ -289,13 +303,11 @@ const WorkspaceDetails = () => {
       setNewTagInput("");
       if (response && response.SolutionId) {
         navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
-      } else {
-        fetchSolutions("", 1);
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error.message || 'Failed to create solution',
         variant: "destructive",
       });
     }
@@ -326,18 +338,18 @@ const WorkspaceDetails = () => {
         <WorkspaceSettings
           workspaceName={workspace?.name || "Loading..."}
           workspaceId={workspace?.id}
-          workspaceStatus={workspaceStatus}
+          workspaceStatus={workspace?.status || "Active"}
           workspaceDescription={workspace?.description || ""}
           workspaceType={workspace?.type || "Public"}
           workspaceTags={workspace?.tags || []}
           onWorkspaceDeleted={handleWorkspaceDeleted}
-          onWorkspaceStatusChange={(newStatus) => setWorkspaceStatus(newStatus)}
-          onWorkspaceUpdated={fetchWorkspaceDetails}
+          onWorkspaceStatusChange={() => { refetchWorkspace(); }}
+          onWorkspaceUpdated={() => { /* This function is no longer relevant */ }}
         />
       </div>
 
       {/* Show deactivated workspace notice */}
-      {workspaceStatus === "Inactive" && (
+      {workspace?.status === "Inactive" && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2 text-yellow-800">
@@ -358,7 +370,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <FolderOpen className="w-8 h-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace?.solutions || "0"}</p>
+                <p className="text-2xl font-bold text-gray-900">{solutionsTotalCount}</p>
                 <p className="text-sm text-gray-600">Solutions</p>
               </div>
             </div>
@@ -390,6 +402,27 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tags Card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Tag className="w-8 h-8 text-purple-600" />
+              <div>
+                <div className="flex flex-wrap gap-1">
+                  {Array.isArray(workspace?.tags) && workspace.tags.length > 0 ? (
+                    workspace.tags.map((tag: string, idx: number) => (
+                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                    ))
+                  ) : (
+                    <span className="text-gray-400 text-xs">No tags</span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 mt-1">Tags</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Workspace Info */}
@@ -406,8 +439,8 @@ const WorkspaceDetails = () => {
             <div>
               <Label className="text-sm font-medium text-gray-700">Status</Label>
               <div className="mt-1">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspaceStatus)}`}>
-                  {workspaceStatus}
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace?.status || "Active")}`}>
+                  {workspace?.status || "Active"}
                 </span>
               </div>
             </div>
@@ -432,9 +465,9 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
               <DialogTrigger asChild>
-                <Button disabled={workspaceStatus === 'Inactive'}>
+                <Button disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Solution
+                  {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -452,7 +485,7 @@ const WorkspaceDetails = () => {
                       placeholder="Enter solution name"
                       value={newSolutionName}
                       onChange={(e) => setNewSolutionName(e.target.value)}
-                      disabled={workspaceStatus === 'Inactive'}
+                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                     />
                   </div>
                   <div className="space-y-2">
@@ -463,7 +496,7 @@ const WorkspaceDetails = () => {
                       value={newSolutionDescription}
                       onChange={(e) => setNewSolutionDescription(e.target.value)}
                       rows={3}
-                      disabled={workspaceStatus === 'Inactive'}
+                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                     />
                   </div>
                   <div className="space-y-2">
@@ -483,7 +516,7 @@ const WorkspaceDetails = () => {
                             setNewTagInput("");
                           }
                         }}
-                        disabled={workspaceStatus === 'Inactive'}
+                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                       />
                       <Button
                         type="button"
@@ -493,7 +526,7 @@ const WorkspaceDetails = () => {
                           }
                           setNewTagInput("");
                         }}
-                        disabled={workspaceStatus === 'Inactive'}
+                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                         variant="outline"
                         size="sm"
                       >
@@ -509,7 +542,7 @@ const WorkspaceDetails = () => {
                               type="button"
                               className="ml-1 text-blue-600 hover:text-red-600"
                               onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
-                              disabled={workspaceStatus === 'Inactive'}
+                              disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                             >
                               &times;
                             </button>
@@ -523,8 +556,8 @@ const WorkspaceDetails = () => {
                   <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateSolution} disabled={workspaceStatus === 'Inactive'}>
-                    Create Solution
+                  <Button onClick={handleCreateSolution} disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
+                    {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -570,14 +603,14 @@ const WorkspaceDetails = () => {
                       {solutionsError}
                     </TableCell>
                   </TableRow>
-                ) : allSolutions.length === 0 ? (
+                ) : solutionsData?.Solutions?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  allSolutions.map((solution) => (
+                  solutionsData?.Solutions?.map((solution) => (
                     <TableRow 
                       key={solution.SolutionId} 
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
@@ -653,7 +686,7 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
               <DialogTrigger asChild>
-                <Button disabled={workspaceStatus === "Inactive"}>
+                <Button disabled={workspace?.status === "Inactive"}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   Add User
                 </Button>
@@ -695,7 +728,7 @@ const WorkspaceDetails = () => {
                   <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddUser}>
+                  <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive"}>
                     Send Invitation
                   </Button>
                 </DialogFooter>
@@ -726,51 +759,29 @@ const WorkspaceDetails = () => {
                   <TableHead>User</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Joined</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedUsers.map((user) => (
-                  <TableRow key={user.id}>
+                {paginatedApiUsers.map((user, idx) => (
+                  <TableRow key={user.UserId || idx}>
                     <TableCell>
-                      <div>
-                        <div className="font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-600 flex items-center space-x-1">
-                          <Mail className="w-3 h-3" />
-                          <span>{user.email}</span>
-                        </div>
+                      <div className="font-medium text-gray-900">{user.Username}</div>
+                      <div className="text-sm text-gray-600 flex items-center space-x-1">
+                        <Mail className="w-3 h-3" />
+                        <span>{user.Email}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeClass(user.role)}`}>
-                        {user.role}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                        {user.Access}
                       </span>
                     </TableCell>
-                    <TableCell className="text-gray-600">{user.joinedDate}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <UserProfileDialog userId={user.id.toString()} />
-                        <Button variant="ghost" size="sm" disabled={workspaceStatus === "Inactive"}>
-                          <Settings className="w-4 h-4" />
-                        </Button>
-                        {user.role !== "Admin" && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => handleRemoveUser(user.id)}
-                            disabled={workspaceStatus === "Inactive"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                    <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
                   </TableRow>
                 ))}
-                {paginatedUsers.length === 0 && (
+                {paginatedApiUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
                       No users found matching your search.
                     </TableCell>
                   </TableRow>
@@ -779,7 +790,7 @@ const WorkspaceDetails = () => {
             </Table>
 
             {/* Users Pagination */}
-            {totalUsersPages > 1 && (
+            {totalApiUsersPages > 1 && (
               <div className="flex justify-center">
                 <Pagination>
                   <PaginationContent>
@@ -789,7 +800,7 @@ const WorkspaceDetails = () => {
                         className={usersPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
-                    {[...Array(totalUsersPages)].map((_, i) => (
+                    {[...Array(totalApiUsersPages)].map((_, i) => (
                       <PaginationItem key={i + 1}>
                         <PaginationLink
                           onClick={() => setUsersPage(i + 1)}
@@ -802,8 +813,8 @@ const WorkspaceDetails = () => {
                     ))}
                     <PaginationItem>
                       <PaginationNext 
-                        onClick={() => setUsersPage(Math.min(totalUsersPages, usersPage + 1))}
-                        className={usersPage === totalUsersPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        onClick={() => setUsersPage(Math.min(totalApiUsersPages, usersPage + 1))}
+                        className={usersPage === totalApiUsersPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
                   </PaginationContent>
