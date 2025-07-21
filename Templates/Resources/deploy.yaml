@@ -30,6 +30,7 @@ Parameters:
     Type: String
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
+
   pRAGPrefix:
     Type: String
     Default: "develop"
@@ -421,7 +422,6 @@ Resources:
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
 
       Tags:
         - Key: Name
@@ -1543,8 +1543,9 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          WEBSOCKET_URL: !Ref WebSocketApi
-          WEBSOCKET_STAGE: !Ref pWebSocketStage
+          CONNECTIONS_TABLE_NAME:
+          BEDROCK_AGENT_ALIAS_ID: !Ref BedrockAgentAliasId
+          BEDROCK_AGENT_ID: !Ref BedrockAgentId
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
