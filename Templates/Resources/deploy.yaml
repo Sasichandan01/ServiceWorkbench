@@ -422,7 +422,7 @@ Resources:
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-
+          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"

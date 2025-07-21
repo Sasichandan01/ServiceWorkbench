@@ -12,19 +12,15 @@ LOGGER.setLevel(logging.INFO)
 bedrock_agent_runtime_client = boto3.client('bedrock-agent-runtime')
 
 # Environment variables for your Bedrock Agent
-BEDROCK_AGENT_ID = os.environ.get('BEDROCK_AGENT_ID')
-BEDROCK_AGENT_ALIAS_ID = os.environ.get('BEDROCK_AGENT_ALIAS_ID')
+# BEDROCK_AGENT_ID = os.environ.get('BEDROCK_AGENT_ID')
+# BEDROCK_AGENT_ALIAS_ID = os.environ.get('BEDROCK_AGENT_ALIAS_ID')
 
 # DynamoDB table for managing WebSocket connections and Bedrock session IDs
 dynamodb = boto3.resource('dynamodb')
-# Make sure this matches your DynamoDB table name for connections
-CONNECTIONS_TABLE_NAME = os.environ.get('CONNECTIONS_TABLE_NAME', 'WebSocketConnections')
-connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
 
-# --- Function to generate requirements list ---
-# This function is primarily intended to be run locally or in a CI/CD pipeline
-# to create the `requirements.txt` file for bundling dependencies during deployment.
-# When called within the Lambda at runtime, it simply returns the predefined list.
+# CONNECTIONS_TABLE_NAME = os.environ.get('CONNECTIONS_TABLE_NAME', 'WebSocketConnections')
+# connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
+
 def generate_requirements():
     """Generate requirements.txt with necessary packages"""
     requirements = [
@@ -83,18 +79,17 @@ def lambda_handler(event, context):
  
     if route_key == '$connect':
         LOGGER.info("Connection %s connected", connection_id)
-        # Store connection_id and potentially initialize a new Bedrock session ID
-        # For a new connection, generate a new session ID for the Bedrock Agent
+       
         bedrock_session_id = str(uuid.uuid4())
         try:
-            connections_table.put_item(
-                Item={
-                    'connectionId': connection_id,
-                    'bedrockSessionId': bedrock_session_id,
-                    'connectedAt': event['requestContext']['requestTimeEpoch'] # Add timestamp
-                }
-            )
-            LOGGER.info(f"Stored connection {connection_id} with new Bedrock session ID {bedrock_session_id}")
+            # connections_table.put_item(
+            #     Item={
+            #         'connectionId': connection_id,
+            #         'bedrockSessionId': bedrock_session_id,
+            #         'connectedAt': event['requestContext']['requestTimeEpoch'] # Add timestamp
+            #     }
+            # )
+            # LOGGER.info(f"Stored connection {connection_id} with new Bedrock session ID {bedrock_session_id}")
             send_message_to_websocket(apigw_client, connection_id, {"status": "connected", "message": "Welcome! Starting a new conversation."})
         except Exception as e:
             LOGGER.error(f"Error storing connection {connection_id} and session ID: {e}", exc_info=True)
@@ -116,7 +111,7 @@ def lambda_handler(event, context):
             user_prompt = body.get('prompt')
             # Extract JWT token. Best practice is via API Gateway Lambda Authorizer.
             # If using Lambda Authorizer, access via event['requestContext']['authorizer']['claims']['jwtToken']
-            jwt_token = body.get('jwtToken') # Client sends {'prompt': '...', 'jwtToken': '...'}
+            # jwt_token = body.get('jwtToken') # Client sends {'prompt': '...', 'jwtToken': '...'}
             LOGGER.info(f"Received prompt from connection {connection_id}: '{user_prompt}'")
             # Log JWT only if necessary for debugging, avoid logging sensitive data in production
             # LOGGER.info(f"Received JWT token from connection {connection_id}: {jwt_token}") 
@@ -129,74 +124,77 @@ def lambda_handler(event, context):
                     "body": json.dumps({"message": "Missing 'prompt' in message body"})
                 }
 
-            if not BEDROCK_AGENT_ID or not BEDROCK_AGENT_ALIAS_ID:
-                LOGGER.error("Bedrock Agent ID or Alias ID environment variables are not configured.")
-                send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": "AI Agent is not configured. Please contact support."})
-                return {
-                    "statusCode": 500,
-                    "body": json.dumps({"message": "Bedrock Agent configuration missing."})
-                }
+            # if not BEDROCK_AGENT_ID or not BEDROCK_AGENT_ALIAS_ID:
+            #     LOGGER.error("Bedrock Agent ID or Alias ID environment variables are not configured.")
+            #     send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": "AI Agent is not configured. Please contact support."})
+            #     return {
+            #         "statusCode": 500,
+            #         "body": json.dumps({"message": "Bedrock Agent configuration missing."})
+            #     }
 
             # Retrieve the Bedrock session ID for this connection from DynamoDB
-            item = connections_table.get_item(Key={'connectionId': connection_id}).get('Item')
-            bedrock_session_id = item.get('bedrockSessionId') if item else None
-            LOGGER.info(f"Retrieved Bedrock session ID '{bedrock_session_id}' for connection {connection_id}")
+            # item = connections_table.get_item(Key={'connectionId': connection_id}).get('Item')
+            bedrock_session_id = connection_id[:-1]
+            # LOGGER.info(f"Retrieved Bedrock session ID '{bedrock_session_id}' for connection {connection_id}")
 
-            # If no session ID found (e.g., stale entry or direct sendMessage without $connect)
-            if not bedrock_session_id:
-                LOGGER.warning(f"No existing Bedrock session ID found for connection {connection_id}. Generating a new one.")
-                bedrock_session_id = str(uuid.uuid4())
-                connections_table.put_item(
-                    Item={
-                        'connectionId': connection_id,
-                        'bedrockSessionId': bedrock_session_id,
-                        'connectedAt': event['requestContext']['requestTimeEpoch']
-                    }
-                )
-                send_message_to_websocket(apigw_client, connection_id, {"status": "warning", "message": "Starting a new conversation session for you."})
+            # # If no session ID found (e.g., stale entry or direct sendMessage without $connect)
+            # if not bedrock_session_id:
+            #     LOGGER.warning(f"No existing Bedrock session ID found for connection {connection_id}. Generating a new one.")
+            #     bedrock_session_id = str(uuid.uuid4())
+            #     connections_table.put_item(
+            #         Item={
+            #             'connectionId': connection_id,
+            #             'bedrockSessionId': bedrock_session_id,
+            #             'connectedAt': event['requestContext']['requestTimeEpoch']
+            #         }
+            #     )
+            #     send_message_to_websocket(apigw_client, connection_id, {"status": "warning", "message": "Starting a new conversation session for you."})
 
 
             # Prepare session attributes to pass to Bedrock Agent
             session_attributes = {}
-            if jwt_token:
-                session_attributes['jwtToken'] = jwt_token
 
-            # --- ADDING PACKAGE INFORMATION TO SESSION ATTRIBUTES ---
-            # Call the generate_requirements function to get the list of packages
             current_lambda_requirements = generate_requirements()
             # Bedrock session attributes must be strings, so JSON.stringify the list
             session_attributes['lambdaDependencies'] = json.dumps(current_lambda_requirements)
             LOGGER.info(f"Sending lambdaDependencies to Bedrock Agent: {session_attributes['lambdaDependencies']}")
-            # --- End of adding package information ---
-
-
-            # --- Invoke the Bedrock Agent ---
-            LOGGER.info(f"Invoking Bedrock Agent '{BEDROCK_AGENT_ID}' (Alias: '{BEDROCK_AGENT_ALIAS_ID}') for session '{bedrock_session_id}' with prompt: '{user_prompt}'")
+ 
             send_message_to_websocket(apigw_client, connection_id, {"status": "processing", "message": "Processing your request with the AI agent..."})
 
             response = bedrock_agent_runtime_client.invoke_agent(
-                agentId=BEDROCK_AGENT_ID,
-                agentAliasId=BEDROCK_AGENT_ALIAS_ID,
-                sessionId=bedrock_session_id, # Use the persistent session ID
+                agentId="TCMEZDRP4O",
+                agentAliasId="BNWPCZI2IV",
+                sessionId=bedrock_session_id,
                 inputText=user_prompt,
+                bedrockModelConfigurations={
+                    'performanceConfig': {
+                        'latency': 'standard'
+                    }
+                },
+                enableTrace=True,
+                endSession=False,
                 sessionState={
                     'sessionAttributes': session_attributes
-                    # 'promptSessionAttributes': {} # Can be used for prompt-specific attributes
+                   
                 }
-                # enableTrace=True # Uncomment for debugging agent's thought process in CloudWatch logs
+               
             )
-
+            print(response)
             # Process the streaming response from Bedrock Agent
             agent_response_full = ""
             # The 'completion' object is a streaming iterator
             for chunk in response['completion']:
                 if 'chunk' in chunk:
-                    # Decode the bytes to a string
+                  
                     decoded_chunk = chunk['chunk']['bytes'].decode('utf-8')
                     agent_response_full += decoded_chunk
-                    # Optional: Send partial responses to the client as they arrive
-                    # send_message_to_websocket(apigw_client, connection_id, {"status": "streaming", "content": decoded_chunk})
+                elif 'trace' in chunk:
+                    trace_event = chunk['trace']
+                    print("\n--- Agent Trace Event ---")
+                    print(json.dumps(trace_event, indent=2))
+                    print("-------------------------")
 
+                 
             LOGGER.info(f"Bedrock Agent response for {connection_id}: '{agent_response_full}'")
             send_message_to_websocket(apigw_client, connection_id, {"status": "completed", "response": agent_response_full})
 
