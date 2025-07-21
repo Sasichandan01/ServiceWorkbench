@@ -20,7 +20,7 @@ import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setAuth } from '@/store/slices/authSlice';
 import { clearPermissions } from '@/store/slices/permissionsSlice';
 import { useToast } from '@/hooks/use-toast';
-import { updateUserAttributes } from '@/lib/auth';
+import { updateUserAttributes, refreshAccessToken } from '@/lib/auth';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 
 interface RoleSwitchDialogProps {
@@ -48,15 +48,24 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
 
   const fetchUserRoles = async () => {
     if (!user?.sub) return;
-    
     setLoading(true);
     try {
       const userData = await UserService.getUser(user.username);
-      
-      // Filter out current role from available roles
-      const otherRoles = userData.Roles.filter(role => role !== currentRole);
+      // Normalize roles to array
+      let roles: string[] = [];
+      if (Array.isArray(userData.Roles)) {
+        roles = userData.Roles;
+      } else if (typeof userData.Roles === 'string') {
+        roles = [userData.Roles];
+      } else if (Array.isArray((userData as any).Role)) {
+        roles = (userData as any).Role;
+      } else if (typeof (userData as any).Role === 'string') {
+        roles = [(userData as any).Role];
+      }
+      // Filter out current role (case-insensitive, trimmed)
+      const normalizedCurrentRole = (currentRole || '').trim().toLowerCase();
+      const otherRoles = roles.filter(role => role.trim().toLowerCase() !== normalizedCurrentRole);
       setAvailableRoles(otherRoles);
-      
       if (otherRoles.length === 0) {
         toast({
           title: "No Other Roles",
@@ -85,10 +94,13 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
       // Update Cognito custom attribute for role
       await updateUserAttributes([
         {
-          Name: 'custom:role',
+          Name: 'custom:Role',
           Value: selectedRole
         }
       ]);
+
+      // Refresh tokens so the new role is reflected in the ID token
+      await refreshAccessToken();
 
       // Update Redux state with new role
       dispatch(setAuth({
