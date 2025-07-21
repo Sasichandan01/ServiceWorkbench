@@ -184,15 +184,16 @@ def lambda_handler(event, context):
             agent_response_full = ""
             # The 'completion' object is a streaming iterator
             for chunk in response['completion']:
+                print(chunk)
                 if 'chunk' in chunk:
                   
                     decoded_chunk = chunk['chunk']['bytes'].decode('utf-8')
                     agent_response_full += decoded_chunk
-                elif 'trace' in chunk:
-                    trace_event = chunk['trace']
-                    print("\n--- Agent Trace Event ---")
-                    print(json.dumps(trace_event, indent=2))
-                    print("-------------------------")
+                # elif 'trace' in chunk:
+                #     trace_event = chunk['trace']
+                #     print("\n--- Agent Trace Event ---")
+                #     print(json.dumps(trace_event, indent=2))
+                   
 
                  
             LOGGER.info(f"Bedrock Agent response for {connection_id}: '{agent_response_full}'")
