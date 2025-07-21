@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery } from '../services/apiSlice';
 import { Loader2 } from 'lucide-react';
+import { ApiClient } from "@/lib/apiClient";
 
 interface RunHistoryItem {
   id: number;
@@ -45,6 +46,11 @@ const SolutionDetails = () => {
   const [editTagInput, setEditTagInput] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
+  const [isDatasourceDialogOpen, setIsDatasourceDialogOpen] = useState(false);
+  const [allDatasources, setAllDatasources] = useState<any[]>([]);
+  const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
+  const [loadingDatasources, setLoadingDatasources] = useState(false);
+  const [datasourceSearch, setDatasourceSearch] = useState("");
 
   const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
   const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
@@ -141,6 +147,52 @@ const SolutionDetails = () => {
       toast({ title: 'Error', description: err?.data?.message || err.message || 'Failed to delete solution.', variant: 'destructive' });
     }
   };
+
+  // Open dialog and fetch datasources
+  const handleOpenDatasourceDialog = () => {
+    setLoadingDatasources(true);
+    DatasourceService.getDatasources({ limit: 50 })
+      .then(res => {
+        setAllDatasources(res.Datasources || []);
+        setSelectedDatasources(Array.isArray(solution.Datasources) ? solution.Datasources.map((ds: any) => ds.DatasourceId) : []);
+      })
+      .finally(() => setLoadingDatasources(false));
+    setIsDatasourceDialogOpen(true);
+  };
+
+  // Save selected datasources
+  const handleSaveDatasources = async () => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      const response = await ApiClient.put(`/workspaces/${workspaceId}/solutions/${solutionId}?action=datasource`, {
+        Datasources: selectedDatasources,
+      });
+      if (!response.ok) {
+        let errorMsg = '';
+        try {
+          const errorJson = await response.json();
+          errorMsg = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+        } catch {
+          errorMsg = await response.text();
+        }
+        throw new Error(errorMsg);
+      }
+      toast({ title: "Datasources Updated", description: "Solution datasources updated successfully." });
+      setIsDatasourceDialogOpen(false);
+      refetch();
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to update datasources.", variant: "destructive" });
+    }
+  };
+
+  // Filter datasources by search
+  const filteredDatasources = allDatasources.filter((ds: any) => {
+    const search = datasourceSearch.toLowerCase();
+    return (
+      ds.DatasourceName.toLowerCase().includes(search) ||
+      (Array.isArray(ds.Tags) && ds.Tags.some((tag: string) => tag.toLowerCase().includes(search)))
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -262,6 +314,70 @@ const SolutionDetails = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Manage Datasources Dialog */}
+      <Dialog open={isDatasourceDialogOpen} onOpenChange={setIsDatasourceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Datasources</DialogTitle>
+            <DialogDescription>Select datasources to associate with this solution.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <input
+              type="text"
+              placeholder="Search datasources..."
+              value={datasourceSearch}
+              onChange={e => setDatasourceSearch(e.target.value)}
+              className="w-full mb-3 px-3 py-2 border rounded focus:outline-none focus:ring"
+            />
+            <div className="relative">
+              <div className="border rounded bg-white max-h-60 overflow-y-auto">
+                {loadingDatasources ? (
+                  <div className="text-center text-gray-500 py-4">Loading datasources...</div>
+                ) : filteredDatasources.length === 0 ? (
+                  <div className="text-center text-gray-400 py-4">No datasources found.</div>
+                ) : (
+                  filteredDatasources.map((ds: any) => (
+                    <label key={ds.DatasourceId} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedDatasources.includes(ds.DatasourceId)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedDatasources(prev => [...prev, ds.DatasourceId]);
+                          } else {
+                            setSelectedDatasources(prev => prev.filter(id => id !== ds.DatasourceId));
+                          }
+                        }}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">{ds.DatasourceName}</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Array.isArray(ds.Tags) && ds.Tags.length > 0 ? (
+                            ds.Tags.map((tag: string, idx: number) => (
+                              <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">No tags</span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDatasourceDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDatasources}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Solution Tabs */}
       <SolutionTabs
         workspaceId={workspaceId!}
@@ -269,7 +385,7 @@ const SolutionDetails = () => {
         solution={solution}
         isReadySolution={isReadySolution}
         onRunSolution={handleRunSolution}
-        onOpenAddDatasource={() => {}} // No longer needed
+        onOpenAddDatasource={handleOpenDatasourceDialog}
         onDetachDatasource={() => {}} // No longer needed
         getStatusBadgeClass={getStatusBadgeClass}
         activeTab={activeTab}
