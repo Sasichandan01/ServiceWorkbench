@@ -1544,7 +1544,7 @@ paths:
         - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:wb-mayank-DatasourcesLambdaFunction/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-DatasourcesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
