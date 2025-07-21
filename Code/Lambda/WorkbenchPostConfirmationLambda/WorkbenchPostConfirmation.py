@@ -197,8 +197,8 @@ def lambda_handler(event, context):
             'Tags': [],
             'WorkspaceName': 'Default Workspace',
             'WorkspaceStatus': 'Active',
-            'WorkspaceType': 'Private',
-            'Type': "DEFAULT"
+            'WorkspaceType': "DEFAULT"
+            # 'Type': "DEFAULT"
         }
 
         workspace_table.put_item(Item=workspace_item)
