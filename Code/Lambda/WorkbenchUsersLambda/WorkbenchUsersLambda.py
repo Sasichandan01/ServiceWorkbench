@@ -74,8 +74,10 @@ def lambda_handler(event, context):
 
             if action == 'profile_image':
                 return get_profile_image_upload_url(user_id, body)
-            elif action == 'role':
-                return update_user_roles(user_id, body)
+            elif action == 'insert_role':
+                return update_user_roles(user_id, body,role)
+            elif action == 'delete_role':
+                return delete_user_roles(user_id, body, role)
             else:
                 return update_user_details(user_id, body)
         
@@ -309,7 +311,7 @@ def update_profile_image_on_s3_upload(event, context):
             "body": json.dumps({"message": "Failed to update profile image URL"})
         }
 
-def update_user_roles(user_id, body):
+def update_user_roles(user_id, body, requester_role):
     """
     Appends a role to the user's existing list of roles.
 
@@ -321,6 +323,10 @@ def update_user_roles(user_id, body):
         dict: HTTP response confirming update.
     """
     LOGGER.info("Updating roles for user: %s", user_id)
+    
+    # Enforce RBAC
+    if requester_role != 'ITAdmin':
+        return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
 
     new_role = body.get("Role")
     if not new_role:
@@ -349,11 +355,99 @@ def update_user_roles(user_id, body):
             ExpressionAttributeValues={":roles": updated_roles}
         )
 
+        # Fetch existing users for the role
+        role_item = table.get_item(Key={"Role": new_role}).get("Item", {})
+        existing_users = role_item.get("Users", [])
+
+        # Ensure it's a list
+        if not isinstance(existing_users, list):
+            existing_users = [existing_users]
+
+        # Add user only if not present
+        if user_id not in existing_users:
+            existing_users.append(user_id)
+
+        # Update the role mapping
+        table.update_item(
+            Key={"Role": new_role},
+            UpdateExpression="SET #r = :users",
+            ExpressionAttributeNames={"#r": "Users"},
+            ExpressionAttributeValues={":users": existing_users}
+        )
+
+
         return return_response(200, {"message": f"Role '{new_role}' added successfully"})
 
     except Exception as e:
         LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
         return return_response(500, {"message": "Error updating user roles"})
+
+def delete_user_roles(user_id, body, requester_role):
+    """
+    Removes a role from the user's list of roles. Only users with 'ITAdmin' can perform this operation.
+
+    Args:
+        user_id (str): ID of the user whose role is to be removed.
+        body (dict): JSON body containing the 'Role' to remove.
+        requester_role (str): Role of the requesting user from JWT/authorizer.
+
+    Returns:
+        dict: HTTP response.
+    """
+    LOGGER.info("Attempting to delete role from user: %s", user_id)
+
+    # Enforce RBAC
+    if requester_role != 'ITAdmin':
+        return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
+
+    role_to_remove = body.get("Role")
+    if not role_to_remove:
+        return return_response(400, {"message": "Role to remove is required"})
+
+    try:
+        # Fetch user from DynamoDB
+        result = user_table.get_item(Key={"UserId": user_id})
+        user = result.get("Item")
+        if not user:
+            return return_response(404, {"message": "User not found"})
+
+        current_roles = user.get("Role", [])
+        if not isinstance(current_roles, list):
+            current_roles = [current_roles]
+
+        if role_to_remove not in current_roles:
+            return return_response(404, {"message": f"Role '{role_to_remove}' not assigned to user"})
+
+        updated_roles = [r for r in current_roles if r != role_to_remove]
+
+        user_table.update_item(
+            Key={"UserId": user_id},
+            UpdateExpression="SET #r = :roles",
+            ExpressionAttributeNames={"#r": "Role"},
+            ExpressionAttributeValues={":roles": updated_roles}
+        )
+
+        # Get existing users for this role
+        role_item = table.get_item(Key={"Role": role_to_remove}).get("Item", {})
+        existing_users = role_item.get("Users", [])
+
+        # Remove the user_id
+        updated_users = [uid for uid in existing_users if uid != user_id]
+
+        # Update the role table with new list
+        table.update_item(
+            Key={"Role": role_to_remove},
+            UpdateExpression="SET #r = :users",
+            ExpressionAttributeNames={"#r": "Users"},
+            ExpressionAttributeValues={":users": updated_users}
+        )
+
+        return return_response(200, {"message": f"Role '{role_to_remove}' removed successfully"})
+
+    except Exception as e:
+        LOGGER.error("Failed to delete user role: %s", e, exc_info=True)
+        return return_response(500, {"message": "Error removing user role"})
+
 
 def rag_sync(event):
     '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
