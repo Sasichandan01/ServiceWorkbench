@@ -423,6 +423,9 @@ Resources:
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"

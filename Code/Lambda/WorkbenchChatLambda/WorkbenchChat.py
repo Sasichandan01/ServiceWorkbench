@@ -139,8 +139,6 @@ def lambda_handler(event, context):
                     decoded_chunk = chunk['chunk']['bytes'].decode('utf-8')
                     agent_response_full += decoded_chunk
 
-                   
-
                  
             LOGGER.info(f"Bedrock Agent response for {connection_id}: '{agent_response_full}'")
             send_message_to_websocket(apigw_client, connection_id, {"status": "completed", "response": agent_response_full})

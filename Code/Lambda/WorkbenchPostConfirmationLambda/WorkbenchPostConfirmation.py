@@ -4,6 +4,7 @@ import boto3
 import os 
 import logging
 import uuid
+from FGAC.fgac import create_workspace_fgac, check_workspace_access
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -18,6 +19,7 @@ WORKSPACES_TABLE_NAME=os.environ['WORKSPACES_TABLE_NAME']
 DOMAIN = os.environ['DOMAIN']
 SOURCE_EMAIL = os.environ['SOURCE_EMAIL']
 ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+RESOURCE_ACCESS_TABLE = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
 
 workspace_table = dynamodb.Table(os.environ['WORKSPACES_TABLE_NAME'])
 
@@ -195,12 +197,13 @@ def lambda_handler(event, context):
             'Tags': [],
             'WorkspaceName': 'Default Workspace',
             'WorkspaceStatus': 'Active',
-            'WorkspaceType': 'Private',
-            'Type': "DEFAULT"
+            'WorkspaceType': "DEFAULT"
+            # 'Type': "DEFAULT"
         }
 
         workspace_table.put_item(Item=workspace_item)
         LOGGER.info(" Default workspace created for user %s", user_id)
+        create_workspace_fgac(RESOURCE_ACCESS_TABLE,user_id,"owner",workspace_id)
 
         log_item = {
             'LogId': str(uuid.uuid4()),
