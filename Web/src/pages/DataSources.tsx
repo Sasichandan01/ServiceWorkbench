@@ -161,14 +161,6 @@ const DataSources = () => {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
       />
-      {dataSources.length === 0 && (
-        <DataSourcesEmpty 
-          searchTerm={searchTerm}
-          typeFilter={"all"}
-          isCreateDialogOpen={isCreateDialogOpen}
-          setIsCreateDialogOpen={setIsCreateDialogOpen}
-        />
-      )}
     </div>
   );
 };
