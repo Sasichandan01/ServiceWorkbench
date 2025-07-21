@@ -1805,6 +1805,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
