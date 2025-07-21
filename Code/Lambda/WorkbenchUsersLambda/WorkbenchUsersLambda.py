@@ -361,8 +361,8 @@ def rag_sync(event):
     query_string_parameters = event.get("queryStringParameters", {})
     action = query_string_parameters.get("action")
     arguments = {}
-    if action is not None and action == 'web':
-        arguments['--ACTION'] = 'web'
+    if action is not None and action == 'docs':
+        arguments['--ACTION'] = 'docs'
     elif action is not None and action == 'app':
         arguments['--ACTION'] = 'app'
     else:

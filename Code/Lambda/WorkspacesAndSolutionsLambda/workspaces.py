@@ -7,13 +7,19 @@ from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from Utils.utils import log_activity,return_response,paginate_list
 from FGAC.fgac import create_workspace_fgac, check_workspace_access
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb')
 workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
 resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+users_table=dynamodb.Table(os.environ['USERS_TABLE'])
 
 def create_workspace(event,context):
+    """Create a new workspace with the provided details."""
     try:
         body =json.loads(event.get('body'))
         auth = event.get("requestContext", {}).get("authorizer", {})
@@ -41,7 +47,7 @@ def create_workspace(event,context):
             IndexName='CreatedBy-index',
             KeyConditionExpression=Key('CreatedBy').eq(user_id) & Key('WorkspaceName').eq(body.get('WorkspaceName'))
         )
-        print(response)
+        logger.info("Workspace query response: %s", response)
         if response.get('Count')>0:
             return return_response(200, {"Message": "Workspace already exists"})
 
@@ -64,14 +70,15 @@ def create_workspace(event,context):
         
         create_workspace_fgac(resource_access_table,user_id,"owner",workspace_id)
 
-        print(resp)
+        logger.info("Activity log response: %s", resp)
         return return_response(200, {"Message": "Workspace created successfully","WorkspaceId":workspace_id})
         
     except Exception as e:
-        print(e)
+        logger.error("Error in create_workspace: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def update_workspace(event, context):
+    """Update the details or status of an existing workspace."""
     try:
         path_params=event.get('pathParameters')
         workspace_id=path_params.get('workspace_id')
@@ -94,9 +101,9 @@ def update_workspace(event, context):
         timestamp=str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         if queryParams and queryParams.get('action'):
             action = queryParams.get('action')
-            if action not in ['Enable', 'Disable']:
+            if action not in ['enable', 'disable']:
                 return return_response(400, {"Error": "Invalid action parameter"})
-            elif action == 'Enable':
+            elif action == 'enable':
                 if workspace_response.get('WorkspaceStatus') == 'Active':
                     return return_response(400, {"Error": "Workspace is already active"})
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
@@ -117,7 +124,6 @@ def update_workspace(event, context):
         else:
             body=json.loads(event.get('body'))
 
-            print(workspace_response)
             if workspace_response.get('WorkspaceStatus') == 'Inactive':
                 return return_response(400, {"Error": "Workspace is inactive"})
             if not any(key in body for key in ['WorkspaceName', 'Description', 'Tags', 'WorkspaceType']):
@@ -128,11 +134,9 @@ def update_workspace(event, context):
 
             if body.get('WorkspaceType') and body.get('WorkspaceType') not in ['Private', 'Public']:
                 return return_response(400, {"Error": "WorkspaceType is not valid"})
-            if body.get('WorkspaceType') and  body.get('WorkspaceType') == workspace_response.get('WorkspaceType'):
-                return return_response(400, {"Error": "Workspace is already in same type"})
 
-            if body.get('WorkspaceName') and body.get('WorkspaceName') == workspace_response.get('WorkspaceName'):
-                return return_response(400, {"Error": "Workspace is already in same name"})
+
+
             if body.get('WorkspaceName'):
                 response = workspace_table.query(
                     IndexName='CreatedBy-index',
@@ -168,10 +172,11 @@ def update_workspace(event, context):
             log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
             return return_response(200, {"Message": "Workspace updated successfully"})
     except Exception as e:
-        print(e)
+        logger.error("Error in update_workspace: %s", e)
         return return_response(500, {"Error": f"{e}"})
 
 def delete_workspace(event,context):
+    """Delete a workspace if the user has owner access and it is inactive."""
     try:
         path_params=event.get('pathParameters')
         auth = event.get("requestContext", {}).get("authorizer", {})
@@ -194,7 +199,7 @@ def delete_workspace(event,context):
             return return_response(403, {"Error": "Not authorized to perform this action"})
 
         if workspace_response.get('WorkspaceStatus') == 'Active':
-            return return_response(400, {"Error": "Workspace is already Active, cannot be deleted, Disable the workspace"})
+            return return_response(400, {"Error": "Workspace is already Active, cannot be deleted, disable the workspace"})
         
         if workspace_response.get('WorkspaceStatus') == 'Inactive':
             # Delete all related permissions from resource_access_table
@@ -214,10 +219,11 @@ def delete_workspace(event,context):
 
         return return_response(400, {"Error": "Workspace status is invalid"})
     except Exception as e:
-        print(e)
+        logger.error("Error in delete_workspace: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})               
             
 def get_workspace(event,context):
+    """Retrieve details and users of a specific workspace."""
     try:
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
@@ -238,25 +244,36 @@ def get_workspace(event,context):
 
         access_resource_response = resource_access_table.query(
             IndexName='AccessKey-Index',
-            KeyConditionExpression=Key('AccessKey').eq(f'Workspace#{workspace_id}')
+            KeyConditionExpression=Key('AccessKey').eq(f'WORKSPACE#{workspace_id}')
         ).get('Items')
-        
+        logger.info("Access resource response: %s", access_resource_response)
         users=[]
         for item in access_resource_response:
+            # Not important, so removed
             user_id,access_type=item.get('Id').split('#')
-            user_response = users_table.get_item(Key={'Id': item.get('Id')},ProjectionExpression="UserId,Username,Email,Roles").get('Item')
+            user_response = users_table.get_item(
+                Key={'UserId': user_id},
+                ProjectionExpression="UserId, Username, Email, #rls",
+                ExpressionAttributeNames={
+                    "#rls": "Roles"
+                }
+            ).get('Item')
+            # Not important, so removed
             user_response['Access'] = access_type
+            user_response['CreationTime']=item.get('CreationTime')
             users.append(user_response)
 
         resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
-        workspace_response.update({'Users':resp.get('body')})
+        body=resp.get('body')
+        workspace_response.update(json.loads(body))
         
         return return_response(200, workspace_response)
     except Exception as e:
-        print(e)
+        logger.error("Error in get_workspace: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def get_workspaces(event, context):
+    """Retrieve a list of workspaces accessible to the user, with optional filtering and pagination."""
     try:
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
@@ -283,8 +300,7 @@ def get_workspaces(event, context):
             except ValueError:
                 return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
 
-        # Get all workspaces the user has access to from resource_access_table
-        # Query resource_access_table for entries where user_id matches and resource_type is WORKSPACE
+
         resource_access_response = resource_access_table.scan(
             FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
             ProjectionExpression='AccessKey'
@@ -303,7 +319,7 @@ def get_workspaces(event, context):
         for workspace_id in workspace_ids:
             response = workspace_table.get_item(
                 Key={'WorkspaceId': workspace_id},
-                ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime'
+                ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime,Tags'
             )
             item = response.get('Item')
             if item:
@@ -327,5 +343,5 @@ def get_workspaces(event, context):
         return pagination_response
 
     except Exception as e:
-        print(e)
+        logger.error("Error in get_workspaces: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
