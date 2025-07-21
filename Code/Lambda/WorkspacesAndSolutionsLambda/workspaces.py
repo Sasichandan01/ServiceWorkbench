@@ -255,7 +255,7 @@ def get_workspace(event,context):
                 Key={'UserId': user_id},
                 ProjectionExpression="UserId, Username, Email, #rls",
                 ExpressionAttributeNames={
-                    "#rls": "Roles"
+                    "#rls": "Role"
                 }
             ).get('Item')
             # Not important, so removed
@@ -300,47 +300,84 @@ def get_workspaces(event, context):
             except ValueError:
                 return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
 
+        user_role_response = users_table.get_item(
+            Key={'UserId': user_id},
+            ProjectionExpression="#rls",
+            ExpressionAttributeNames={
+                "#rls": "Role"
+            }
+        ).get('Item')
 
-        resource_access_response = resource_access_table.scan(
-            FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
-            ProjectionExpression='AccessKey'
-        )
-        
-        # Extract workspace IDs from access keys (format: WORKSPACE#workspace_id)
-        workspace_ids = []
-        for item in resource_access_response.get('Items', []):
-            access_key = item.get('AccessKey', '')
-            if access_key.startswith('WORKSPACE#'):
-                workspace_id = access_key.split('#')[1]
-                workspace_ids.append(workspace_id)
-        
-        # Get workspace details for all accessible workspaces
-        workspace_items = []
-        for workspace_id in workspace_ids:
-            response = workspace_table.get_item(
-                Key={'WorkspaceId': workspace_id},
+        if not user_role_response:
+            return return_response(404, {"Error": "User does not exist"})
+        if 'ITAdmin' in user_role_response.get('Role'):
+            
+            response = workspace_table.scan(
                 ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime,Tags'
             )
-            item = response.get('Item')
-            if item:
-                workspace_items.append(item)
+            workspace_items = response.get('Items', [])
 
-        # Apply filtering if specified
-        if filter_by:
-            workspace_items = [item for item in workspace_items 
-                             if filter_by.lower() in item.get('WorkspaceName', '').lower()]
+            
+            if filter_by:
+                workspace_items = [item for item in workspace_items
+                                 if filter_by.lower() in item.get('WorkspaceName', '').lower()]
 
-        # Apply pagination and sorting
-        pagination_response = paginate_list(
-            name='Workspaces',
-            data=workspace_items,
-            valid_keys=['WorkspaceName'],
-            offset=offset,
-            limit=limit,
-            sort_by='WorkspaceName',   
-            sort_order=sort_order or 'asc'
-        )
-        return pagination_response
+            
+            pagination_response = paginate_list(
+                name='Workspaces',
+                data=workspace_items,
+                valid_keys=['WorkspaceName'],
+                offset=offset,
+                limit=limit,
+                sort_by='WorkspaceName',
+                sort_order=sort_order or 'asc'
+            )
+            return pagination_response
+
+
+
+        else:
+
+            resource_access_response = resource_access_table.scan(
+                FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
+                ProjectionExpression='AccessKey'
+            )
+            
+            # Extract workspace IDs from access keys (format: WORKSPACE#workspace_id)
+            workspace_ids = []
+            for item in resource_access_response.get('Items', []):
+                access_key = item.get('AccessKey', '')
+                if access_key.startswith('WORKSPACE#'):
+                    workspace_id = access_key.split('#')[1]
+                    workspace_ids.append(workspace_id)
+            
+            # Get workspace details for all accessible workspaces
+            workspace_items = []
+            for workspace_id in workspace_ids:
+                response = workspace_table.get_item(
+                    Key={'WorkspaceId': workspace_id},
+                    ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime,Tags,LastUpdatedBy,CreationTime'
+                )
+                item = response.get('Item')
+                if item:
+                    workspace_items.append(item)
+
+            # Apply filtering if specified
+            if filter_by:
+                workspace_items = [item for item in workspace_items 
+                                if filter_by.lower() in item.get('WorkspaceName', '').lower()]
+
+            # Apply pagination and sorting
+            pagination_response = paginate_list(
+                name='Workspaces',
+                data=workspace_items,
+                valid_keys=['WorkspaceName'],
+                offset=offset,
+                limit=limit,
+                sort_by='WorkspaceName',   
+                sort_order=sort_order or 'asc'
+            )
+            return pagination_response
 
     except Exception as e:
         logger.error("Error in get_workspaces: %s", e)
