@@ -1543,7 +1543,6 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          CONNECTIONS_TABLE_NAME:
           BEDROCK_AGENT_ALIAS_ID: !Ref BedrockAgentAliasId
           BEDROCK_AGENT_ID: !Ref BedrockAgentId
       VpcConfig:
