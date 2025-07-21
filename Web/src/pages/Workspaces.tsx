@@ -51,7 +51,8 @@ const Workspaces = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const { data, isLoading, isError, refetch } = useGetWorkspacesQuery();
+  const itemsPerPage = 10;
+  const { data, isLoading, isError, refetch } = useGetWorkspacesQuery({ limit: itemsPerPage, offset: currentPage, filterBy: searchTerm });
   const [createWorkspace, { isLoading: isCreating }] = useCreateWorkspaceMutation();
 
   // Map RTK Query response to LocalWorkspace[]
@@ -67,8 +68,14 @@ const Workspaces = () => {
     type: ws.WorkspaceType,
     tags: Array.isArray(ws.Tags) ? ws.Tags : [],
   }));
+  const totalWorkspaces = data?.Pagination?.TotalCount || 0;
+  const totalPages = Math.ceil(totalWorkspaces / itemsPerPage);
 
-  const itemsPerPage = 10;
+  // Compute status counts for the current page
+  const activeWorkspaces = workspaces.filter(w => w.status === "Active").length;
+  const archivedWorkspaces = workspaces.filter(w => w.status === "Archived").length;
+  const defaultWorkspaces = workspaces.filter(w => w.status === "Default").length;
+
   const { toast } = useToast();
 
   const formatLastActivity = (timestamp: string): string => {
@@ -98,29 +105,10 @@ const Workspaces = () => {
   };
 
   useEffect(() => {
-    // Remove manual fetchWorkspaces and loading state
-  }, [currentPage, searchTerm]);
+    setCurrentPage(1);
+  }, [searchTerm]);
 
-  const filteredWorkspaces = workspaces.filter(workspace => {
-    const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || workspace.status.toLowerCase() === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalPages = Math.ceil(workspaces.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedWorkspaces = workspaces
-    .filter(workspace => {
-      const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === "all" || workspace.status.toLowerCase() === statusFilter;
-      return matchesSearch && matchesStatus;
-    })
-    .slice(startIndex, startIndex + itemsPerPage);
-
-  const totalWorkspaces = workspaces.length;
-  const activeWorkspaces = workspaces.filter(w => w.status === "Active").length;
-  const archivedWorkspaces = workspaces.filter(w => w.status === "Archived").length;
-  const defaultWorkspaces = workspaces.filter(w => w.status === "Default").length;
+  // No client-side filtering or slicing; use backend data directly
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -407,7 +395,7 @@ const Workspaces = () => {
         <CardHeader>
           <CardTitle>All Workspaces</CardTitle>
           <CardDescription>
-            {filteredWorkspaces.length} workspace{filteredWorkspaces.length !== 1 ? 's' : ''}
+            {totalWorkspaces} workspace{totalWorkspaces !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -450,14 +438,14 @@ const Workspaces = () => {
                     Failed to load workspaces. Please try again later.
                   </TableCell>
                 </TableRow>
-              ) : filteredWorkspaces.length === 0 ? (
+              ) : workspaces.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                     No workspaces found
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedWorkspaces.map((workspace) => (
+                workspaces.map((workspace) => (
                 <TableRow 
                   key={workspace.id} 
                   className={`${getRowColor(workspace.status)} cursor-pointer`}
@@ -511,17 +499,18 @@ const Workspaces = () => {
             </TableBody>
           </Table>
           
-          {Math.ceil(totalWorkspaces / itemsPerPage) > 1 && (
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
             <div className="flex justify-center mt-4">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious 
+                    <PaginationPrevious
                       onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
-                  {Array.from({ length: Math.ceil(totalWorkspaces / itemsPerPage) }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -533,9 +522,9 @@ const Workspaces = () => {
                     </PaginationItem>
                   ))}
                   <PaginationItem>
-                     <PaginationNext 
-                      onClick={() => setCurrentPage(Math.min(Math.ceil(totalWorkspaces / itemsPerPage), currentPage + 1))}
-                      className={currentPage === Math.ceil(totalWorkspaces / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    <PaginationNext
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
                 </PaginationContent>
@@ -546,7 +535,7 @@ const Workspaces = () => {
       </Card>
 
       {/* No workspaces state */}
-      {!isLoading && filteredWorkspaces.length === 0 && (
+      {!isLoading && workspaces.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />

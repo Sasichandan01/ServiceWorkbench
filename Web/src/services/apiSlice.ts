@@ -18,8 +18,14 @@ export const apiSlice = createApi({
   tagTypes: ['Workspace', 'Solution', 'User', 'Role', 'Datasource', 'Execution'],
   endpoints: (builder) => ({
     // Workspace endpoints
-    getWorkspaces: builder.query<any, void>({
-      query: () => '/workspaces',
+    getWorkspaces: builder.query<any, { limit?: number; offset?: number; filterBy?: string }>({
+      query: ({ limit = 10, offset = 1, filterBy } = {}) => {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('offset', offset.toString());
+        if (filterBy) params.append('filterBy', filterBy);
+        return `/workspaces${params.toString() ? `?${params}` : ''}`;
+      },
       providesTags: (result) =>
         result
           ? [
