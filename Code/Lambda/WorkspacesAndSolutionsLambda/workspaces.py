@@ -345,3 +345,4 @@ def get_workspaces(event, context):
     except Exception as e:
         logger.error("Error in get_workspaces: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
+ 
