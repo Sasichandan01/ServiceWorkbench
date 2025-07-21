@@ -33,6 +33,7 @@ import {
 import { UserService, User } from "../../services/userService";
 import { RoleService, Role } from "../../services/roleService";
 import { useToast } from "@/hooks/use-toast";
+import { useAppSelector } from "@/hooks/useAppSelector";
 
 interface UserProfileDialogProps {
   userId: string;
@@ -42,7 +43,8 @@ interface UserProfileDialogProps {
 
 const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfileDialogProps) => {
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const [user, setUser] = useState<any>(null); // Use any to handle API response structure
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
@@ -93,7 +95,7 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
       // Update user roles locally
       setUser({
         ...user,
-        Roles: [...user.Roles, selectedRole]
+        Role: [...(user.Role || []), selectedRole]
       });
       
       setSelectedRole("");
@@ -120,13 +122,13 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     try {
       await RoleService.removeRole({
         UserId: userId,
-        RoleName: roleName
+        RoleName: roleName // This will be sent as { Role: roleName } in the body
       });
       
       // Update user roles locally
       setUser({
         ...user,
-        Roles: user.Roles.filter(role => role !== roleName)
+        Role: (user.Role || []).filter(role => role !== roleName)
       });
       
       toast({
@@ -145,9 +147,18 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     }
   };
 
-  // Filter out roles the user already has
+  // Filter out roles the user already has and current user's role
   const getAvailableRolesToAssign = () => {
-    return availableRoles.filter(role => role.Role && !user?.Roles?.includes(role.Role));
+    const userRoles = user?.Role || [];
+    const currentUserRole = currentUser?.role;
+    
+    return availableRoles.filter(role => {
+      // Exclude roles already assigned to the user
+      if (role.Role && userRoles.includes(role.Role)) return false;
+      // Exclude current user's role from assignment
+      if (currentUserRole && role.Role === currentUserRole) return false;
+      return true;
+    });
   };
 
   useEffect(() => {
@@ -211,8 +222,8 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
             <div>
               <Label className="text-base font-medium">Active Roles</Label>
               <div className="flex flex-wrap gap-2 mt-3">
-                {user.Roles && user.Roles.length > 0 ? (
-                  user.Roles.map(role => (
+                {user.Role && user.Role.length > 0 ? (
+                  user.Role.map(role => (
                     <div key={role} className="flex items-center">
                       <Badge variant="secondary" className="text-sm">
                         <Shield className="w-3 h-3 mr-1" />
@@ -283,26 +294,6 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
               </>
             )}
 
-            {/* User Statistics */}
-            <Separator />
-            <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{user.Roles?.length || 0}</div>
-                    <div className="text-sm text-muted-foreground">Active Roles</div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">Active</div>
-                    <div className="text-sm text-muted-foreground">Account Status</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
