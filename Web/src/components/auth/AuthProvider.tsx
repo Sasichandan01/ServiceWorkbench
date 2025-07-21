@@ -5,6 +5,7 @@ import { setPermissions, clearPermissions } from '../../store/slices/permissions
 import { getUserInfo } from '../../lib/tokenUtils';
 import { PermissionService } from '../../services/permissionService';
 import { ApiClient } from '../../lib/apiClient';
+import { refreshAccessToken } from '../../lib/auth';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -12,6 +13,9 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
+  
+  // Timer reference
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -32,6 +36,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             user: userInfo,
             isAuthenticated: true,
           }));
+
+          // --- Proactive token refresh logic ---
+          // Decode JWT to get expiry
+          const token = accessToken;
+          const payload = token.split('.')[1];
+          let exp = null;
+          try {
+            const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+            exp = decoded.exp;
+          } catch (e) {
+            exp = null;
+          }
+          if (exp) {
+            const now = Math.floor(Date.now() / 1000);
+            const secondsUntilExpiry = exp - now;
+            // Refresh 60 seconds before expiry, but not less than 5 seconds from now
+            const refreshIn = Math.max((secondsUntilExpiry - 60) * 1000, 5000);
+            if (refreshTimer) clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(async () => {
+              try {
+                await refreshAccessToken();
+                // Re-initialize auth state after refresh
+                initializeAuth();
+              } catch (err) {
+                // If refresh fails, clear auth and force login
+                dispatch(clearPermissions());
+                dispatch(setAuth({ user: null, isAuthenticated: false }));
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('idToken');
+                window.location.replace('/login');
+              }
+            }, refreshIn);
+          }
+          // --- End proactive refresh logic ---
         } else {
           // Not authenticated
           dispatch(clearPermissions());
@@ -39,6 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             user: null,
             isAuthenticated: false,
           }));
+          if (refreshTimer) clearTimeout(refreshTimer);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -47,6 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           user: null,
           isAuthenticated: false,
         }));
+        if (refreshTimer) clearTimeout(refreshTimer);
       } finally {
         dispatch(setLoading(false));
       }
@@ -62,7 +103,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
   }, [dispatch]);
 
   return <>{children}</>;
