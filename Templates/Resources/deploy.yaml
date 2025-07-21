@@ -1099,7 +1099,7 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      Description: "api Gateway for workbench"
+      Description: !Sub "${DeploymentTrigger} - Workbench API"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
