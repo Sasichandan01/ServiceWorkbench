@@ -355,6 +355,27 @@ def update_user_roles(user_id, body, requester_role):
             ExpressionAttributeValues={":roles": updated_roles}
         )
 
+        # Fetch existing users for the role
+        role_item = table.get_item(Key={"Role": new_role}).get("Item", {})
+        existing_users = role_item.get("Users", [])
+
+        # Ensure it's a list
+        if not isinstance(existing_users, list):
+            existing_users = [existing_users]
+
+        # Add user only if not present
+        if user_id not in existing_users:
+            existing_users.append(user_id)
+
+        # Update the role mapping
+        table.update_item(
+            Key={"Role": new_role},
+            UpdateExpression="SET #r = :users",
+            ExpressionAttributeNames={"#r": "Users"},
+            ExpressionAttributeValues={":users": existing_users}
+        )
+
+
         return return_response(200, {"message": f"Role '{new_role}' added successfully"})
 
     except Exception as e:
@@ -404,6 +425,21 @@ def delete_user_roles(user_id, body, requester_role):
             UpdateExpression="SET #r = :roles",
             ExpressionAttributeNames={"#r": "Role"},
             ExpressionAttributeValues={":roles": updated_roles}
+        )
+
+        # Get existing users for this role
+        role_item = table.get_item(Key={"Role": role_to_remove}).get("Item", {})
+        existing_users = role_item.get("Users", [])
+
+        # Remove the user_id
+        updated_users = [uid for uid in existing_users if uid != user_id]
+
+        # Update the role table with new list
+        table.update_item(
+            Key={"Role": role_to_remove},
+            UpdateExpression="SET #r = :users",
+            ExpressionAttributeNames={"#r": "Users"},
+            ExpressionAttributeValues={":users": updated_users}
         )
 
         return return_response(200, {"message": f"Role '{role_to_remove}' removed successfully"})
