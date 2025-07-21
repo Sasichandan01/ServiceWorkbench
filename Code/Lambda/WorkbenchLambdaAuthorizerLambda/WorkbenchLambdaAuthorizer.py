@@ -158,7 +158,7 @@ def lambda_handler(event, context):
             LOGGER.error("User not found: %s", user_id)
             return generate_policy("unauthorized", "Deny", method_arn)
 
-        role = item.get("LastAccessedRole")
+        role = item.get("Role")
         LOGGER.info("Authenticated user: %s, role: %s", user_id, role)
 
         return generate_policy(user_id, "Allow", method_arn, {
