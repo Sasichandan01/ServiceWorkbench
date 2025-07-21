@@ -1099,7 +1099,7 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      Description: "api Gateway for workbench"
+      Description: !Sub "${DeploymentTrigger} - Workbench API"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1541,10 +1541,6 @@ Resources:
       Role: !GetAtt ChatLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
-      Environment:
-        Variables:
-          WEBSOCKET_URL: !Ref WebSocketApi
-          WEBSOCKET_STAGE: !Ref pWebSocketStage
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
