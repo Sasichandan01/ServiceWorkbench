@@ -117,10 +117,11 @@ export class DatasourceService {
   static async uploadFile(datasourceId: string, file: File, folder?: string): Promise<{ Message: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    if (folder) {
-      formData.append('folder', folder);
+    let filePath = file.name;
+    if (folder && folder !== 'root') {
+      filePath = `${folder}/${file.name}`;
     }
-    
+    formData.append('filename', filePath);
     const response = await ApiClient.postFormData(`/datasources/${datasourceId}/upload`, formData);
     return this.handleResponse<{ Message: string }>(response);
   }
