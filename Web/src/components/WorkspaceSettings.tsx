@@ -76,25 +76,8 @@ const WorkspaceSettings = ({ workspaceName, workspaceId, workspaceStatus, worksp
     if (!workspaceId || deleteInProgress) return;
     setDeleteInProgress(true);
     setLoading(true);
-    try {
-      await WorkspaceService.deleteWorkspace(workspaceId);
-      toast({
-        title: "Workspace Deleted",
-        description: "The workspace has been deleted successfully.",
-        variant: "destructive",
-      });
-      setIsDeleteDialogOpen(false);
-      onWorkspaceDeleted?.();
-    } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to delete workspace.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-      setDeleteInProgress(false);
-    }
+    setIsDeleteDialogOpen(false);
+    onWorkspaceDeleted?.();
   };
 
   const handleStatusChange = async () => {

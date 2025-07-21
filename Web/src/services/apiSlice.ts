@@ -15,8 +15,9 @@ const baseQuery = fetchBaseQuery({
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Workspace'],
+  tagTypes: ['Workspace', 'Solution', 'User', 'Role', 'Datasource', 'Execution'],
   endpoints: (builder) => ({
+    // Workspace endpoints
     getWorkspaces: builder.query<any, void>({
       query: () => '/workspaces',
       providesTags: (result) =>
@@ -123,4 +124,4 @@ export const {
   useUpdateSolutionMutation,
   useDeleteSolutionMutation,
   useGetSolutionQuery,
-} = apiSlice; 
+} = apiSlice;

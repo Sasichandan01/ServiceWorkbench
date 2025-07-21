@@ -223,8 +223,12 @@ const WorkspaceDetails = () => {
     if (!workspace?.id) return;
     try {
       await deleteWorkspace(workspace.id).unwrap();
+      toast({
+        title: "Workspace Deleted",
+        description: "The workspace has been deleted successfully.",
+        variant: "destructive",
+      });
       navigate('/workspaces', { replace: true });
-      return;
     } catch (error: any) {
       let errorMsg = '';
       if (error && typeof error.error === 'string') {

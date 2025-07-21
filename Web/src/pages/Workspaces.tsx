@@ -214,9 +214,24 @@ const Workspaces = () => {
       setIsCreateDialogOpen(false);
       refetch();
     } catch (error: any) {
+      let errorMsg = '';
+      if (error && typeof error.error === 'string') {
+        try {
+          const parsed = JSON.parse(error.error);
+          if (parsed && parsed.Error) {
+            errorMsg = parsed.Error;
+          } else {
+            errorMsg = error.error;
+          }
+        } catch {
+          errorMsg = error.error;
+        }
+      } else {
+        errorMsg = error?.data?.message || error.message || 'Failed to create workspace';
+      }
       toast({
         title: "Error",
-        description: error?.data?.message || error.message || 'Failed to create workspace',
+        description: errorMsg,
         variant: "destructive"
       });
     }
