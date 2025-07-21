@@ -1,9 +1,9 @@
 import os
 import json
 import logging
-import boto3
 import time
 import urllib.request
+import boto3
 from jose import jwk, jwt
 from jose.utils import base64url_decode
 from botocore.exceptions import ClientError
@@ -24,8 +24,8 @@ try:
     USER_POOL_ID = os.environ["USER_POOL_ID"]
     CLIENT_ID = os.environ["CLIENT_ID"]
 except KeyError as e:
-    LOGGER.error(f"Error in environment variables : {e}")
-    raise KeyError(f"Error in environment variables : {e}")
+    LOGGER.error("Error in environment variables : %s", e)
+    raise KeyError("Error in environment variables : %s", e)
 
 # construct issuer and JWKS endpoint URLs
 COGNITO_ISSUER = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{USER_POOL_ID}"
@@ -68,7 +68,6 @@ def verify_jwt_token(token):
     try:
         headers = jwt.get_unverified_headers(token)
         kid = headers["kid"]
-        LOGGER.info(f"Headers: {headers}")
         key_index = next((i for i, key in enumerate(jwks) if key["kid"] == kid), None)
         if key_index is None:
             raise Exception("Public key not found in JWKS")
@@ -83,7 +82,7 @@ def verify_jwt_token(token):
         if not key.verify(message.encode("utf-8"), decoded_signature):
             raise Exception("Signature verification failed")
         claims = jwt.get_unverified_claims(token)
-        LOGGER.info(f"Claims: {claims}")
+        LOGGER.info("Claims: %s", claims)
         if time.time() > claims["exp"]:
             raise Exception("Token is expired")
 
@@ -95,7 +94,7 @@ def verify_jwt_token(token):
 
         return claims
     except Exception as e:
-        LOGGER.error(f"JWT verification failed: {e}")
+        LOGGER.error("JWT verification failed: %s", e)
         raise
     
 
@@ -108,26 +107,39 @@ def lambda_handler(event, context):
             dict : A dictionary containing the Status code and Message
     """
     try:
-        LOGGER.info(f"Event received: {event}")
+        LOGGER.info("Event received: %s", event)
+        route_key = event.get("requestContext", {}).get("routeKey")
+        event_type = event.get("requestContext", {}).get("eventType")
+        access_token = None
+        method_arn = None
 
-        headers = {k.lower(): v for k, v in event.get("headers", {}).items()}
-        auth_header = headers.get("authorization", "")
-        method_arn = event.get("methodArn", "*")
+        if route_key == "$connect" or event_type == "CONNECT":
+            access_token = event.get("queryStringParameters", {}).get("token")
+            if not access_token:
+                LOGGER.error("Missing access token in event")
+                return generate_policy("unauthorized", "Deny", "*")
+            method_arn = event.get("methodArn", "*")
+        elif "httpMethod" in event:
+            headers = {k.lower(): v for k, v in event.get("headers", {}).items()}
+            auth_header = headers.get("authorization", "")
+            method_arn = event.get("methodArn", "*")
 
-        if not method_arn:
-            LOGGER.error("Missing methodArn in event")
+            if not method_arn:
+                LOGGER.error("Missing methodArn in event")
+                return generate_policy("unauthorized", "Deny", "*")
+
+            if not auth_header.startswith("Bearer "):
+                LOGGER.warning("Authorization header is missing or invalid")
+                return generate_policy("unauthorized", "Deny", method_arn)
+
+            access_token = auth_header.split(" ")[1]
+        else:
+            LOGGER.error("Invalid event type")
             return generate_policy("unauthorized", "Deny", "*")
 
-        if not auth_header.startswith("Bearer "):
-            LOGGER.warning("Authorization header is missing or invalid")
-            return generate_policy("unauthorized", "Deny", method_arn)
-
-        access_token = auth_header.split(" ")[1]
         claims = verify_jwt_token(access_token)
-        LOGGER.info(f"Claims: {claims}")
 
         user = COGNITO_CLIENT.get_user(AccessToken=access_token)
-        LOGGER.info(f"User: {user}")
         user_id = user["Username"]
         attributes = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
         email = attributes.get("email")
@@ -137,27 +149,24 @@ def lambda_handler(event, context):
         try:
             response = table.get_item(Key={"UserId": user_id})
             item = response.get("Item")
-            LOGGER.info(f"User record from DynamoDB: {item}")
+            LOGGER.info("User record from DynamoDB: %s", item)
         except ClientError as e:
-            LOGGER.error(f"Error fetching user from DynamoDB: {e.response['Error']['Message']}")
+            LOGGER.error("Error fetching user from DynamoDB: %s", e.response['Error']['Message'])
             return generate_policy("unauthorized", "Deny", method_arn)
 
         if not item:
-            LOGGER.error(f"User not found: {user_id}")
+            LOGGER.error("User not found: %s", user_id)
             return generate_policy("unauthorized", "Deny", method_arn)
 
-        attributess = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
-        custom_role = attributess.get("custom:Role")
-        # role = item.get("Role",[])
-        LOGGER.info(f"Authenticated user: {user_id}, role: {custom_role}")
+        role = item.get("LastAccessedRole")
+        LOGGER.info("Authenticated user: %s, role: %s", user_id, role)
 
         return generate_policy(user_id, "Allow", method_arn, {
-            # "role": json.dumps(role),
-            'role': custom_role,
+            "role": role,
             "user_id": user_id,
             "email": email
         })
 
     except Exception as e:
-        LOGGER.exception(f"Unhandled exception: {e}")
+        LOGGER.exception("Unhandled exception: %s", e)
         return generate_policy("unauthorized", "Deny", event.get("methodArn", "*"))

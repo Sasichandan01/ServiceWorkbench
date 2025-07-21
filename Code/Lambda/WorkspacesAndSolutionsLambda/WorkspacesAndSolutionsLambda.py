@@ -8,7 +8,7 @@ import asyncio
 import json
 import boto3
 import os
-
+ 
 dynamodb = boto3.resource("dynamodb")
 roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 
@@ -35,6 +35,15 @@ def lambda_handler(event, context):
             elif httpMethod == 'GET':
                 return get_workspaces(event, context)
 
+        elif resource == '/workspaces/{workspace_id}':
+            if httpMethod == 'GET':
+                return get_workspace(event,context)
+            elif httpMethod == 'PUT':
+                
+                return update_workspace(event,context)
+            elif httpMethod == 'DELETE':
+                return delete_workspace(event,context)
+
         elif resource == '/workspaces/{workspace_id}/solutions':
             if httpMethod == 'GET':
                 return list_solutions(workspace_id, query_params,user_id)
@@ -47,7 +56,7 @@ def lambda_handler(event, context):
                 return get_solution(workspace_id, solution_id, query_params,user_id)
             elif httpMethod == 'PUT':
                 body = json.loads(event.get('body', '{}'))
-                return update_solution(workspace_id, solution_id, body,user_id)
+                return update_solution(workspace_id, solution_id, body,user_id,query_params)
             elif httpMethod == 'DELETE':
                 return delete_solution(workspace_id, solution_id,user_id)
 
@@ -69,7 +78,7 @@ def lambda_handler(event, context):
             elif event.get('InvokedBy')=='lambda':
                 return asyncio.run(process_log_collection(event, context))
 
-        return {"statusCode": 400, "body": "Bad Request"}
+        return return_response(404, {"Error": "Resource not found"})
     except Exception as e:
         print(e)
-        return {"statusCode": 500, "body": f"Internal Server Error, {e}"}
+        return return_response(500, {"Error": "Internal Server Error"})

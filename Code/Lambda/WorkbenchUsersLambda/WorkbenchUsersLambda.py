@@ -17,7 +17,8 @@ LOGGER.setLevel(logging.INFO)
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 MISC_BUCKET = os.environ.get("MISC_BUCKET")
 ROLES_TABLE = os.environ.get("ROLES_TABLE")
-
+GLUE_JOB_NAME = os.environ.get('GLUE_JOB_NAME')
+glue=boto3.client('glue')
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(USER_TABLE_NAME)
 table = dynamodb.Table(ROLES_TABLE)
@@ -77,6 +78,9 @@ def lambda_handler(event, context):
                 return update_user_roles(user_id, body)
             else:
                 return update_user_details(user_id, body)
+        
+        if http_method == 'POST' and path=='/rag-sync':
+            return rag_sync(event)
 
         return return_response(404, {"message": "Route not found"})
 
@@ -281,8 +285,7 @@ def update_profile_image_on_s3_upload(event, context):
                 continue
 
             user_id = parts[1]
-
-            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
+           # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
             image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
 
             # Update DynamoDB record
@@ -351,3 +354,29 @@ def update_user_roles(user_id, body):
     except Exception as e:
         LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
         return return_response(500, {"message": "Error updating user roles"})
+
+def rag_sync(event):
+    '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
+    LOGGER.info("Event: %s", event)
+    query_string_parameters = event.get("queryStringParameters", {})
+    action = query_string_parameters.get("action")
+    arguments = {}
+    if action is not None and action == 'web':
+        arguments['--ACTION'] = 'web'
+    elif action is not None and action == 'app':
+        arguments['--ACTION'] = 'app'
+    else:
+        return return_response(400, {"message": "Invalid or missing action parameter"})
+
+    try:
+        response = glue.start_job_run(
+            JobName=GLUE_JOB_NAME,
+            Arguments=arguments
+        )
+        return return_response(200,{
+                "message": "Glue job started successfully",
+                "job_run_id": response['JobRunId']
+            })
+    except Exception as e:
+        return return_response(500, {"message": f"Error starting Glue job {str(e)}"})
+        
