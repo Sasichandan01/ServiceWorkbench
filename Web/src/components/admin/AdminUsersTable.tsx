@@ -55,7 +55,7 @@ type LocalUser = {
   id: string;
   name: string;
   email: string;
-  role: string;
+  roles: string[];
   lastLogin: string;
   workspaces: number;
   createdAt: string;
@@ -91,7 +91,7 @@ const AdminUsersTable = () => {
           id: user.UserId,
           name: user.Username,
           email: user.Email,
-          role: Array.isArray(user.Roles) ? user.Roles[0] : user.Roles as string,
+          roles: Array.isArray(user.Roles) ? user.Roles : [user.Roles as string],
           lastLogin: user.LastLoginTime || "Unknown",
           workspaces: Math.floor(Math.random() * 5) + 1, // Mock data for workspaces if not in API
           createdAt: new Date().toISOString().split('T')[0] // Mock data
@@ -126,7 +126,7 @@ const AdminUsersTable = () => {
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role.toLowerCase() === roleFilter;
+    const matchesRole = roleFilter === "all" || user.roles.some(role => role.toLowerCase() === roleFilter);
     // Remove status filter
     return matchesSearch && matchesRole;
   });
@@ -191,7 +191,7 @@ const AdminUsersTable = () => {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Roles</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -226,7 +226,13 @@ const AdminUsersTable = () => {
                       </div>
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {user.roles.map((role, index) => (
+                          <div key={index}>{getRoleBadge(role)}</div>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
                     <TableCell>
                       <UserProfileDialog 
