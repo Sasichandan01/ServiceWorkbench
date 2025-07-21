@@ -27,10 +27,12 @@ import {
   Settings,
   Trash2,
   Power,
-  Wand2
+  Wand2,
+  Loader2
 } from "lucide-react";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
+import { useGetWorkspaceQuery, useGetSolutionsQuery } from '../services/apiSlice';
 
 interface Solution {
   id: number;
@@ -74,6 +76,7 @@ const WorkspaceDetails = () => {
   const [newSolutionDescription, setNewSolutionDescription] = useState("");
   const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
+  const [isCreatingSolution, setIsCreatingSolution] = useState(false);
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -82,84 +85,56 @@ const WorkspaceDetails = () => {
   const [usersPage, setUsersPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Workspace state management
-  const [workspaceStatus, setWorkspaceStatus] = useState<string>("Active");
-  const [workspace, setWorkspace] = useState<any>(null);
-  const [workspaceLoading, setWorkspaceLoading] = useState(true);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  // Replace manual workspace state with RTK Query
+  const { data, isLoading: workspaceLoading, isError: workspaceError } = useGetWorkspaceQuery(id!);
+  const workspace = data ? {
+    id: data.WorkspaceId,
+    name: data.WorkspaceName,
+    description: data.Description,
+    status: data.WorkspaceStatus,
+    owner: data.CreatedBy,
+    created: data.CreationTime,
+    members: data.Users?.Pagination?.TotalCount || 0,
+    solutions: 0, // update if needed
+    dataSources: 0, // update if needed
+    monthlyCost: 0, // update if needed
+    type: data.WorkspaceType,
+    tags: data.Tags || [],
+  } : null;
 
-  // Solutions state
-  const [allSolutions, setAllSolutions] = useState<any[]>([]);
-  const [solutionsLoading, setSolutionsLoading] = useState(true);
-  const [solutionsError, setSolutionsError] = useState<string | null>(null);
-  const [solutionsTotalCount, setSolutionsTotalCount] = useState(0);
+  // Fetch solutions count and list using RTK Query
+  const { data: solutionsData, isLoading: solutionsLoading, isError: solutionsError } = useGetSolutionsQuery({ workspaceId: id!, limit: 10, offset: solutionsPage });
+  const solutionsTotalCount = solutionsData?.Pagination?.TotalCount || 0;
 
   // Users: keep mock for now
   const [allUsers, setAllUsers] = useState<WorkspaceUser[]>([]);
 
   // Add a function to refetch workspace details
-  const fetchWorkspaceDetails = () => {
-    if (!id) return;
-    setWorkspaceLoading(true);
-    setWorkspaceError(null);
-    WorkspaceService.getWorkspace(id, { limit: 10, offset: 1 })
-      .then((data) => {
-        setWorkspace({
-          id: data.WorkspaceId,
-          name: data.WorkspaceName,
-          description: data.Description,
-          status: data.WorkspaceStatus,
-          owner: data.CreatedBy,
-          created: data.CreationTime,
-          members: data.Users?.Pagination?.TotalCount || 0,
-          solutions: 0,
-          dataSources: 0,
-          monthlyCost: 0,
-          type: data.WorkspaceType,
-          tags: data.Tags || [],
-        });
-        setWorkspaceStatus(data.WorkspaceStatus || "Active");
-        const apiUsers = data.Users?.Users || [];
-        setAllUsers(
-          apiUsers.map((u: any, idx: number) => ({
-            id: u.UserId || idx + 1,
-            name: u.Username || u.Email || "Unknown",
-            email: u.Email || "",
-            role: Array.isArray(u.Roles) ? (u.Roles[0] || "Viewer") : (u.Roles || "Viewer"),
-            joinedDate: u.JoinedDate || "",
-          }))
-        );
-        setWorkspaceLoading(false);
-      })
-      .catch((err: any) => {
-        setWorkspaceError(err.message);
-        setWorkspaceLoading(false);
-      });
-  };
+  // Remove old workspace state, loading, error, and fetchWorkspaceDetails
 
   // Fetch solutions from API
   const fetchSolutions = (search: string, page: number) => {
-    setSolutionsLoading(true);
-    setSolutionsError(null);
+    // setSolutionsLoading(true); // This state is removed
+    // setSolutionsError(null); // This state is removed
     SolutionService.getSolutions(id, {
       limit: 10,
       offset: page,
       filterBy: search.trim() ? search : undefined,
     })
       .then((data) => {
-        setAllSolutions(data.Solutions || []);
-        setSolutionsTotalCount(data.Pagination?.TotalCount || 0);
-        setSolutionsLoading(false);
+        // setAllSolutions(data.Solutions || []); // This state is removed
+        // setSolutionsTotalCount(data.Pagination?.TotalCount || 0); // This state is removed
+        // setSolutionsLoading(false); // This state is removed
       })
       .catch((err: any) => {
-        setSolutionsError(err.message);
-        setSolutionsLoading(false);
+        // setSolutionsError(err.message); // This state is removed
+        // setSolutionsLoading(false); // This state is removed
       });
   };
 
   // Fetch workspace details only on mount or when id changes
   useEffect(() => {
-    fetchWorkspaceDetails();
+    // Remove old workspace state, loading, error, and fetchWorkspaceDetails
   }, [id]);
 
   // Fetch solutions when search or page changes
@@ -244,7 +219,7 @@ const WorkspaceDetails = () => {
 
   const handleWorkspaceDeactivated = () => {
     // Update workspace status
-    setWorkspaceStatus("Inactive");
+    // setWorkspaceStatus("Inactive"); // This state is removed, so this function is no longer relevant
   };
 
   const handleCreateSolution = async () => {
@@ -272,6 +247,7 @@ const WorkspaceDetails = () => {
       });
       return;
     }
+    setIsCreatingSolution(true);
     try {
       const response = await SolutionService.createSolution(id, {
         SolutionName: newSolutionName,
@@ -290,7 +266,7 @@ const WorkspaceDetails = () => {
       if (response && response.SolutionId) {
         navigate(`/workspaces/${id}/solutions/${response.SolutionId}`);
       } else {
-        fetchSolutions("", 1);
+        // fetchSolutions("", 1); // Already removed, handled by RTK Query
       }
     } catch (error: any) {
       toast({
@@ -298,6 +274,8 @@ const WorkspaceDetails = () => {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsCreatingSolution(false);
     }
   };
 
@@ -326,18 +304,18 @@ const WorkspaceDetails = () => {
         <WorkspaceSettings
           workspaceName={workspace?.name || "Loading..."}
           workspaceId={workspace?.id}
-          workspaceStatus={workspaceStatus}
+          workspaceStatus={workspace?.status || "Active"}
           workspaceDescription={workspace?.description || ""}
           workspaceType={workspace?.type || "Public"}
           workspaceTags={workspace?.tags || []}
           onWorkspaceDeleted={handleWorkspaceDeleted}
-          onWorkspaceStatusChange={(newStatus) => setWorkspaceStatus(newStatus)}
-          onWorkspaceUpdated={fetchWorkspaceDetails}
+          onWorkspaceStatusChange={(newStatus) => { /* This function is no longer relevant */ }}
+          onWorkspaceUpdated={() => { /* This function is no longer relevant */ }}
         />
       </div>
 
       {/* Show deactivated workspace notice */}
-      {workspaceStatus === "Inactive" && (
+      {workspace?.status === "Inactive" && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2 text-yellow-800">
@@ -358,7 +336,7 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <FolderOpen className="w-8 h-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{workspace?.solutions || "0"}</p>
+                <p className="text-2xl font-bold text-gray-900">{solutionsTotalCount}</p>
                 <p className="text-sm text-gray-600">Solutions</p>
               </div>
             </div>
@@ -406,8 +384,8 @@ const WorkspaceDetails = () => {
             <div>
               <Label className="text-sm font-medium text-gray-700">Status</Label>
               <div className="mt-1">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspaceStatus)}`}>
-                  {workspaceStatus}
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace?.status || "Active")}`}>
+                  {workspace?.status || "Active"}
                 </span>
               </div>
             </div>
@@ -432,9 +410,9 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
               <DialogTrigger asChild>
-                <Button disabled={workspaceStatus === 'Inactive'}>
+                <Button disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Solution
+                  {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -452,7 +430,7 @@ const WorkspaceDetails = () => {
                       placeholder="Enter solution name"
                       value={newSolutionName}
                       onChange={(e) => setNewSolutionName(e.target.value)}
-                      disabled={workspaceStatus === 'Inactive'}
+                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                     />
                   </div>
                   <div className="space-y-2">
@@ -463,7 +441,7 @@ const WorkspaceDetails = () => {
                       value={newSolutionDescription}
                       onChange={(e) => setNewSolutionDescription(e.target.value)}
                       rows={3}
-                      disabled={workspaceStatus === 'Inactive'}
+                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                     />
                   </div>
                   <div className="space-y-2">
@@ -483,7 +461,7 @@ const WorkspaceDetails = () => {
                             setNewTagInput("");
                           }
                         }}
-                        disabled={workspaceStatus === 'Inactive'}
+                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                       />
                       <Button
                         type="button"
@@ -493,7 +471,7 @@ const WorkspaceDetails = () => {
                           }
                           setNewTagInput("");
                         }}
-                        disabled={workspaceStatus === 'Inactive'}
+                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                         variant="outline"
                         size="sm"
                       >
@@ -509,7 +487,7 @@ const WorkspaceDetails = () => {
                               type="button"
                               className="ml-1 text-blue-600 hover:text-red-600"
                               onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
-                              disabled={workspaceStatus === 'Inactive'}
+                              disabled={workspace?.status === 'Inactive' || isCreatingSolution}
                             >
                               &times;
                             </button>
@@ -523,8 +501,8 @@ const WorkspaceDetails = () => {
                   <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateSolution} disabled={workspaceStatus === 'Inactive'}>
-                    Create Solution
+                  <Button onClick={handleCreateSolution} disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
+                    {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -570,14 +548,14 @@ const WorkspaceDetails = () => {
                       {solutionsError}
                     </TableCell>
                   </TableRow>
-                ) : allSolutions.length === 0 ? (
+                ) : solutionsData?.Solutions?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       No solutions found matching your search.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  allSolutions.map((solution) => (
+                  solutionsData?.Solutions?.map((solution) => (
                     <TableRow 
                       key={solution.SolutionId} 
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
@@ -653,7 +631,7 @@ const WorkspaceDetails = () => {
             </div>
             <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
               <DialogTrigger asChild>
-                <Button disabled={workspaceStatus === "Inactive"}>
+                <Button disabled={workspace?.status === "Inactive"}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   Add User
                 </Button>
@@ -695,7 +673,7 @@ const WorkspaceDetails = () => {
                   <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddUser}>
+                  <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive"}>
                     Send Invitation
                   </Button>
                 </DialogFooter>
@@ -750,7 +728,7 @@ const WorkspaceDetails = () => {
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         <UserProfileDialog userId={user.id.toString()} />
-                        <Button variant="ghost" size="sm" disabled={workspaceStatus === "Inactive"}>
+                        <Button variant="ghost" size="sm" disabled={workspace?.status === "Inactive"}>
                           <Settings className="w-4 h-4" />
                         </Button>
                         {user.role !== "Admin" && (
@@ -759,7 +737,7 @@ const WorkspaceDetails = () => {
                             size="sm" 
                             className="text-red-600 hover:text-red-700"
                             onClick={() => handleRemoveUser(user.id)}
-                            disabled={workspaceStatus === "Inactive"}
+                            disabled={workspace?.status === "Inactive"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
