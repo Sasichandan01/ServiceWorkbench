@@ -77,6 +77,9 @@ def lambda_handler(event, context):
                 return update_user_roles(user_id, body)
             else:
                 return update_user_details(user_id, body)
+        
+        if http_method == 'POST' and path=='/rag-sync':
+            return rag_sync(event)
 
         return return_response(404, {"message": "Route not found"})
 
@@ -351,3 +354,40 @@ def update_user_roles(user_id, body):
     except Exception as e:
         LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
         return return_response(500, {"message": "Error updating user roles"})
+
+def rag_sync(event):
+    # Example of dynamic parameter
+    print(event)
+    queryStringParameters=event.get("queryStringParameters", {})
+    action = queryStringParameters.get("action")
+    arguments={}
+    if action is not None and action == 'web':
+        arguments['--ACTION']=='web'
+    elif action is not None and action == 'app':
+        arguments['--ACTION']=='app'
+
+
+    try:
+        response = glue.start_job_run(
+            JobName='my-glue-job',  # Replace with your actual Glue job name
+            Arguments=arguments
+        )
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'message': 'Glue job started successfully',
+                'job_run_id': response['JobRunId'],
+                's3_prefix': s3_prefix
+            })
+        }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'message': 'Error starting Glue job',
+                'error': str(e)
+            })
+        }
+    
