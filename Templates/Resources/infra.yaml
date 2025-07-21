@@ -485,11 +485,11 @@ Resources:
       DomainName: !Sub "${pApplicationPrefix}-opensearchdb"
       EngineVersion: 'OpenSearch_2.17'
       ClusterConfig:
-        InstanceCount: 2
+        InstanceCount: 3
         InstanceType: t3.small.search
         ZoneAwarenessEnabled: true
         ZoneAwarenessConfig: 
-          AvailabilityZoneCount: 2
+          AvailabilityZoneCount: 3
         WarmEnabled: false
         MultiAZWithStandbyEnabled: false
       EBSOptions:
