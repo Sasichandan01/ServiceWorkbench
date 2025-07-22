@@ -193,7 +193,7 @@ const AIGenerator = () => {
                     <Textarea
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
-                      onKeyPress={handleKeyPress}
+                      onKeyDown={handleKeyPress}
                       placeholder="Ask anything..."
                       className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10"
                       disabled={isGenerating}
@@ -304,7 +304,7 @@ const AIGenerator = () => {
                         <Textarea
                           value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
-                          onKeyPress={handleKeyPress}
+                          onKeyDown={handleKeyPress}
                           placeholder="Continue the conversation..."
                           className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
                           disabled={isGenerating}
