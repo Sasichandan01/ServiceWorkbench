@@ -2,6 +2,7 @@ from executions import get_executions,run_solution,get_execution
 from workspaces import create_workspace,update_workspace,get_workspace,get_workspaces,delete_workspace
 from solutions import get_solution, update_solution, delete_solution, list_solutions, create_solution
 from logs import generate_execution_logs,get_execution_logs,process_log_collection
+from scripts import handle_get, handle_post
 from RBAC.rbac import is_user_action_valid
 from Utils.utils import return_response
 import asyncio
@@ -69,6 +70,14 @@ def lambda_handler(event, context):
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
             if httpMethod == 'GET':
                 return get_execution(event, context)
+        
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/scripts':
+            base_prefix = f"workspaces/{workspace_id}/solutions/{solution_id}"
+            body = json.loads(event.get('body', '{}'))
+            if httpMethod == 'GET':
+                return handle_get(base_prefix)
+            elif httpMethod == 'POST':
+                return handle_post(base_prefix,body)
         
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
             if httpMethod == 'GET':
