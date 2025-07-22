@@ -9,7 +9,7 @@ interface AuditLogProps {
   title?: string;
 }
 
-const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, title = "Audit Logs" }: AuditLogProps) => {
+const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, title = "Workspace Logs" }: AuditLogProps) => {
   // Mock data - in real implementation, this would be fetched based on the IDs
   const getAuditLogs = () => {
     if (datasourceId) {
