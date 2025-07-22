@@ -129,6 +129,14 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: (result, error, args) => [{ type: 'Workspace', id: args.ResourceId }],
     }),
+    getActivityLogs: builder.query<any, { resourceType: string; resourceId: string; limit?: number; offset?: number }>({
+      query: ({ resourceType, resourceId, limit = 10, offset = 1 }) => {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('offset', offset.toString());
+        return `/activity-logs/${resourceType}/${resourceId}${params.toString() ? `?${params}` : ''}`;
+      },
+    }),
   }),
 });
 
@@ -144,4 +152,5 @@ export const {
   useDeleteSolutionMutation,
   useGetSolutionQuery,
   useShareResourceMutation,
+  useGetActivityLogsQuery,
 } = apiSlice;
