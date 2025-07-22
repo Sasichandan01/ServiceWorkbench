@@ -339,6 +339,27 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     }
   };
 
+  // Add a helper to get ContentType for code files
+  const getContentType = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'py': return 'text/x-python';
+      case 'yaml':
+      case 'yml': return 'text/yaml';
+      case 'json': return 'application/json';
+      case 'js': return 'application/javascript';
+      case 'ts': return 'application/typescript';
+      case 'sql': return 'application/sql';
+      case 'java': return 'text/x-java-source';
+      case 'c': return 'text/x-c';
+      case 'cpp': return 'text/x-c++';
+      case 'css': return 'text/css';
+      case 'html': return 'text/html';
+      case 'txt': return 'text/plain';
+      default: return 'application/octet-stream';
+    }
+  };
+
   // Fetch scripts and file contents on mount or when workspaceId/solutionId changes
   useEffect(() => {
     if (!workspaceId || !solutionId) return;
@@ -704,9 +725,29 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const handleSave = async () => {
     if (!activeFile) return;
     try {
-      // This function is no longer directly used for saving, as saving is handled by the backend.
-      // We keep it for potential local changes, but the 'isDirty' state will be managed by the backend.
-      // For now, we'll just update the content in the state.
+      // 1. Get PreSignedURL for this file
+      const postBody = {
+        FileName: activeFile.name,
+        ContentType: getContentType(activeFile.name)
+      };
+      const apiUrl = `/workspaces/${workspaceId}/solutions/${solutionId}/scripts`;
+      const resp = await ApiClient.post(apiUrl, postBody);
+      if (!resp.ok) throw new Error('Failed to get presigned URL');
+      const data = await resp.json();
+      const preSignedUrl = data?.PreSignedURL;
+      if (!preSignedUrl) throw new Error('No PreSignedURL returned');
+
+      // 2. PUT file content to the presigned URL
+      const putResp = await fetch(preSignedUrl, {
+        method: 'PUT',
+        body: activeFile.content,
+        headers: {
+          'Content-Type': getContentType(activeFile.name)
+        }
+      });
+      if (!putResp.ok) throw new Error('Failed to upload file to storage');
+
+      // 3. Update local state (optional, for UI feedback)
       setFolderTree(prev => {
         const newTree = { ...prev };
         const file = getFileById(activeFileId);
@@ -718,14 +759,14 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
         return newTree;
       });
       toast({
-        title: "File Saved",
+        title: 'File Saved',
         description: `${activeFile.name} has been saved successfully.`
       });
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to save file",
-        variant: "destructive"
+        title: 'Error',
+        description: error.message || 'Failed to save file',
+        variant: 'destructive'
       });
     }
   };
