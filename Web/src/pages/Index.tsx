@@ -114,6 +114,9 @@ const Index = () => {
               <span className="text-xl font-bold text-gray-900">Service Workbench</span>
             </div>
             <div className="flex space-x-4">
+              <Link to="/docs">
+                <Button variant="ghost">Docs</Button>
+              </Link>
               <Link to="/login">
                 <Button variant="ghost">Sign In</Button>
               </Link>

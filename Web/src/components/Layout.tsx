@@ -67,32 +67,33 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
-    { name: "Audit Logs", href: "/admin?tab=audit", icon: AlertTriangle, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
 
   const handleLogout = async () => {
     try {
-      const accessToken = localStorage.getItem('accessToken');
-      
-      // Clear Redux state first
+      // Clear Redux state FIRST and navigate immediately
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
+      // Navigate to login immediately to prevent permission errors
+      navigate("/login");
+      
+      const accessToken = localStorage.getItem('accessToken');
+      
       if (accessToken) {
-        await signOut(accessToken);
-      } else {
-        // If no token, just clear all auth data
-        clearAllAuthData();
+        // Sign out from Cognito in the background
+        signOut(accessToken).catch(console.error);
       }
+      
+      // Clear all auth data
+      clearAllAuthData();
       
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out."
       });
-      
-      navigate("/login");
     } catch (error: any) {
       console.error("Logout error:", error);
       
@@ -101,12 +102,12 @@ const Layout = () => {
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
-      toast({
-        title: "Logged Out", 
-        description: "You have been signed out locally.",
-      });
-      
       navigate("/login");
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out."
+      });
     }
   };
 
@@ -286,7 +287,7 @@ const Layout = () => {
         {/* Main Content */}
         <div className={`flex-1 flex flex-col ${sidebarOpen ? 'ml-64' : 'ml-16'} transition-all duration-300`}>
           {/* Header */}
-          <header className="bg-white border-b px-6 py-4">
+          <header className="sticky top-0 z-50 bg-white border-b px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Button

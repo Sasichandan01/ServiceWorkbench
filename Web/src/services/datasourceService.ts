@@ -67,6 +67,25 @@ export interface DeleteDatasourceResponse {
   Message: string;
 }
 
+export interface DatasourceActivityLog {
+  UserId: string;
+  ResourceName: string;
+  LogId: string;
+  EventTime: string;
+  ResourceId: string;
+  ResourceType: string;
+  Action: string;
+}
+
+export interface DatasourceActivityLogsResponse {
+  ActivityLogs: DatasourceActivityLog[];
+  Pagination: {
+    Count: number;
+    TotalCount: number;
+    NextAvailable: boolean;
+  };
+}
+
 export class DatasourceService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
@@ -167,5 +186,17 @@ export class DatasourceService {
     const endpoint = `/datasources/${datasourceId}?action=download`;
     const response = await ApiClient.post(endpoint, { S3Path: s3Path });
     return this.handleResponse<{ PreSignedURL: string }>(response);
+  }
+
+  static async getDatasourceActivityLogs(
+    datasourceId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<DatasourceActivityLogsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    const endpoint = `/activity-logs/Datasource/${datasourceId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse<DatasourceActivityLogsResponse>(response);
   }
 }

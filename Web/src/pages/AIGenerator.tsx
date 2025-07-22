@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -148,7 +147,7 @@ const AIGenerator = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col space-y-6">
       {/* Breadcrumb */}
       <SolutionBreadcrumb 
         workspaceName={workspaceName}
@@ -167,17 +166,14 @@ const AIGenerator = () => {
       </div> */}
 
       {/* Chat Window */}
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20">
-        <CardContent className="p-0">
+      <Card className="shadow-lg  border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
+        <CardContent className="p-0 h-screen">
           {wsError && (
             <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
           )}
-          {!wsConnected && !wsError && (
-            <div className="text-yellow-500 text-center">Connecting to chat server...</div>
-          )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
-            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 animate-fade-in">
+            <div className=" flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
               <div className="text-center space-y-8 max-w-2xl">
                 <div className="space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto animate-pulse">
@@ -232,8 +228,8 @@ const AIGenerator = () => {
 
           {/* Chat Messages View */}
           {messages.length > 0 && (
-            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in">
-              <div className="h-[700px] flex flex-col"> {/* Increased height from 500px to 700px */}
+            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in flex flex-col h-[80vh] max-h-[80vh]">
+              <div className="flex-1 flex flex-col min-h-0">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
                     {messages.map((message) => (
@@ -300,31 +296,33 @@ const AIGenerator = () => {
                   </div>
                 </ScrollArea>
                 
-                {/* Bottom Input Area */}
-                <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
-                  <div className="flex items-end space-x-4 max-w-4xl mx-auto">
-                    <div className="flex-1 relative">
-                      <Textarea
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Continue the conversation..."
-                        className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
-                        disabled={isGenerating}
-                      />
+                {/* Bottom Input Area - Only show after any message */}
+                {messages.length > 0 && (
+                  <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
+                    <div className="flex items-end space-x-4 max-w-4xl mx-auto">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          value={inputValue}
+                          onChange={(e) => setInputValue(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Continue the conversation..."
+                          className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
+                          disabled={isGenerating}
+                        />
+                      </div>
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isGenerating}
+                        className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
                     </div>
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isGenerating}
-                      className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
+                      Press Enter to send
+                    </p>
                   </div>
-                  <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
-                    Press Enter to send
-                  </p>
-                </div>
+                )}
               </div>
             </div>
           )}
