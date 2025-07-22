@@ -73,25 +73,27 @@ const Layout = () => {
 
   const handleLogout = async () => {
     try {
-      const accessToken = localStorage.getItem('accessToken');
-      
-      // Clear Redux state first
+      // Clear Redux state FIRST and navigate immediately
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
+      // Navigate to login immediately to prevent permission errors
+      navigate("/login");
+      
+      const accessToken = localStorage.getItem('accessToken');
+      
       if (accessToken) {
-        await signOut(accessToken);
-      } else {
-        // If no token, just clear all auth data
-        clearAllAuthData();
+        // Sign out from Cognito in the background
+        signOut(accessToken).catch(console.error);
       }
+      
+      // Clear all auth data
+      clearAllAuthData();
       
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out."
       });
-      
-      navigate("/login");
     } catch (error: any) {
       console.error("Logout error:", error);
       
@@ -100,12 +102,12 @@ const Layout = () => {
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
-      toast({
-        title: "Logged Out", 
-        description: "You have been signed out locally.",
-      });
-      
       navigate("/login");
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out."
+      });
     }
   };
 

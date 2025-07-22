@@ -116,6 +116,9 @@ const WorkspaceDetails = () => {
   // Fetch solutions count and list using RTK Query
   const { data: solutionsData, isLoading: solutionsLoading, isError: solutionsError } = useGetSolutionsQuery({ workspaceId: id!, limit: 10, offset: solutionsPage });
   const solutionsTotalCount = solutionsData?.Pagination?.TotalCount || 0;
+  
+  // Combined loading state for better UX - show loading until all critical data is loaded
+  const isLoading = workspaceLoading || solutionsLoading;
 
   // Add a function to refetch workspace details
   // Remove old workspace state, loading, error, and fetchWorkspaceDetails

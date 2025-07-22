@@ -52,9 +52,30 @@ const SolutionDetails = () => {
   const [selectedDatasources, setSelectedDatasources] = useState<string[]>([]);
   const [loadingDatasources, setLoadingDatasources] = useState(false);
   const [datasourceSearch, setDatasourceSearch] = useState("");
+  const [preloadedCodeFiles, setPreloadedCodeFiles] = useState<any>(null);
+  const [loadingCodeFiles, setLoadingCodeFiles] = useState(false);
 
   const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
   const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
+
+  // Preload code files for better UX
+  const preloadCodeFiles = async () => {
+    if (!workspaceId || !solutionId) return;
+    
+    setLoadingCodeFiles(true);
+    try {
+      const apiUrl = `/workspaces/${workspaceId}/solutions/${solutionId}/scripts`;
+      const resp = await ApiClient.get(apiUrl);
+      if (resp.ok) {
+        const data = await resp.json();
+        setPreloadedCodeFiles(data);
+      }
+    } catch (error) {
+      console.error("Error preloading code files:", error);
+    } finally {
+      setLoadingCodeFiles(false);
+    }
+  };
 
   // Remove useEffect for fetching solution
   // Fetch workspace name only
@@ -62,6 +83,13 @@ const SolutionDetails = () => {
     if (!workspaceId) return;
     WorkspaceService.getWorkspace(workspaceId).then(ws => setWorkspaceName(ws.WorkspaceName));
   }, [workspaceId]);
+
+  // Preload code files when solution loads
+  useEffect(() => {
+    if (solution && !solution.SolutionStatus?.includes("YET_TO_BE_PREPARED")) {
+      preloadCodeFiles();
+    }
+  }, [solution, workspaceId, solutionId]);
 
   if (loading) {
     return <div className="p-8 text-center text-gray-500">Loading solution details...</div>;
@@ -388,6 +416,8 @@ const SolutionDetails = () => {
             onTabChange={setActiveTab}
             isNewSolution={isNewSolution}
             onGenerateSolution={handleGenerateSolution}
+            preloadedCodeFiles={preloadedCodeFiles}
+            loadingCodeFiles={loadingCodeFiles}
           />
 
           {/* Resources Table */}
