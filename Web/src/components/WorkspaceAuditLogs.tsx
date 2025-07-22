@@ -108,7 +108,7 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
   };
 
   return (
-    <Card className="w-full min-w-[320px]">
+    <Card className="w-full">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center space-x-2 text-base">
           <FileText className="w-4 h-4 text-primary" />

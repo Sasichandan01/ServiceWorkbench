@@ -469,9 +469,9 @@ const WorkspaceDetails = () => {
       </Card>
 
       {/* Main Content with Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-6">
         {/* Main Content */}
-        <div className="lg:col-span-3">
+        <div className="xl:col-span-3 lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className={`grid w-full ${isOwner ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <TabsTrigger value="solutions">Solutions</TabsTrigger>
@@ -854,8 +854,8 @@ const WorkspaceDetails = () => {
           </Tabs>
         </div>
 
-        {/* Sidebar */}
-        <div className="lg:col-span-1">
+        {/* Right Sidebar - Audit Logs */}
+        <div className="space-y-6">
           <WorkspaceAuditLogs workspaceId={workspace?.id} />
         </div>
       </div>
