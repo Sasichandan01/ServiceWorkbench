@@ -163,7 +163,7 @@ def create_solution(workspace_id, body, user_id):
         "SolutionId": solution_id,
         "SolutionName": solution_name,
         "Description": description,
-        "Tag":tags,
+        "Tags":tags,
         "SolutionStatus":"YET_TO_BE_PREPARED",
         "CreatedBy": user_id,
         "CreationTime": str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),

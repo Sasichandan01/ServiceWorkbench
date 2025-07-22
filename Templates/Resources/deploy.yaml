@@ -1047,6 +1047,7 @@ Resources:
           ROLES_TABLE: !Ref RolesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
+          USERS_TABLE: !Ref UserTable
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
