@@ -228,8 +228,8 @@ const AIGenerator = () => {
 
           {/* Chat Messages View */}
           {messages.length > 0 && (
-            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in flex-1 flex flex-col max-h-[80vh]">
-              <div className="flex-1 flex flex-col min-h-[60vh] max-h-[80vh]">
+            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in flex flex-col h-[80vh] max-h-[80vh]">
+              <div className="flex-1 flex flex-col min-h-0">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
                     {messages.map((message) => (
@@ -296,31 +296,33 @@ const AIGenerator = () => {
                   </div>
                 </ScrollArea>
                 
-                {/* Bottom Input Area */}
-                <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
-                  <div className="flex items-end space-x-4 max-w-4xl mx-auto">
-                    <div className="flex-1 relative">
-                      <Textarea
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Continue the conversation..."
-                        className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
-                        disabled={isGenerating}
-                      />
+                {/* Bottom Input Area - Only show after any message */}
+                {messages.length > 0 && (
+                  <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
+                    <div className="flex items-end space-x-4 max-w-4xl mx-auto">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          value={inputValue}
+                          onChange={(e) => setInputValue(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Continue the conversation..."
+                          className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
+                          disabled={isGenerating}
+                        />
+                      </div>
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isGenerating}
+                        className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
                     </div>
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isGenerating}
-                      className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
+                      Press Enter to send
+                    </p>
                   </div>
-                  <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
-                    Press Enter to send
-                  </p>
-                </div>
+                )}
               </div>
             </div>
           )}
