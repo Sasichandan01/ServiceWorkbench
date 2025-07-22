@@ -97,6 +97,11 @@ def verify_jwt_token(token):
         LOGGER.error("JWT verification failed: %s", e)
         raise
     
+def get_custom_role(user_data):
+    for attr in user_data.get("UserAttributes", []):
+        if attr["Name"] == "custom:Role":
+            return attr["Value"]
+    return None
 
 def lambda_handler(event, context):
     """This function is the entry point for the lambda function
@@ -140,6 +145,7 @@ def lambda_handler(event, context):
         claims = verify_jwt_token(access_token)
 
         user = COGNITO_CLIENT.get_user(AccessToken=access_token)
+        LOGGER.info("User: %s", user)
         user_id = user["Username"]
         attributes = {attr["Name"]: attr["Value"] for attr in user.get("UserAttributes", [])}
         email = attributes.get("email")
@@ -158,7 +164,7 @@ def lambda_handler(event, context):
             LOGGER.error("User not found: %s", user_id)
             return generate_policy("unauthorized", "Deny", method_arn)
 
-        role = item.get("LastAccessedRole")
+        role = get_custom_role(user)
         LOGGER.info("Authenticated user: %s, role: %s", user_id, role)
 
         return generate_policy(user_id, "Allow", method_arn, {
