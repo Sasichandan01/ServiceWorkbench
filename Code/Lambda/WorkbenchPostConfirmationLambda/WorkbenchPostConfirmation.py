@@ -177,8 +177,7 @@ def lambda_handler(event, context):
             'Role': [role],
             'LastUpdatedBy': user_id,
             'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-            'LastLoginTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-            'LastAccessedRole': role
+            'LastLoginTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         }
         put_item(USER_TABLE_NAME, dynamo_items)
         LOGGER.info("engagements.cognito, added user %s ", username)
