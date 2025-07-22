@@ -147,7 +147,7 @@ const AIGenerator = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen space-y-6">
+    <div className="flex flex-col space-y-6">
       {/* Breadcrumb */}
       <SolutionBreadcrumb 
         workspaceName={workspaceName}
@@ -166,14 +166,14 @@ const AIGenerator = () => {
       </div> */}
 
       {/* Chat Window */}
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
-        <CardContent className="p-0">
+      <Card className="shadow-lg  border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
+        <CardContent className="p-0 h-screen">
           {wsError && (
             <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
           )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
-            <div className="min-h-[70vh] flex flex-col items-center justify-center p-8 animate-fade-in">
+            <div className=" flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
               <div className="text-center space-y-8 max-w-2xl">
                 <div className="space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto animate-pulse">
