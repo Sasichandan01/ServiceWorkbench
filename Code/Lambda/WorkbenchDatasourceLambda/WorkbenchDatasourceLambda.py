@@ -210,7 +210,7 @@ def create_datasource(body,user_id):
     }
 
     datasource_table.put_item(Item=item)
-    log_activity(ACTIVITY_LOGS_TABLE, "Datasource", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
+    # log_activity(ACTIVITY_LOGS_TABLE, "Datasource", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
     
     # Create FGAC access for the creator
     create_datasource_fgac(resource_access_table, user_id, "owner", datasource_id)
