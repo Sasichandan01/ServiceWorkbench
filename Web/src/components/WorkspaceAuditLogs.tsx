@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { WorkspaceService, ActivityLog } from "../services/workspaceService";
+import { SolutionService } from "../services/solutionService";
 
 interface AuditLogProps {
   workspaceId?: string;
@@ -24,6 +25,19 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
         setError(null);
         try {
           const res = await WorkspaceService.getWorkspaceActivityLogs(workspaceId);
+          if (!ignore) setLogs(res.ActivityLogs);
+        } catch (err: any) {
+          if (!ignore) setError(err.message || "Failed to load logs");
+        } finally {
+          if (!ignore) setLoading(false);
+        }
+        return;
+      }
+      if (solutionId) {
+        setLoading(true);
+        setError(null);
+        try {
+          const res = await SolutionService.getSolutionActivityLogs(solutionId);
           if (!ignore) setLogs(res.ActivityLogs);
         } catch (err: any) {
           if (!ignore) setError(err.message || "Failed to load logs");

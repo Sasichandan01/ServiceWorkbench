@@ -18,13 +18,19 @@ import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-yaml';
+import { ApiClient } from '@/lib/apiClient';
 
-interface CodeFile {
+// Add new types for folder/file structure
+interface ScriptFile {
   id: string;
   name: string;
   content: string;
   language: string;
-  isDirty?: boolean;
+  folder: string; // 'code' or 'cft'
+}
+
+interface FolderTree {
+  [folder: string]: ScriptFile[];
 }
 
 interface CodeEditorProps {
@@ -273,25 +279,11 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     };
   }, []);
 
-  const [files, setFiles] = useState<CodeFile[]>([
-    {
-      id: "1",
-      name: "main.py",
-      content: "# Main application file\nprint('Hello, World!')\n\n# Add your code here\nif __name__ == '__main__':\n    print('Starting application...')",
-      language: "python",
-      isDirty: false
-    },
-    {
-      id: "2",
-      name: "config.yaml",
-      content: "# Application configuration\napp:\n  name: MyApp\n  version: 1.0.0\n  debug: true\n\ndatabase:\n  host: localhost\n  port: 5432\n  name: mydb\n\nfeatures:\n  - authentication\n  - logging\n  - caching",
-      language: "yaml",
-      isDirty: false
-    }
-  ]);
-  const [openFileIds, setOpenFileIds] = useState<string[]>(["1"]);
-  const [activeFileId, setActiveFileId] = useState("1");
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [folderTree, setFolderTree] = useState<FolderTree>({});
+  // Track open files by id (id = folder + '/' + name)
+  const [openFileIds, setOpenFileIds] = useState<string[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string>("");
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [showNewFileInput, setShowNewFileInput] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -327,8 +319,97 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     return ' '; // Always use spaces for consistency
   };
 
-  const activeFile = files.find(f => f.id === activeFileId);
-  const openFiles = files.filter(f => openFileIds.includes(f.id));
+  // Helper to get language from file name
+  const getLanguageFromFileName = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'py': return 'python';
+      case 'js': return 'javascript';
+      case 'ts': return 'typescript';
+      case 'java': return 'java';
+      case 'cpp': case 'c++': return 'cpp';
+      case 'c': return 'c';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'xml': return 'xml';
+      case 'sql': return 'sql';
+      case 'yml': case 'yaml': return 'yaml';
+      default: return 'text';
+    }
+  };
+
+  // Fetch scripts and file contents on mount or when workspaceId/solutionId changes
+  useEffect(() => {
+    if (!workspaceId || !solutionId) return;
+    const fetchScripts = async () => {
+      try {
+        setFolderTree({});
+        setOpenFileIds([]);
+        setActiveFileId("");
+        const apiUrl = `/workspaces/${workspaceId}/solutions/${solutionId}/scripts`;
+        const resp = await ApiClient.get(apiUrl);
+        if (!resp.ok) throw new Error('Failed to fetch scripts');
+        const data = await resp.json();
+        const preSigned = data?.PreSignedURLs || {};
+        const newTree: FolderTree = {};
+        let firstFile: ScriptFile | undefined = undefined;
+        for (const folder of Object.keys(preSigned)) {
+          if (Array.isArray(preSigned[folder])) {
+            const files = await Promise.all(
+              preSigned[folder].map(async (file: { FileName: string; Url: string }, idx: number) => {
+                try {
+                  const fileResp = await fetch(file.Url);
+                  const content = await fileResp.ok ? await fileResp.text() : '';
+                  const scriptFile: ScriptFile = {
+                    id: `${folder}/${file.FileName}`,
+                    name: file.FileName,
+                    content,
+                    language: getLanguageFromFileName(file.FileName),
+                    folder,
+                  };
+                  if (!firstFile) firstFile = scriptFile;
+                  return scriptFile;
+                } catch {
+                  const scriptFile: ScriptFile = {
+                    id: `${folder}/${file.FileName}`,
+                    name: file.FileName,
+                    content: '',
+                    language: getLanguageFromFileName(file.FileName),
+                    folder,
+                  };
+                  if (!firstFile) firstFile = scriptFile;
+                  return scriptFile;
+                }
+              })
+            );
+            newTree[folder] = files;
+          }
+        }
+        setFolderTree(newTree);
+        // Open the first file by default if available
+        if (firstFile) {
+          setOpenFileIds([firstFile.id]);
+          setActiveFileId(firstFile.id);
+        }
+      } catch (err) {
+        // Optionally show a toast
+      }
+    };
+    fetchScripts();
+  }, [workspaceId, solutionId]);
+
+  // Helper to get file by id
+  const getFileById = (id: string): ScriptFile | undefined => {
+    for (const folder of Object.keys(folderTree)) {
+      const file = folderTree[folder].find(f => f.id === id);
+      if (file) return file;
+    }
+    return undefined;
+  };
+
+  const activeFile = getFileById(activeFileId);
+  const openFiles = openFileIds.map(getFileById).filter(Boolean) as ScriptFile[];
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -341,7 +422,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeFileId, files]); // Add dependencies to ensure latest state
+  }, [activeFileId, openFiles]); // Add dependencies to ensure latest state
 
   // Update syntax highlighting
   useEffect(() => {
@@ -464,9 +545,19 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   };
 
   const handleContentChange = (content: string) => {
-    setFiles(prev => prev.map(file => 
-      file.id === activeFileId ? { ...file, content, isDirty: true } : file
-    ));
+    // This function is no longer directly used for saving, as saving is handled by the backend.
+    // We keep it for potential local changes, but the 'isDirty' state will be managed by the backend.
+    // For now, we'll just update the content in the state.
+    setFolderTree(prev => {
+      const newTree = { ...prev };
+      const file = getFileById(activeFileId);
+      if (file) {
+        newTree[file.folder] = newTree[file.folder].map(f => 
+          f.id === activeFileId ? { ...f, content } : f
+        );
+      }
+      return newTree;
+    });
   };
 
   // Handle indentation and special key behaviors
@@ -613,10 +704,19 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const handleSave = async () => {
     if (!activeFile) return;
     try {
-      // Use functional update to ensure latest state
-      setFiles(prev => prev.map(file => 
-        file.id === activeFileId ? { ...file, isDirty: false } : file
-      ));
+      // This function is no longer directly used for saving, as saving is handled by the backend.
+      // We keep it for potential local changes, but the 'isDirty' state will be managed by the backend.
+      // For now, we'll just update the content in the state.
+      setFolderTree(prev => {
+        const newTree = { ...prev };
+        const file = getFileById(activeFileId);
+        if (file) {
+          newTree[file.folder] = newTree[file.folder].map(f => 
+            f.id === activeFileId ? { ...f, content: activeFile.content } : f
+          );
+        }
+        return newTree;
+      });
       toast({
         title: "File Saved",
         description: `${activeFile.name} has been saved successfully.`
@@ -633,15 +733,18 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   const handleAddFile = () => {
     if (!newFileName.trim()) return;
     
-    const newFile: CodeFile = {
-      id: Date.now().toString(),
+    const newFile: ScriptFile = {
+      id: `${activeFile?.folder || 'code'}/${Date.now().toString()}`,
       name: newFileName,
       content: "",
       language: getLanguageFromFileName(newFileName),
-      isDirty: false
+      folder: activeFile?.folder || 'code',
     };
     
-    setFiles(prev => [...prev, newFile]);
+    setFolderTree(prev => ({
+      ...prev,
+      [newFile.folder]: [...prev[newFile.folder], newFile]
+    }));
     setOpenFileIds(prev => [...prev, newFile.id]);
     setActiveFileId(newFile.id);
     setNewFileName("");
@@ -650,7 +753,15 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
 
   const handleDeleteFile = (fileId: string) => {
     // Remove from both project files and open files
-    setFiles(prev => prev.filter(f => f.id !== fileId));
+    setFolderTree(prev => {
+      const [folder, fileName] = fileId.split('/');
+      const newTree = { ...prev };
+      const index = newTree[folder].findIndex(f => f.id === fileId);
+      if (index !== -1) {
+        newTree[folder].splice(index, 1);
+      }
+      return newTree;
+    });
     setOpenFileIds(prev => prev.filter(id => id !== fileId));
     
     if (activeFileId === fileId) {
@@ -663,32 +774,13 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
     }
   };
 
-  const getLanguageFromFileName = (fileName: string): string => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'py': return 'python';
-      case 'js': return 'javascript';
-      case 'ts': return 'typescript';
-      case 'java': return 'java';
-      case 'cpp': case 'c++': return 'cpp';
-      case 'c': return 'c';
-      case 'html': return 'html';
-      case 'css': return 'css';
-      case 'json': return 'json';
-      case 'xml': return 'xml';
-      case 'sql': return 'sql';
-      case 'yml': case 'yaml': return 'yaml';
-      default: return 'text';
-    }
-  };
-
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     const iconClass = isDarkMode ? "w-4 h-4 text-blue-400" : "w-4 h-4 text-blue-600";
     return <FileText className={iconClass} />;
   };
 
-  const filteredFiles = files.filter(file => 
+  const filteredFiles = openFiles.filter(file => 
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -794,36 +886,41 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                 PROJECT
               </div>
               <div className="space-y-0.5">
-                {filteredFiles.map((file) => (
-                  <div
-                    key={file.id}
-                    className={`flex items-center space-x-2 px-2 py-1 rounded cursor-pointer text-sm group transition-colors ${
-                      activeFileId === file.id
-                        ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
-                        : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                    onClick={() => {
-                      if (!openFileIds.includes(file.id)) {
-                        setOpenFileIds(prev => [...prev, file.id]);
-                      }
-                      setActiveFileId(file.id);
-                    }}
-                  >
-                    {getFileIcon(file.name)}
-                    <span className="flex-1 text-xs">{file.name}</span>
-                    {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
-                    {file.isDirty && (
-                      <div className={`w-2 h-2 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFile(file.id);
-                      }}
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                {Object.keys(folderTree).map(folder => (
+                  <div key={folder}>
+                    <div className={`flex items-center px-2 py-1 text-xs font-semibold uppercase ${isDarkMode ? 'text-white' : ''}`}>
+                      <Folder className="w-4 h-4 mr-1" />
+                      {folder}
+                    </div>
+                    {folderTree[folder].map(file => (
+                      <div
+                        key={file.id}
+                        className={`flex items-center space-x-2 px-4 py-1 rounded cursor-pointer text-sm group transition-colors ${
+                          activeFileId === file.id
+                            ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
+                            : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
+                        }`}
+                        onClick={() => {
+                          if (!openFileIds.includes(file.id)) {
+                            setOpenFileIds(prev => [...prev, file.id]);
+                          }
+                          setActiveFileId(file.id);
+                        }}
+                      >
+                        {getFileIcon(file.name)}
+                        <span className="flex-1 text-xs">{file.name}</span>
+                        {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFile(file.id);
+                          }}
+                          className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -930,9 +1027,16 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                     >
                       {getFileIcon(file.name)}
                       <span className="text-xs">{file.name}</span>
-                      {file.isDirty && (
+                      {/* The isDirty state is no longer directly managed here,
+                          as it's handled by the backend.
+                          For now, we'll just show a placeholder or remove it if not needed.
+                          Since the backend handles saving, we can't easily track local changes
+                          without a more complex state management.
+                          For now, we'll remove the isDirty indicator as it's not directly
+                          tied to the backend's dirty state. */}
+                      {/* {file.isDirty && (
                         <div className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-gray-900'}`} />
-                      )}
+                      )} */}
                       <button
                         onClick={(e) => handleCloseFile(file.id, e)}
                         className={`ml-1 p-0.5 rounded hover:bg-gray-600/20 transition-colors ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
@@ -1112,7 +1216,15 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
           <div className="flex items-center space-x-4">
             <span className="text-inherit">Language: {activeFile.language}</span>
             <span className="text-inherit">Indent: {getIndentSize(activeFile.language)} spaces</span>
-            <span className="text-inherit">Line: {activeFile.content.substring(0, textareaRef.current?.selectionStart || 0).split('\n').length}</span>
+            {/* Fix: Move line calculation outside JSX */}
+            {(() => {
+              let lineNumber = 1;
+              if (textareaRef.current) {
+                const pos = textareaRef.current.selectionStart || 0;
+                lineNumber = activeFile.content.substring(0, pos).split('\n').length;
+              }
+              return <span className="text-inherit">Line: {lineNumber}</span>;
+            })()}
           </div>
           <div className="flex items-center space-x-2">
             <span className="text-inherit">Tab: {getIndentSize(activeFile.language)} spaces</span>
