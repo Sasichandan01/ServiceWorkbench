@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { WorkspaceService, ActivityLog } from "../services/workspaceService";
 
 interface AuditLogProps {
   workspaceId?: string;
@@ -10,7 +12,35 @@ interface AuditLogProps {
 }
 
 const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, title = "Workspace Logs" }: AuditLogProps) => {
-  // Mock data - in real implementation, this would be fetched based on the IDs
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchLogs = async () => {
+      if (workspaceId) {
+        setLoading(true);
+        setError(null);
+        try {
+          const res = await WorkspaceService.getWorkspaceActivityLogs(workspaceId);
+          if (!ignore) setLogs(res.ActivityLogs);
+        } catch (err: any) {
+          if (!ignore) setError(err.message || "Failed to load logs");
+        } finally {
+          if (!ignore) setLoading(false);
+        }
+        return;
+      }
+      // fallback to mock data for other types
+      setLogs(getAuditLogs());
+    };
+    fetchLogs();
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, datasourceId, solutionId, userId]);
+
+  // Mock data for non-workspace logs
   const getAuditLogs = () => {
     if (datasourceId) {
       return [
@@ -21,7 +51,6 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
         { action: "Connection tested", target: "Database link", user: "data.engineer@company.com", time: "1 day ago" }
       ];
     }
-    
     if (solutionId) {
       return [
         { action: "Code deployed", target: "Production environment", user: "dev.team@company.com", time: "20 minutes ago" },
@@ -31,7 +60,6 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
         { action: "Solution archived", target: "Old version", user: "admin@company.com", time: "1 day ago" }
       ];
     }
-    
     if (userId) {
       return [
         { action: "Profile updated", target: "Contact information", user: "self", time: "10 minutes ago" },
@@ -41,23 +69,13 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
         { action: "Account created", target: "Initial setup", user: "admin@company.com", time: "1 month ago" }
       ];
     }
-    
-    // Default workspace logs
-    return [
-      { action: "Solution created", target: "Analytics Pipeline", user: "john.doe@company.com", time: "30 minutes ago" },
-      { action: "User invited", target: "jane.smith@company.com", user: "admin@company.com", time: "2 hours ago" },
-      { action: "Workspace updated", target: "Description changed", user: "john.doe@company.com", time: "5 hours ago" },
-      { action: "Solution deleted", target: "Old ETL Process", user: "admin@company.com", time: "1 day ago" },
-      { action: "User removed", target: "temp.user@company.com", user: "admin@company.com", time: "2 days ago" }
-    ];
+    return [];
   };
 
-  const auditLogs = getAuditLogs();
-
   const getActionColor = (action: string) => {
-    if (action.includes("created") || action.includes("invited")) return "bg-green-600";
-    if (action.includes("updated")) return "bg-blue-600";
-    if (action.includes("deleted") || action.includes("removed")) return "bg-red-600";
+    if (action.includes("create") || action.includes("invited")) return "bg-green-600";
+    if (action.includes("update")) return "bg-blue-600";
+    if (action.includes("delete") || action.includes("removed")) return "bg-red-600";
     return "bg-gray-600";
   };
 
@@ -70,23 +88,31 @@ const WorkspaceAuditLogs = ({ workspaceId, datasourceId, solutionId, userId, tit
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="space-y-3">
-          {auditLogs.map((log, index) => (
-            <div key={index} className="flex items-start space-x-3">
-              <div className={`w-2 h-2 ${getActionColor(log.action)} rounded-full mt-2 flex-shrink-0`}></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground leading-tight">
-                  {log.action}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-tight break-words">{log.target}</p>
-                <div className="flex items-center justify-between mt-1.5 gap-2">
-                  <p className="text-xs text-muted-foreground truncate flex-1">{log.user}</p>
-                  <p className="text-xs text-muted-foreground whitespace-nowrap">{log.time}</p>
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading logs...</div>
+        ) : error ? (
+          <div className="text-sm text-red-600">{error}</div>
+        ) : logs.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No logs found.</div>
+        ) : (
+          <div className="space-y-3">
+            {logs.map((log: any, index: number) => (
+              <div key={index} className="flex items-start space-x-3">
+                <div className={`w-2 h-2 ${getActionColor(log.Action || log.action)} rounded-full mt-2 flex-shrink-0`}></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground leading-tight">
+                    {log.Action || log.action}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-tight break-words">{log.ResourceName || log.target}</p>
+                  <div className="flex items-center justify-between mt-1.5 gap-2">
+                    <p className="text-xs text-muted-foreground truncate flex-1">{log.UserId || log.user}</p>
+                    <p className="text-xs text-muted-foreground whitespace-nowrap">{log.EventTime || log.time}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

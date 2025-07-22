@@ -856,7 +856,7 @@ const WorkspaceDetails = () => {
 
         {/* Sidebar */}
         <div className="lg:col-span-1">
-          <WorkspaceAuditLogs />
+          <WorkspaceAuditLogs workspaceId={workspace?.id} />
         </div>
       </div>
     </div>

@@ -58,6 +58,25 @@ export interface DeleteWorkspaceResponse {
   Message: string;
 }
 
+export interface ActivityLog {
+  UserId: string;
+  ResourceName: string;
+  LogId: string;
+  EventTime: string;
+  ResourceId: string;
+  ResourceType: string;
+  Action: string; // create|update|delete
+}
+
+export interface ActivityLogsResponse {
+  ActivityLogs: ActivityLog[];
+  Pagination: {
+    Count: number;
+    TotalCount: number;
+    NextAvailable: boolean;
+  };
+}
+
 export class WorkspaceService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
@@ -122,5 +141,17 @@ export class WorkspaceService {
   static async deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResponse> {
     const response = await ApiClient.delete(`/workspaces/${workspaceId}`);
     return this.handleResponse<DeleteWorkspaceResponse>(response);
+  }
+
+  static async getWorkspaceActivityLogs(
+    workspaceId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<ActivityLogsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    const endpoint = `/activity-logs/Workspace/${workspaceId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse<ActivityLogsResponse>(response);
   }
 }
