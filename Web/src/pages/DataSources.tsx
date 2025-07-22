@@ -160,6 +160,7 @@ const DataSources = () => {
         onPageChange={setCurrentPage}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        loading={loading}
       />
     </div>
   );
