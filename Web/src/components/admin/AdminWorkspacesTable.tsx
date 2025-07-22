@@ -32,7 +32,6 @@ import {
   DollarSign
 } from "lucide-react";
 import { WorkspaceService } from "../../services/workspaceService";
-import { SolutionService } from "../../services/solutionService";
 import { useNavigate } from "react-router-dom";
 
 interface LocalWorkspace {
@@ -95,8 +94,6 @@ const AdminWorkspacesTable = () => {
   const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [solutionsCount, setSolutionsCount] = useState(0);
-  const [solutionsLoading, setSolutionsLoading] = useState(false);
   const itemsPerPage = 10;
   const navigate = useNavigate();
 
@@ -138,37 +135,6 @@ const AdminWorkspacesTable = () => {
     };
     fetchWorkspaces();
   }, [currentPage, searchTerm]);
-
-  // Fetch total solutions count for all workspaces
-  useEffect(() => {
-    const fetchSolutionsCount = async () => {
-      setSolutionsLoading(true);
-      try {
-        let total = 0;
-        // Fetch solutions for each workspace (first page only for performance)
-        await Promise.all(
-          workspaces.map(async (ws) => {
-            try {
-              const res = await SolutionService.getSolutions(ws.id, { limit: 1, offset: 1 });
-              total += res.Pagination?.TotalCount || 0;
-            } catch {
-              // ignore errors for individual workspaces
-            }
-          })
-        );
-        setSolutionsCount(total);
-      } catch {
-        setSolutionsCount(0);
-      } finally {
-        setSolutionsLoading(false);
-      }
-    };
-    if (workspaces.length > 0) {
-      fetchSolutionsCount();
-    } else {
-      setSolutionsCount(0);
-    }
-  }, [workspaces]);
 
   const filteredWorkspaces = workspaces.filter(workspace => {
     const matchesSearch = workspace.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -235,17 +201,6 @@ const AdminWorkspacesTable = () => {
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-orange-500" />
-            </div>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-purple-600">Total Solutions</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {solutionsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : solutionsCount}
-                </p>
-              </div>
-              <Users className="w-8 h-8 text-purple-500" />
             </div>
           </div>
         </div>
