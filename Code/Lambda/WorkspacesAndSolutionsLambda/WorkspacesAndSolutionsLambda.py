@@ -73,10 +73,10 @@ def lambda_handler(event, context):
         
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/scripts':
             base_prefix = f"workspaces/{workspace_id}/solutions/{solution_id}"
-            body = json.loads(event.get('body', '{}'))
             if httpMethod == 'GET':
                 return handle_get(base_prefix)
             elif httpMethod == 'POST':
+                body = json.loads(event.get('body', '{}'))
                 return handle_post(base_prefix,body)
         
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
