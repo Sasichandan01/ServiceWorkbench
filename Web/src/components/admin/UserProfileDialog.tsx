@@ -34,6 +34,7 @@ import { UserService, User } from "../../services/userService";
 import { RoleService, Role } from "../../services/roleService";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSelector } from "@/hooks/useAppSelector";
+import WorkspaceAuditLogs from "../WorkspaceAuditLogs";
 
 interface UserProfileDialogProps {
   userId: string;
@@ -299,6 +300,18 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
                 </div>
               </>
             )}
+
+            {/* User Activity Logs */}
+            <Separator />
+            <div>
+              <Label className="text-base font-medium">Recent Activity</Label>
+              <div className="mt-3">
+                <WorkspaceAuditLogs 
+                  userId={userId}
+                  title="User Activity"
+                />
+              </div>
+            </div>
 
           </div>
         ) : (

@@ -67,7 +67,6 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
-    { name: "Audit Logs", href: "/admin?tab=audit", icon: AlertTriangle, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -286,7 +285,7 @@ const Layout = () => {
         {/* Main Content */}
         <div className={`flex-1 flex flex-col ${sidebarOpen ? 'ml-64' : 'ml-16'} transition-all duration-300`}>
           {/* Header */}
-          <header className="bg-white border-b px-6 py-4">
+          <header className="sticky top-0 z-50 bg-white border-b px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Button
