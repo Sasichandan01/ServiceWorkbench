@@ -422,7 +422,10 @@ Resources:
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-
+          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1044,6 +1047,7 @@ Resources:
           ROLES_TABLE: !Ref RolesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
+          USERS_TABLE: !Ref UserTable
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
@@ -1099,7 +1103,7 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      Description: "api Gateway for workbench"
+      Description: !Sub "${DeploymentTrigger} - Workbench API"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1541,10 +1545,6 @@ Resources:
       Role: !GetAtt ChatLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
-      Environment:
-        Variables:
-          WEBSOCKET_URL: !Ref WebSocketApi
-          WEBSOCKET_STAGE: !Ref pWebSocketStage
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:

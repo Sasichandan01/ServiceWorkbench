@@ -4,6 +4,7 @@ import boto3
 import os 
 import logging
 import uuid
+from FGAC.fgac import create_workspace_fgac, check_workspace_access
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -14,9 +15,13 @@ ses = boto3.client('ses')
 
 USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
 ROLE_TABLE_NAME = os.environ['ROLE_TABLE_NAME']
+WORKSPACES_TABLE_NAME=os.environ['WORKSPACES_TABLE_NAME']
 DOMAIN = os.environ['DOMAIN']
 SOURCE_EMAIL = os.environ['SOURCE_EMAIL']
 ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+RESOURCE_ACCESS_TABLE = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+
+workspace_table = dynamodb.Table(os.environ['WORKSPACES_TABLE_NAME'])
 
 
 def send_email(subject, body, recipient):
@@ -169,12 +174,35 @@ def lambda_handler(event, context):
             'Email': email,
             'CreationTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             "ProfileImage": "",
-            'Role': role,
+            'Role': [role],
             'LastUpdatedBy': user_id,
-            'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+            'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+            'LastLoginTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         }
         put_item(USER_TABLE_NAME, dynamo_items)
         LOGGER.info("engagements.cognito, added user %s ", username)
+
+        # Create default workspace
+        workspace_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+        workspace_item = {
+            'WorkspaceId': workspace_id,
+            'CreatedBy': user_id,
+            'CreationTime': now,
+            'Description': 'Default workspace created for user',
+            'LastUpdatedBy': user_id,
+            'LastUpdationTime': now,
+            'Tags': [],
+            'WorkspaceName': 'Default Workspace',
+            'WorkspaceStatus': 'Active',
+            'WorkspaceType': "DEFAULT"
+            # 'Type': "DEFAULT"
+        }
+
+        workspace_table.put_item(Item=workspace_item)
+        LOGGER.info(" Default workspace created for user %s", user_id)
+        create_workspace_fgac(RESOURCE_ACCESS_TABLE,user_id,"owner",workspace_id)
 
         log_item = {
             'LogId': str(uuid.uuid4()),
@@ -215,13 +243,5 @@ def lambda_handler(event, context):
                     LOGGER.info("Deleted dynamodb entry for user %s", user_id)
             except Exception as ddb_err:
                 LOGGER.error(f"Failed to delete user from DYNAMODB: {ddb_err}")
-        
-        # user_item = get_item(USER_TABLE_NAME, {'UserId': user_id})
-        # if user_item:
-        #     try:
-        #         delete_item(USER_TABLE_NAME, {'UserId': user_id})
-        #         LOGGER.info("engagements.dynamodb, deleted dynamodb entry for user %s", user_id)
-        #     except Exception as ddb_err:
-        #         LOGGER.error(f"Failed to delete user from DYNAMODB: {ddb_err}")
         
         raise e

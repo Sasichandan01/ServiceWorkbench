@@ -141,7 +141,7 @@ def get_all_datasources(query_params, user_id):
     for datasource_id in datasource_ids:
         response = datasource_table.get_item(
             Key={'DatasourceId': datasource_id},
-            ProjectionExpression='DatasourceId, DatasourceName, CreatedBy, DatasourceStatus, S3Path, CreationTime, LastUpdatedBy, LastUpdationTime'
+            ProjectionExpression='DatasourceId, DatasourceName, Description, Tags, CreatedBy, DatasourceStatus, S3Path, CreationTime, LastUpdatedBy, LastUpdationTime'
         )
         item = response.get('Item')
         if item:
