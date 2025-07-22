@@ -1080,7 +1080,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   className={`flex-1 py-4 px-2 font-mono text-xs select-none overflow-hidden ${isDarkMode ? 'text-[#858585]' : 'text-gray-500'}`}
                   style={{
                     lineHeight: '24px',
-                    fontFamily: 'Consolas, "Courier New", monospace'
+                    fontFamily: 'Fira Mono, JetBrains Mono, Menlo, Consolas, "Courier New", monospace'
                   }}
                 >
                   {Array.from({ length: lineCount }, (_, i) => (
@@ -1101,7 +1101,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   }`}
                   style={{ 
                     lineHeight: '24px',
-                    fontFamily: 'Consolas, "Courier New", monospace',
+                    fontFamily: 'Fira Mono, JetBrains Mono, Menlo, Consolas, "Courier New", monospace',
                     zIndex: 1,
                     margin: 0,
                     background: 'transparent'
@@ -1122,7 +1122,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
                   placeholder="Start typing your code..."
                   style={{ 
                     lineHeight: '24px',
-                    fontFamily: 'Consolas, "Courier New", monospace',
+                    fontFamily: 'Fira Mono, JetBrains Mono, Menlo, Consolas, "Courier New", monospace',
                     color: 'transparent',
                     caretColor: isDarkMode ? '#d4d4d4' : '#000000',
                     zIndex: 2,
