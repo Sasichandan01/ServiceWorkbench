@@ -422,7 +422,10 @@ Resources:
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-
+          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1044,6 +1047,7 @@ Resources:
           ROLES_TABLE: !Ref RolesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
+          USERS_TABLE: !Ref UserTable
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
