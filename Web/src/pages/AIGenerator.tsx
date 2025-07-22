@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -148,7 +147,7 @@ const AIGenerator = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col min-h-screen space-y-6">
       {/* Breadcrumb */}
       <SolutionBreadcrumb 
         workspaceName={workspaceName}
@@ -167,13 +166,10 @@ const AIGenerator = () => {
       </div> */}
 
       {/* Chat Window */}
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20">
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
         <CardContent className="p-0">
           {wsError && (
             <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
-          )}
-          {!wsConnected && !wsError && (
-            <div className="text-yellow-500 text-center">Connecting to chat server...</div>
           )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
@@ -232,8 +228,8 @@ const AIGenerator = () => {
 
           {/* Chat Messages View */}
           {messages.length > 0 && (
-            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in">
-              <div className="h-[700px] flex flex-col"> {/* Increased height from 500px to 700px */}
+            <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in flex-1 flex flex-col max-h-[80vh]">
+              <div className="flex-1 flex flex-col min-h-[60vh] max-h-[80vh]">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
                     {messages.map((message) => (
