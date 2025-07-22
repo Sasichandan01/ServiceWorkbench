@@ -67,7 +67,6 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
-    { name: "Audit Logs", href: "/admin?tab=audit", icon: AlertTriangle, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;

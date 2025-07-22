@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery } from '../services/apiSlice';
 import { Loader2 } from 'lucide-react';
 import { ApiClient } from "@/lib/apiClient";
+import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
 
 interface RunHistoryItem {
   id: number;
@@ -203,21 +204,16 @@ const SolutionDetails = () => {
         solutionName={solution.SolutionName}
       />
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{solution.SolutionName}</h1>
-          <p className="text-gray-600 mt-1">{solution.Description}</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
-          {/* Delete Solution Button */}
-          <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete Solution
-          </Button>
-        </div>
-      </div>
+      <div className="grid lg:grid-cols-4 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{solution.SolutionName}</h1>
+              <p className="text-gray-600 mt-1">{solution.Description}</p>
+            </div>
+          </div>
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -378,52 +374,71 @@ const SolutionDetails = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Solution Tabs */}
-      <SolutionTabs
-        workspaceId={workspaceId!}
-        solutionId={solutionId!}
-        solution={solution}
-        isReadySolution={isReadySolution}
-        onRunSolution={handleRunSolution}
-        onOpenAddDatasource={handleOpenDatasourceDialog}
-        onDetachDatasource={() => {}} // No longer needed
-        getStatusBadgeClass={getStatusBadgeClass}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        isNewSolution={isNewSolution}
-        onGenerateSolution={handleGenerateSolution}
-      />
+          {/* Solution Tabs */}
+          <SolutionTabs
+            workspaceId={workspaceId!}
+            solutionId={solutionId!}
+            solution={solution}
+            isReadySolution={isReadySolution}
+            onRunSolution={handleRunSolution}
+            onOpenAddDatasource={handleOpenDatasourceDialog}
+            onDetachDatasource={() => {}} // No longer needed
+            getStatusBadgeClass={getStatusBadgeClass}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isNewSolution={isNewSolution}
+            onGenerateSolution={handleGenerateSolution}
+          />
 
-      {/* Resources Table */}
-      {Array.isArray(solution.Resources) && solution.Resources.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Resources</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-3 font-medium">Type</th>
-                    <th className="text-left p-3 font-medium">Name</th>
-                    <th className="text-left p-3 font-medium">ARN</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {solution.Resources.map((res: any, idx: number) => (
-                    <tr key={idx} className="border-b hover:bg-muted/50">
-                      <td className="p-3">{res.ResourceType}</td>
-                      <td className="p-3">{res.ResourceName}</td>
-                      <td className="p-3 break-all font-mono text-xs">{res.ResourceArn}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Resources Table */}
+          {Array.isArray(solution.Resources) && solution.Resources.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Resources</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-3 font-medium">Type</th>
+                        <th className="text-left p-3 font-medium">Name</th>
+                        <th className="text-left p-3 font-medium">ARN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {solution.Resources.map((res: any, idx: number) => (
+                        <tr key={idx} className="border-b hover:bg-muted/50">
+                          <td className="p-3">{res.ResourceType}</td>
+                          <td className="p-3">{res.ResourceName}</td>
+                          <td className="p-3 break-all font-mono text-xs">{res.ResourceArn}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right Sidebar - Audit Logs */}
+        <div className="space-y-6">
+          {/* Spacer to align with header height */}
+          {/* Action Buttons above Solution Activity */}
+          <div className="flex flex-row justify-end items-center gap-3 mb-4">
+            <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
+            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Solution
+            </Button>
+          </div>
+          <WorkspaceAuditLogs 
+            solutionId={solutionId}
+            title="Solution Activity"
+          />
+        </div>
+      </div>
     </div>
   );
 };
