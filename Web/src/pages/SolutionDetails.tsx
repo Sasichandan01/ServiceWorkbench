@@ -424,8 +424,7 @@ const SolutionDetails = () => {
 
         {/* Right Sidebar - Audit Logs */}
         <div className="space-y-6">
-          {/* Spacer to align with header height */}
-          {/* Action Buttons above Solution Activity */}
+          <div className="h-1"></div>
           <div className="flex flex-row justify-end items-center gap-3 mb-4">
             <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
             <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
