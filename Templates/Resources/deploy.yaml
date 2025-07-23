@@ -600,6 +600,115 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  BedrockAgentLookupTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${pPrefix}-BedrockAgentLookup-Table"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: AgentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: AgentId
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  BedrockAgentExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-BedrockAgentExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
+
+  CustomResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-BedrockCustomResourceRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAgentManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt BedrockAgentExecutionRole.Arn
+
+  BedrockAgentCustomResource:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-AgentCustomResourceLambda"
+      Runtime: python3.11
+      Handler: AgentCustomResourceLambda.lambda_handler
+      Role: !GetAtt CustomResourceRole.Arn
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          ENVIRONMENT: !Sub "${pPrefix}"
+          AGENTS_TABLE_NAME: !Sub "${pPrefix}-BedrockAgentLookup-Table"
+          AGENT_EXECUTION_ROLE: !GetAtt BedrockAgentExecutionRole.Arn
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+          KNOWLEDGE_BASE_ID: !Ref VectorKnowledgeBase
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/agentcustomresourcelambda/AgentCustomResourceLambda.zip"
+      Layers:
+        - arn:aws:lambda:us-east-1:043309350924:layer:yaml-layer:1
+
+  BedrockAgentManager:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
+      Environment: !Sub "${pPrefix}"
+      Version: "1.0"
+      changesetflag: '967'
+
   UserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1122,7 +1231,8 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      Description: !Sub "${DeploymentTrigger} - Workbench API"
+      # Description: !Sub "${DeploymentTrigger}"
+      Description: "abc"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1167,9 +1277,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: LogId
           AttributeType: S
+        - AttributeName: UserId
+          AttributeType: S
       KeySchema:
         - AttributeName: LogId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserId-Index
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: 'true'
         RecoveryPeriodInDays: 7
@@ -1652,10 +1771,10 @@ Resources:
     Properties:
       Description: !Sub "${DeploymentTrigger} - Share Lambda Function"
       FunctionName: !Sub "${pPrefix}-ShareLambdaFunction"
-      Handler: ShareLambda.lambda_handler
+      Handler: lambda_function.lambda_handler
       Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
       Runtime: python3.13
-      Timeout: 900
+      Timeout: 600
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
@@ -1933,7 +2052,7 @@ Resources:
       FunctionName: !Ref LambdaAuthorizerFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
 
 Outputs:
 
