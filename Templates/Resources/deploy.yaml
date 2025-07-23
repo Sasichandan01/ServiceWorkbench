@@ -1787,7 +1787,7 @@ Resources:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architectureagentaglambda/ArchitectureAgentAGLambda.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architectureagentag/ArchitectureAgentAG.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
