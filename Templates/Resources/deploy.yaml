@@ -73,16 +73,16 @@ Resources:
           Value: "WorkbenchV2"
   
   MiscBucketCORS:
-  Type: AWS::S3::BucketCorsConfiguration
-  Properties:
-    Bucket: !Ref MiscBucket
-    CorsConfiguration:
-      CorsRules:
-        - AllowedHeaders: ["*"]
-          AllowedMethods: ["GET", "PUT", "POST", "DELETE"]
-          AllowedOrigins: ["*"]
-          ExposedHeaders: ["ETag"]
-          MaxAge: 3000
+    Type: AWS::S3::BucketCorsConfiguration
+    Properties:
+      Bucket: !Ref MiscBucket
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: ["GET", "PUT", "POST", "DELETE"]
+            AllowedOrigins: ["*"]
+            ExposedHeaders: ["ETag"]
+            MaxAge: 3000
 
   MiscBucketPolicy:
     Type: AWS::S3::BucketPolicy
