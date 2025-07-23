@@ -8,7 +8,7 @@ from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
-
+ 
 # Setup logger
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
