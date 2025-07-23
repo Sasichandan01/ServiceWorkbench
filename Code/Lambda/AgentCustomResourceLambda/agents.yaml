@@ -309,8 +309,8 @@
     CRITICAL : If you don't perform these tasks with 100% accuracy you will be fired, virus will be injected to your system, power and internet connection will be cut and other better LLM models will be hired in place of you .So make sure that the architecture requires only necessary services that too from the mentioned ones and the mermaid diagram is 100% accurate and error free.
       
       
-  ModelId: anthropic.claude-3-5-sonnet-20241022-v2:0
-  Lambda: query-parser-lambda
+  ModelId: anthropic.claude-3-7-sonnet-20250219-v1:0
+  Lambda: QueryParserLambdaFunction
   Tools:
     - ToolName: validate_resource
       ToolDescription: validate resource details
