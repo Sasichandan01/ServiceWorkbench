@@ -1544,7 +1544,7 @@ paths:
         - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:wb-mayank-DatasourcesLambdaFunction/invocations"
+        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-DatasourcesLambdaFunction/invocations"
         responses:
           default:
             statusCode: "200"
@@ -1805,6 +1805,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empty"
+      security:
+        - WorkbenchAuthorizer: []
       x-amazon-apigateway-integration:
         type: "aws_proxy"
         httpMethod: "POST"
@@ -1917,6 +1919,89 @@ paths:
         requestTemplates:
           application/json: "{\"statusCode\": 200}"
         passthroughBehavior: "when_no_match"
+
+/activity-logs/{resource_type}/{resource_id}:
+  get:
+    summary: "List activity logs for a resource"
+    description: "Get paginated activity logs for a specific resource type and ID."
+    parameters:
+      - name: resource_type
+        in: path
+        required: true
+        schema:
+          type: string
+        description: "Type of the resource (WORKSPACE, SOLUTION, DATASOURCE, etc.)"
+      - name: resource_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: "ID of the resource"
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: "Number of items to return"
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: "Number of items to skip"
+    responses:
+      "200":
+        description: "Successful response"
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ActivityLogs:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      UserId:
+                        type: string
+                      Message:
+                        type: string
+                      EventDate:
+                        type: string
+                      ResourceName:
+                        type: string
+                      LogId:
+                        type: string
+                      EventTime:
+                        type: string
+                      ResourceId:
+                        type: string
+                      ResourceType:
+                        type: string
+                      Action:
+                        type: string
+                        description: "create|update|delete"
+                Pagination:
+                  type: object
+                  properties:
+                    Count:
+                      type: integer
+                    TotalCount:
+                      type: integer
+                    NextAvailable:
+                      type: boolean
+    security:
+      - WorkbenchAuthorizer: []
+    x-amazon-apigateway-integration:
+      httpMethod: "POST"
+      uri: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:placeholder-ShareLambdaFunction/invocations"
+      responses:
+        default:
+          statusCode: "200"
+      passthroughBehavior: "when_no_match"
+      timeoutInMillis: 29000
+      contentHandling: "CONVERT_TO_TEXT"
+      type: "aws_proxy"
 
 components:
   schemas:

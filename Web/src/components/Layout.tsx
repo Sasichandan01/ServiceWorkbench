@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   DropdownMenu,
@@ -25,7 +25,8 @@ import {
   Shield,
   Activity,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut, clearAllAuthData } from "@/lib/auth";
@@ -38,11 +39,15 @@ import { useAppDispatch } from "@/hooks/useAppDispatch";
 import { setAuth } from "@/store/slices/authSlice";
 import { clearPermissions } from "@/store/slices/permissionsSlice";
 import { RoleSwitchDialog } from "./RoleSwitchDialog";
+import { UserService } from "@/services/userService";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [profile, setProfile] = useState<any>(null); // Store full user profile
   const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [imageCacheBust, setImageCacheBust] = useState(Date.now());
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,11 +55,42 @@ const Layout = () => {
   const { loading: authLoading } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
 
+  // Fetch basic user info from token
   useEffect(() => {
-    // Get user info from stored tokens
     const info = getUserInfo();
     setUserInfo(info);
+    if (info?.username) {
+      fetchProfile(info.username);
+    } else {
+      setProfileLoading(false);
+    }
   }, []);
+
+  // Function to fetch user profile from backend
+  const fetchProfile = async (username: string) => {
+    setProfileLoading(true);
+    try {
+      const userData = await UserService.getUser(username);
+      setProfile(userData);
+    } catch (e) {
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Expose refreshProfile globally for triggering after upload
+  useEffect(() => {
+    (window as any).refreshProfileImage = () => {
+      if (userInfo?.username) {
+        fetchProfile(userInfo.username);
+        setImageCacheBust(Date.now()); // Only update cache buster after upload
+      }
+    };
+    return () => {
+      delete (window as any).refreshProfileImage;
+    };
+  }, [userInfo]);
 
   const navigation = [
     { name: "Workspaces", href: "/workspaces", icon: Cloud, resource: "workspaces" },
@@ -67,32 +103,33 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
-    { name: "Audit Logs", href: "/admin?tab=audit", icon: AlertTriangle, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
 
   const handleLogout = async () => {
     try {
-      const accessToken = localStorage.getItem('accessToken');
-      
-      // Clear Redux state first
+      // Clear Redux state FIRST and navigate immediately
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
+      // Navigate to login immediately to prevent permission errors
+      navigate("/login");
+      
+      const accessToken = localStorage.getItem('accessToken');
+      
       if (accessToken) {
-        await signOut(accessToken);
-      } else {
-        // If no token, just clear all auth data
-        clearAllAuthData();
+        // Sign out from Cognito in the background
+        signOut(accessToken).catch(console.error);
       }
+      
+      // Clear all auth data
+      clearAllAuthData();
       
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out."
       });
-      
-      navigate("/login");
     } catch (error: any) {
       console.error("Logout error:", error);
       
@@ -101,12 +138,12 @@ const Layout = () => {
       dispatch(setAuth({ user: null, isAuthenticated: false }));
       dispatch(clearPermissions());
       
-      toast({
-        title: "Logged Out", 
-        description: "You have been signed out locally.",
-      });
-      
       navigate("/login");
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out."
+      });
     }
   };
 
@@ -286,7 +323,7 @@ const Layout = () => {
         {/* Main Content */}
         <div className={`flex-1 flex flex-col ${sidebarOpen ? 'ml-64' : 'ml-16'} transition-all duration-300`}>
           {/* Header */}
-          <header className="bg-white border-b px-6 py-4">
+          <header className="sticky top-0 z-50 bg-white border-b px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Button
@@ -311,9 +348,20 @@ const Layout = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer">
-                      <AvatarFallback className="bg-blue-600 text-white font-medium">
-                        {userInfo?.name ? getInitials(userInfo.name) : 'U'}
-                      </AvatarFallback>
+                      {profileLoading ? (
+                        <span className="flex items-center justify-center w-full h-full">
+                          <Loader2 className="animate-spin w-6 h-6 text-blue-500" />
+                        </span>
+                      ) : profile?.ProfileImageURL ? (
+                        <AvatarImage 
+                          src={profile.ProfileImageURL + (profile.ProfileImageURL.includes('?') ? `&cb=${imageCacheBust}` : `?cb=${imageCacheBust}`)} 
+                          alt={profile.Username || userInfo?.name || "User"} 
+                        />
+                      ) : (
+                        <AvatarFallback className="bg-blue-600 text-white font-medium">
+                          {userInfo?.name ? getInitials(userInfo.name) : 'U'}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">

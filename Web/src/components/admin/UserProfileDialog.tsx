@@ -34,6 +34,7 @@ import { UserService, User } from "../../services/userService";
 import { RoleService, Role } from "../../services/roleService";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSelector } from "@/hooks/useAppSelector";
+import WorkspaceAuditLogs from "../WorkspaceAuditLogs";
 
 interface UserProfileDialogProps {
   userId: string;
@@ -54,7 +55,16 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
     setLoading(true);
     try {
       const userData = await UserService.getUser(userId);
-      setUser(userData);
+      // Normalize roles for compatibility
+      let normalizedUser = { ...userData };
+      if (Array.isArray(userData.Roles)) {
+        (normalizedUser as any).Role = userData.Roles;
+      } else if (typeof (userData as any).Role === 'string') {
+        (normalizedUser as any).Role = [(userData as any).Role];
+      } else if (!(userData as any).Role) {
+        (normalizedUser as any).Role = [];
+      }
+      setUser(normalizedUser);
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast({
@@ -150,13 +160,10 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
   // Filter out roles the user already has and current user's role
   const getAvailableRolesToAssign = () => {
     const userRoles = user?.Role || [];
-    const currentUserRole = currentUser?.role;
     
     return availableRoles.filter(role => {
       // Exclude roles already assigned to the user
       if (role.Role && userRoles.includes(role.Role)) return false;
-      // Exclude current user's role from assignment
-      if (currentUserRole && role.Role === currentUserRole) return false;
       return true;
     });
   };
@@ -293,6 +300,18 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
                 </div>
               </>
             )}
+
+            {/* User Activity Logs */}
+            <Separator />
+            <div>
+              <Label className="text-base font-medium">Recent Activity</Label>
+              <div className="mt-3">
+                <WorkspaceAuditLogs 
+                  userId={userId}
+                  title="User Activity"
+                />
+              </div>
+            </div>
 
           </div>
         ) : (

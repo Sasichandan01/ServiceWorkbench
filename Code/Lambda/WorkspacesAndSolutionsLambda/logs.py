@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from Utils.utils import log_activity,return_response,paginate_list
 import logging
+from boto3.dynamodb.conditions import Attr
 
 
 logger = logging.getLogger()
@@ -19,6 +20,7 @@ logs_client = boto3.client('logs')
 glue_client = boto3.client('glue')
 lambda_client = boto3.client('lambda')
 stepfunctions_client = boto3.client('stepfunctions')
+activity_logs_table = dynamodb.Table(os.environ.get('ACTIVITY_LOGS_TABLE'))
 
 executions_table = os.environ.get('EXECUTIONS_TABLE')
 solutions_table = os.environ.get('SOLUTIONS_TABLE')

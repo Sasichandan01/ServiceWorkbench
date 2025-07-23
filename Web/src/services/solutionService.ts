@@ -59,6 +59,25 @@ export interface DeleteSolutionResponse {
   Message: string;
 }
 
+export interface SolutionActivityLog {
+  UserId: string;
+  ResourceName: string;
+  LogId: string;
+  EventTime: string;
+  ResourceId: string;
+  ResourceType: string;
+  Action: string;
+}
+
+export interface SolutionActivityLogsResponse {
+  ActivityLogs: SolutionActivityLog[];
+  Pagination: {
+    Count: number;
+    TotalCount: number;
+    NextAvailable: boolean;
+  };
+}
+
 export class SolutionService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
@@ -129,5 +148,17 @@ export class SolutionService {
   static async deleteSolution(workspaceId: string, solutionId: string): Promise<DeleteSolutionResponse> {
     const response = await ApiClient.delete(`/workspaces/${workspaceId}/solutions/${solutionId}`);
     return this.handleResponse<DeleteSolutionResponse>(response);
+  }
+
+  static async getSolutionActivityLogs(
+    solutionId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<SolutionActivityLogsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    const endpoint = `/activity-logs/Solutions/${solutionId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse<SolutionActivityLogsResponse>(response);
   }
 }
