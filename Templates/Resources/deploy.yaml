@@ -1801,7 +1801,7 @@ Resources:
       FunctionName: !Ref ArchitectureAgentAGLambdaFunction
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
-      SourceArn: "*"
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
