@@ -1745,6 +1745,7 @@ Resources:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
         - PolicyName: S3
           PolicyDocument:
