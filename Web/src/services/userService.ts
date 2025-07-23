@@ -72,4 +72,10 @@ export class UserService {
     const response = await ApiClient.put(`/users/${userId}`, data);
     return this.handleResponse<UpdateUserResponse>(response);
   }
+
+  static async getProfileImageUploadUrl(userId: string, contentType: string): Promise<string> {
+    const response = await ApiClient.put(`/users/${userId}?action=profile_image`, { ContentType: contentType });
+    const data = await this.handleResponse<{ PreSignedURL: string }>(response);
+    return data.PreSignedURL;
+  }
 }
