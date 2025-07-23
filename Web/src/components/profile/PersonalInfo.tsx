@@ -120,7 +120,10 @@ const PersonalInfo = ({ user = {}, onProfileImageUpdated }: PersonalInfoProps) =
         <div className="flex items-center space-x-4">
           <Avatar className="w-20 h-20">
             {user.ProfileImageURL ? (
-              <AvatarImage src={user.ProfileImageURL} alt={user.Username || "User"} />
+              <AvatarImage 
+                src={user.ProfileImageURL + (user.ProfileImageURL.includes('?') ? `&cb=${Date.now()}` : `?cb=${Date.now()}`)} 
+                alt={user.Username || "User"} 
+              />
             ) : (
               <AvatarFallback className="text-xl bg-muted text-primary">
                 {user.Username ? user.Username[0].toUpperCase() : "U"}

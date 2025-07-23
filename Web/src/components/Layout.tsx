@@ -25,7 +25,8 @@ import {
   Shield,
   Activity,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut, clearAllAuthData } from "@/lib/auth";
@@ -45,6 +46,7 @@ const Layout = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [profile, setProfile] = useState<any>(null); // Store full user profile
   const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -58,16 +60,21 @@ const Layout = () => {
     setUserInfo(info);
     if (info?.username) {
       fetchProfile(info.username);
+    } else {
+      setProfileLoading(false);
     }
   }, []);
 
   // Function to fetch user profile from backend
   const fetchProfile = async (username: string) => {
+    setProfileLoading(true);
     try {
       const userData = await UserService.getUser(username);
       setProfile(userData);
     } catch (e) {
       setProfile(null);
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -337,8 +344,15 @@ const Layout = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer">
-                      {profile?.ProfileImageURL ? (
-                        <AvatarImage src={profile.ProfileImageURL} alt={profile.Username || userInfo?.name || "User"} />
+                      {profileLoading ? (
+                        <span className="flex items-center justify-center w-full h-full">
+                          <Loader2 className="animate-spin w-6 h-6 text-blue-500" />
+                        </span>
+                      ) : profile?.ProfileImageURL ? (
+                        <AvatarImage 
+                          src={profile.ProfileImageURL + (profile.ProfileImageURL.includes('?') ? `&cb=${Date.now()}` : `?cb=${Date.now()}`)} 
+                          alt={profile.Username || userInfo?.name || "User"} 
+                        />
                       ) : (
                         <AvatarFallback className="bg-blue-600 text-white font-medium">
                           {userInfo?.name ? getInitials(userInfo.name) : 'U'}
