@@ -2,7 +2,6 @@ import json
 import re
 import logging
 import boto3
-import hashlib
 from datetime import datetime
 from decimal import Decimal
 from botocore.config import Config
@@ -14,7 +13,15 @@ CONFIG = Config(retries={'mode':'adaptive','max_attempts':5}, connect_timeout=60
 bedrock_agent_runtime_client = boto3.client('bedrock-agent-runtime', config=CONFIG)
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
-seen_hashes = set()
+
+def get_agent_ids():
+    ddb_look_up_table=dynamodb.Table('wb-bhargav-BedrockAgentLookup-Table')
+    
+
+
+
+
+
 
 def generate_requirements():
     return ["boto3==1.28.63", "pyjwt==2.8.0", "requests==2.31.0"]

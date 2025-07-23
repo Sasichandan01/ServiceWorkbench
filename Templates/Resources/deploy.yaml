@@ -1012,6 +1012,15 @@ Resources:
                 Action:
                   - execute-api:ManageConnections
                 Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+        - PolicyName: DDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowDDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1759,6 +1768,9 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+      Environment:
+        Variables:
+          LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
 
   ShareLambdaFunction:
     Type: AWS::Lambda::Function
