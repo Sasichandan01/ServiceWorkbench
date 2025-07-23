@@ -1760,6 +1760,11 @@ Resources:
                   - !Sub
                     - "${BucketArn}/*"
                     - {BucketArn: !ImportValue WorkspacesBucketArn}
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
