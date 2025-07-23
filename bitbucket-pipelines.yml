@@ -404,10 +404,7 @@ definitions:
             CATEGORY_NAME=$(basename "$CATEGORY")
             S3_CLEANUP_PREFIX="lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}"
             echo "🧽 Cleaning up old lambda zips from: s3://${DEST_BUCKET}/${S3_CLEANUP_PREFIX}"
-            aws s3 rm "s3://${DEST_BUCKET}/" \
-              --recursive \
-              --exclude "*" \
-              --include "${S3_CLEANUP_PREFIX}/*.zip" || echo "⚠️  No existing zips to clean up or cleanup failed."
+            aws s3 rm "s3://${DEST_BUCKET}/${S3_CLEANUP_PREFIX}/" --recursive
 
             # Now proceed to find files and zip
             mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f \( -name "*.py" -o -name "*.yaml" \))
