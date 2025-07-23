@@ -36,6 +36,7 @@ const AIGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentThinking, setCurrentThinking] = useState<ThinkingStep[]>([]);
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const [currentThinkingExpanded, setCurrentThinkingExpanded] = useState(true); // State for current thinking expansion
   const currentThinkingRef = useRef<ThinkingStep[]>([]);
   const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -167,10 +168,9 @@ const AIGenerator = () => {
   }, []);
 
   useEffect(() => {
-    // Auto-expand thinking when first trace arrives
+    // Auto-expand current thinking when first trace arrives
     if (currentThinking.length === 1 && isGenerating) {
-      // This is for the current generating message, we'll handle expansion differently
-      // since the message doesn't exist yet
+      setCurrentThinkingExpanded(true);
     }
   }, [currentThinking.length, isGenerating]);
 
@@ -182,6 +182,8 @@ const AIGenerator = () => {
         // Auto-collapse the thinking section for the completed message
         setExpandedThinking(prev => ({ ...prev, [lastMsg.id]: false }));
       }
+      // Reset current thinking expansion state
+      setCurrentThinkingExpanded(true);
     }
   }, [isGenerating, messages]);
 
@@ -200,9 +202,10 @@ const AIGenerator = () => {
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
-    // Clear any previous thinking
+    // Clear any previous thinking and reset expansion state
     setCurrentThinking([]);
     currentThinkingRef.current = [];
+    setCurrentThinkingExpanded(true);
     
     // Send message via websocket using AWS API Gateway action format
     const payload = JSON.stringify({
@@ -227,6 +230,10 @@ const AIGenerator = () => {
       ...prev,
       [messageId]: !prev[messageId]
     }));
+  };
+
+  const toggleCurrentThinking = () => {
+    setCurrentThinkingExpanded(prev => !prev);
   };
 
   return (
@@ -342,7 +349,6 @@ const AIGenerator = () => {
                                     className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
                                   >
                                     <div className="flex items-center space-x-2">
-                                      <Brain className="w-3 h-3" />
                                       <span>Show thinking</span>
                                     </div>
                                     {expandedThinking[message.id] ? 
@@ -394,18 +400,24 @@ const AIGenerator = () => {
                         <div className="flex-1 max-w-3xl">
                           {currentThinking.length > 0 ? (
                             <div className="space-y-3">
-                              <Collapsible open={true}>
+                              <Collapsible 
+                                open={currentThinkingExpanded} 
+                                onOpenChange={toggleCurrentThinking}
+                              >
                                 <CollapsibleTrigger asChild>
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
                                     className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
-                                    disabled
                                   >
                                     <div className="flex items-center space-x-2">
                                       <Loader2 className="w-3 h-3 animate-spin" />
                                       <span>Show thinking</span>
                                     </div>
+                                    {currentThinkingExpanded ? 
+                                      <ChevronDown className="w-4 h-4" /> : 
+                                      <ChevronRight className="w-4 h-4" />
+                                    }
                                   </Button>
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="space-y-2">
@@ -434,7 +446,7 @@ const AIGenerator = () => {
                                   ))}
                                 </div>
                                 <span className="text-sm text-muted-foreground ml-2">
-                                  <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />Show thinking
+                                  <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />AI is thinking...
                                 </span>
                               </div>
                             </div>
