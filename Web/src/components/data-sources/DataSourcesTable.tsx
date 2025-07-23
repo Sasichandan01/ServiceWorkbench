@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Database, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Database, CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
 
 interface DataSource {
   id: string | number;
@@ -27,9 +27,10 @@ interface DataSourcesTableProps {
   onPageChange: (page: number) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  loading?: boolean;
 }
 
-const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPages, onPageChange, searchTerm, setSearchTerm }: DataSourcesTableProps) => {
+const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPages, onPageChange, searchTerm, setSearchTerm, loading }: DataSourcesTableProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Connected": return "default";
@@ -111,31 +112,42 @@ const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPa
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredDataSources.map((dataSource) => (
-              <TableRow key={dataSource.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onDataSourceClick(dataSource.id)}>
-                <TableCell>
-                  <div className="font-medium text-gray-900 hover:text-blue-600">
-                    {dataSource.name}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8">
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading data sources...</span>
                   </div>
                 </TableCell>
-                <TableCell>{dataSource.description}</TableCell>
-                <TableCell>
-                  {dataSource.tags && dataSource.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {dataSource.tags.map((tag: string, idx: number) => (
-                        <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">No tags</span>
-                  )}
-                </TableCell>
-                <TableCell>{dataSource.creationTime}</TableCell>
-                <TableCell>{dataSource.lastModifiedTime}</TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredDataSources.map((dataSource) => (
+                <TableRow key={dataSource.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onDataSourceClick(dataSource.id)}>
+                  <TableCell>
+                    <div className="font-medium text-gray-900 hover:text-blue-600">
+                      {dataSource.name}
+                    </div>
+                  </TableCell>
+                  <TableCell>{dataSource.description}</TableCell>
+                  <TableCell>
+                    {dataSource.tags && dataSource.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {dataSource.tags.map((tag: string, idx: number) => (
+                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">No tags</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{dataSource.creationTime}</TableCell>
+                  <TableCell>{dataSource.lastModifiedTime}</TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
         

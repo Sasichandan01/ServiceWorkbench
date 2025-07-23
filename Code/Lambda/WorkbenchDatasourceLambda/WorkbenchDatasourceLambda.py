@@ -210,7 +210,7 @@ def create_datasource(body,user_id):
     }
 
     datasource_table.put_item(Item=item)
-    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
+    # log_activity(ACTIVITY_LOGS_TABLE, "Datasource", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
     
     # Create FGAC access for the creator
     create_datasource_fgac(resource_access_table, user_id, "owner", datasource_id)
@@ -368,7 +368,7 @@ def update_datasource(datasource_id, body, user_id):
     name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
     DatasourceName = name_item.get("Item").get("DatasourceName")
 
-    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", DatasourceName, datasource_id, user_id, "UPDATE DATASOURCE")
+    log_activity(ACTIVITY_LOGS_TABLE, "Datasource", DatasourceName, datasource_id, user_id, "UPDATE DATASOURCE")
 
     return return_response(200, {"Message": "Datasource updated successfully"})
 
@@ -440,7 +440,7 @@ def delete_datasource(datasource_id, user_id):
         return return_response(500, {"message": "Failed to delete S3 files"})
 
     
-    log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE")
+    log_activity(ACTIVITY_LOGS_TABLE, "Datasource", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE")
 
     return return_response(200, {"Message": "Datasource and all associated files deleted successfully"})
 
@@ -499,7 +499,7 @@ def generate_presigned_url(datasource_id, user_id, body=None):
         name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
         Datasourcename = name_item.get("Item").get("DatasourceName")
 
-        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "UPLOAD FILE IN DATASOURCE")
+        log_activity(ACTIVITY_LOGS_TABLE, "Datasource", Datasourcename, datasource_id, user_id, "UPLOAD FILE IN DATASOURCE")
 
         return return_response(200, {"PreSignedURL": result})
 
@@ -535,7 +535,7 @@ def create_folder(datasource_id, body, user_id):
         name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
         Datasourcename = name_item.get("Item").get("DatasourceName")
 
-        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "CREATE FOLDER IN DATASOURCE")
+        log_activity(ACTIVITY_LOGS_TABLE, "Datasource", Datasourcename, datasource_id, user_id, "CREATE FOLDER IN DATASOURCE")
         return return_response(201, {"Message": "Folder created successfully"})
     except Exception as e:
         LOGGER.error("Failed to create S3 folder: %s", e, exc_info=True)
@@ -590,7 +590,7 @@ def delete_datasource_files(datasource_id, full_keys, user_id):
         name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
         Datasourcename = name_item.get("Item").get("DatasourceName")
 
-        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE FILE")
+        log_activity(ACTIVITY_LOGS_TABLE, "Datasource", Datasourcename, datasource_id, user_id, "DELETE DATASOURCE FILE")
 
         return return_response(200, result)
 
@@ -632,7 +632,7 @@ def generate_presigned_download_url(datasource_id, body, user_id):
         name_item = datasource_table.get_item(Key={"DatasourceId": datasource_id})
         Datasourcename = name_item.get("Item").get("DatasourceName")
 
-        log_activity(ACTIVITY_LOGS_TABLE, "DataSoure", Datasourcename, datasource_id, user_id, "DOWNLOAD FILE IN DATASOURCE")
+        log_activity(ACTIVITY_LOGS_TABLE, "Datasource", Datasourcename, datasource_id, user_id, "DOWNLOAD FILE IN DATASOURCE")
         return return_response(200, {"PreSignedURL": presigned_url})
     except Exception as e:
         LOGGER.error("Failed to generate presigned download URL: %s", e, exc_info=True)

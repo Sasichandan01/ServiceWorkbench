@@ -39,18 +39,7 @@ def send_message_to_websocket(client, conn_id, message):
     except Exception as e:
         LOGGER.error(f"WebSocket send failed for {conn_id}: {e}")
 
-def find_thinking_blocks(obj):
-    blocks = []
-    if isinstance(obj, dict):
-        for v in obj.values():
-            blocks.extend(find_thinking_blocks(v))
-    elif isinstance(obj, list):
-        for item in obj:
-            blocks.extend(find_thinking_blocks(item))
-    elif isinstance(obj, str):
-        for m in re.findall(r"<thinking>(.*?)</thinking>", obj, re.DOTALL):
-            blocks.append(m.strip())
-    return blocks
+
 
 def find_code_variables(obj):
     variables = []
@@ -66,13 +55,30 @@ def find_code_variables(obj):
     return variables
 
 
+def clean_response_string(input_data):
+  if isinstance(input_data, list):
+    temp_strings = []
+    for item in input_data:
+      s_item = str(item)
+      s_item = s_item.replace("\n", "")
+      s_item = s_item.replace("\\", "")
+      temp_strings.append(s_item)
+    return " ".join(temp_strings)
+  else:
+    response_string = str(input_data)
+    cleaned_string = response_string.replace("\n", "")
+    cleaned_string = cleaned_string.replace("\\", "")
+
+    return cleaned_string
+
+
 
 def handle_send_message(event, apigw_client, connection_id, user_id):
 
     body = json.loads(event.get('body', '{}'))
-    user_prompt = body.get('prompt')
+    user_prompt = body.get('userMessage')
 
-    if 'WorkspaceId' not in body or 'SolutionId' not in body:
+    if 'workspaceid' not in body or 'solutionid' not in body:
         msg = "Missing WorkspaceId or SolutionId"
         LOGGER.error(msg)
         send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": msg})
@@ -80,23 +86,23 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
     if not user_prompt:
-        msg = "Missing 'prompt' in body"
+        msg = "Missing userMessage in body"
         LOGGER.warning(msg)
         send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": msg})
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
 
-    s3_key = f"{body['WorkspaceId']}/{body['SolutionId']}/memory.txt"
+    s3_key = f"{body['workspaceid']}/{body['solutionid']}/memory.txt"
     memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
     current_lambda_requirements = generate_requirements()
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}"
+    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the username {user_id}"
 
     if memory_content:
         combined_prompt += f" Here is the memory context: {memory_content}"
-    send_message_to_websocket(apigw_client, connection_id, {"status": "processing", "message": "Processing your request with the AI agent..."})
+    
     LOGGER.info(f"Prompt: {combined_prompt}")
 
-    response_stream = bedrock_agent_runtime_client.invoke_agent(
+    invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
         agentId="TCMEZDRP4O",
         agentAliasId="BNWPCZI2IV",
         sessionId=connection_id[:-1],
@@ -109,37 +115,62 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     )
     
     seen_code_vars = set()
-    
+    for event in invoke_agent_response["completion"]:
+        trace = event.get("trace")
+        print(trace)
+        if trace:
+            LOGGER.info("trace", trace)
+            response_obj = {"Metadata": {"IsComplete": False}}
 
-    for ev in response_stream['completion']:
-        if 'chunk' in ev:
-            text = ev['chunk']['bytes'].decode('utf-8')
-            send_message_to_websocket(apigw_client, connection_id, {
-                'status': 'in_progress', 'type': 'text_chunk', 'content': text
-            })
-        if 'trace' in ev:
-            print(ev)
+            if "failureTrace" in trace["trace"]:
+                failure_reason = trace["trace"]["failureTrace"].get("failureReason", "Unknown failure. Please try again after some time.")
+                if any(error in failure_reason for error in LAMBDA_ERROR):
 
-            for thinking in find_thinking_blocks(ev):
-                raw = json.dumps(ev, default=str, sort_keys=True).encode('utf-8')
-                key = hashlib.sha256(raw).hexdigest()
-                if key in seen_hashes:
-                    continue
-                seen_hashes.add(key)
-                if thinking=="":
-                    thinking="Generating....."
-                send_message_to_websocket(apigw_client, connection_id, {
-                    'status': 'in_progress', 'type': 'thinking', 'content': thinking
-                })
-            for name, value in find_code_variables(ev):
-                if (name, value) not in seen_code_vars:
-                    seen_code_vars.add((name, value))
-                    LOGGER.info(f"Found variable {name}={value}")
-                    send_message_to_websocket(apigw_client, connection_id, {
-                        'status': 'in_progress', 'type': 'variable', 'name': name, 'value': value
-                    })
+                    response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
+                    send_message_to_websocket( apigw_client, connection_id,response_obj)
 
-    return {'statusCode': 200, 'body': json.dumps({'message': 'Stream processed'})}
+                    response_obj.pop("AITrace")
+                    response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
+                else:
+                    response_obj["AIMessage"] = failure_reason
+
+                response_obj["Metadata"]["IsComplete"] = True
+                send_message_to_websocket( apigw_client, connection_id,response_obj)
+                return
+            elif "rationale" in trace["trace"]["orchestrationTrace"]:
+                response_obj["AITrace"] = trace["trace"]["orchestrationTrace"]["rationale"]["text"]
+            
+            elif "observation" in trace["trace"]["orchestrationTrace"]:
+                observation_type = trace["trace"]["orchestrationTrace"]["observation"]["type"]
+                
+                if observation_type == "KNOWLEDGE_BASE":
+                    response_obj["AITrace"] = [
+                        {
+                            "Dataset": reference["location"]["s3Location"]["uri"].split("/")[-3],
+                            "Domain": reference["location"]["s3Location"]["uri"].split("/")[-4],
+                            "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
+                        } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
+                    ]
+             
+                # elif observation_type == "ACTION_GROUP":
+                    # response_obj["AITrace"] = [{
+                    #     "Response from Lambda function" : trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    # }]
+                
+                elif observation_type == "FINISH" and trace['agentId']=='TCMEZDRP4O':
+                    response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
+                    response_obj["Metadata"]["IsComplete"] = True
+                
+
+            
+            # if "AITrace" in response_obj:
+            #     response_obj["AITrace"] = clean_response_string(response_obj["AITrace"])
+            # elif "AIMessage" in response_obj:
+            #     response_obj["AIMessage"] = clean_response_string(response_obj["AIMessage"])
+
+     
+            if "AITrace" in response_obj or "AIMessage" in response_obj:
+                send_message_to_websocket(apigw_client, connection_id,response_obj)    
 
 def lambda_handler(event, context):
     LOGGER.info("Event: %s", json.dumps(event, default=str))
@@ -157,7 +188,11 @@ def lambda_handler(event, context):
         return {'statusCode': 200}
 
     if rc['routeKey'] == 'sendMessage':
-        return handle_send_message(event, client, cid, rc['authorizer']['user_id'])
-    send_message_to_websocket(client, cid, {'status': 'error', 'message': 'Unhandled route'})
+        handle_send_message(event, client, cid, rc['authorizer']['user_id'])
+        # send_message_to_websocket(client, cid, {'status': 'Success', 'message': 'Completed'})
 
     return {'statusCode': 400}
+
+
+
+

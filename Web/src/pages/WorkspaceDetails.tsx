@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import WorkspaceSettings from "@/components/WorkspaceSettings";
 import WorkspaceBreadcrumb from "@/components/WorkspaceBreadcrumb";
 import UserProfileDialog from "@/components/admin/UserProfileDialog";
+import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
 import { 
   Users, 
   Plus, 
@@ -34,7 +35,9 @@ import {
 } from "lucide-react";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
-import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation } from '../services/apiSlice';
+import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation, useShareResourceMutation } from '../services/apiSlice';
+import { useAppSelector } from "@/hooks/useAppSelector";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Solution {
   id: number;
@@ -79,6 +82,7 @@ const WorkspaceDetails = () => {
   const [newSolutionTags, setNewSolutionTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
   const [createSolution, { isLoading: isCreatingSolution }] = useCreateSolutionMutation();
+  const [shareResource, { isLoading: isSharing }] = useShareResourceMutation();
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -112,6 +116,9 @@ const WorkspaceDetails = () => {
   // Fetch solutions count and list using RTK Query
   const { data: solutionsData, isLoading: solutionsLoading, isError: solutionsError } = useGetSolutionsQuery({ workspaceId: id!, limit: 10, offset: solutionsPage });
   const solutionsTotalCount = solutionsData?.Pagination?.TotalCount || 0;
+  
+  // Combined loading state for better UX - show loading until all critical data is loaded
+  const isLoading = workspaceLoading || solutionsLoading;
 
   // Add a function to refetch workspace details
   // Remove old workspace state, loading, error, and fetchWorkspaceDetails
@@ -177,7 +184,7 @@ const WorkspaceDetails = () => {
     }
   };
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUserEmail.trim()) {
       toast({
         title: "Error",
@@ -187,25 +194,29 @@ const WorkspaceDetails = () => {
       return;
     }
 
-    // Add new user to the list
-    const newUser: WorkspaceUser = {
-      id: apiUsers.length + 1,
-      name: newUserEmail.split('@')[0], // Simple name extraction
-      email: newUserEmail,
-      role: newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1),
-      joinedDate: new Date().toISOString().split('T')[0]
-    };
+    try {
+      await shareResource({
+        Username: newUserEmail,
+        ResourceType: 'workspace',
+        ResourceId: id!,
+        AccessType: newUserRole as 'owner' | 'read-only' | 'editor',
+      }).unwrap();
 
-    // setAllUsers(prev => [...prev, newUser]);
+      toast({
+        title: "Success",
+        description: `User invited to workspace successfully!`,
+      });
 
-    toast({
-      title: "Success",
-      description: `User invited to workspace successfully!`,
-    });
-
-    setNewUserEmail("");
-    setNewUserRole("viewer");
-    setIsAddUserDialogOpen(false);
+      setNewUserEmail("");
+      setNewUserRole("viewer");
+      setIsAddUserDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.data?.message || 'Failed to share workspace.',
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveUser = (userId: number) => {
@@ -324,6 +335,17 @@ const WorkspaceDetails = () => {
     navigate(`/workspaces/${id}/ai-generator`);
   };
 
+  const user = useAppSelector((state) => state.auth.user);
+  // Helper to check if current user is the owner
+  const isOwner =
+    user && workspace?.owner && (
+      user.username === workspace.owner ||
+      user.sub === workspace.owner ||
+      user.email === workspace.owner
+    );
+
+  const [activeTab, setActiveTab] = useState("solutions");
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -363,7 +385,7 @@ const WorkspaceDetails = () => {
         </Card>
       )}
 
-      {/* Overview Cards */}
+      {/* Overview Cards (moved above tabs) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="pt-6">
@@ -376,7 +398,6 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -388,9 +409,6 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Removed Data Sources Card */}
-
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -402,8 +420,6 @@ const WorkspaceDetails = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Tags Card */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -425,7 +441,7 @@ const WorkspaceDetails = () => {
         </Card>
       </div>
 
-      {/* Workspace Info */}
+      {/* Workspace Info Card (moved above tabs) */}
       <Card>
         <CardHeader>
           <CardTitle>Workspace Information</CardTitle>
@@ -455,375 +471,397 @@ const WorkspaceDetails = () => {
         </CardContent>
       </Card>
 
-      {/* Solutions */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Solutions</CardTitle>
-              <CardDescription>Manage solutions in this workspace</CardDescription>
-            </div>
-            <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
-              <DialogTrigger asChild>
-                <Button disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Solution</DialogTitle>
-                  <DialogDescription>
-                    Create a new solution in this workspace.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="solution-name">Solution Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="solution-name"
-                      placeholder="Enter solution name"
-                      value={newSolutionName}
-                      onChange={(e) => setNewSolutionName(e.target.value)}
-                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="solution-description">Description <span className="text-red-500">*</span></Label>
-                    <Textarea
-                      id="solution-description"
-                      placeholder="Describe your solution..."
-                      value={newSolutionDescription}
-                      onChange={(e) => setNewSolutionDescription(e.target.value)}
-                      rows={3}
-                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="solution-tags">Tags <span className="text-red-500">*</span></Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="solution-tags"
-                        placeholder="Add a tag and press Enter"
-                        value={newTagInput}
-                        onChange={e => setNewTagInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && newTagInput.trim()) {
-                            e.preventDefault();
-                            if (!newSolutionTags.includes(newTagInput.trim())) {
-                              setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
-                            }
-                            setNewTagInput("");
-                          }
-                        }}
-                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
-                      />
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          if (newTagInput.trim() && !newSolutionTags.includes(newTagInput.trim())) {
-                            setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
-                          }
-                          setNewTagInput("");
-                        }}
-                        disabled={workspace?.status === 'Inactive' || isCreatingSolution}
-                        variant="outline"
-                        size="sm"
-                      >
-                        Add
-                      </Button>
+      {/* Main Content with Sidebar */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="xl:col-span-3 lg:col-span-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className={`grid w-full ${isOwner ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <TabsTrigger value="solutions">Solutions</TabsTrigger>
+              {isOwner && <TabsTrigger value="users">Users</TabsTrigger>}
+            </TabsList>
+            {/* Solutions Tab */}
+            <TabsContent value="solutions" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle>Solutions</CardTitle>
+                      <CardDescription>Manage solutions in this workspace</CardDescription>
                     </div>
-                    {newSolutionTags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {newSolutionTags.map((tag, idx) => (
-                          <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
-                            {tag}
-                            <button
-                              type="button"
-                              className="ml-1 text-blue-600 hover:text-red-600"
-                              onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
+                    <Dialog open={isCreateSolutionDialogOpen} onOpenChange={setIsCreateSolutionDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New Solution</DialogTitle>
+                          <DialogDescription>
+                            Create a new solution in this workspace.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="solution-name">Solution Name <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="solution-name"
+                              placeholder="Enter solution name"
+                              value={newSolutionName}
+                              onChange={(e) => setNewSolutionName(e.target.value)}
                               disabled={workspace?.status === 'Inactive' || isCreatingSolution}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="solution-description">Description <span className="text-red-500">*</span></Label>
+                            <Textarea
+                              id="solution-description"
+                              placeholder="Describe your solution..."
+                              value={newSolutionDescription}
+                              onChange={(e) => setNewSolutionDescription(e.target.value)}
+                              rows={3}
+                              disabled={workspace?.status === 'Inactive' || isCreatingSolution}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="solution-tags">Tags <span className="text-red-500">*</span></Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="solution-tags"
+                                placeholder="Add a tag and press Enter"
+                                value={newTagInput}
+                                onChange={e => setNewTagInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && newTagInput.trim()) {
+                                    e.preventDefault();
+                                    if (!newSolutionTags.includes(newTagInput.trim())) {
+                                      setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                                    }
+                                    setNewTagInput("");
+                                  }
+                                }}
+                                disabled={workspace?.status === 'Inactive' || isCreatingSolution}
+                              />
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (newTagInput.trim() && !newSolutionTags.includes(newTagInput.trim())) {
+                                    setNewSolutionTags([...newSolutionTags, newTagInput.trim()]);
+                                  }
+                                  setNewTagInput("");
+                                }}
+                                disabled={workspace?.status === 'Inactive' || isCreatingSolution}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Add
+                              </Button>
+                            </div>
+                            {newSolutionTags.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {newSolutionTags.map((tag, idx) => (
+                                  <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1">
+                                    {tag}
+                                    <button
+                                      type="button"
+                                      className="ml-1 text-blue-600 hover:text-red-600"
+                                      onClick={() => setNewSolutionTags(newSolutionTags.filter(t => t !== tag))}
+                                      disabled={workspace?.status === 'Inactive' || isCreatingSolution}
+                                    >
+                                      &times;
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateSolution} disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
+                            {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <Input
+                        placeholder="Search solutions by name..."
+                        value={solutionsSearch}
+                        onChange={(e) => {
+                          setSolutionsSearch(e.target.value);
+                          setSolutionsPage(1);
+                        }}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {/* Solutions Table */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Solution Name</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Tags</TableHead>
+                          <TableHead>Last Modified</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {solutionsLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                              Loading solutions...
+                            </TableCell>
+                          </TableRow>
+                        ) : solutionsError ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-red-500">
+                              {solutionsError}
+                            </TableCell>
+                          </TableRow>
+                        ) : solutionsData?.Solutions?.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                              No solutions found matching your search.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          solutionsData?.Solutions?.map((solution) => (
+                            <TableRow 
+                              key={solution.SolutionId} 
+                              className="cursor-pointer hover:bg-gray-50 transition-colors"
+                              onClick={() => handleSolutionClick(solution.SolutionId)}
                             >
-                              &times;
-                            </button>
-                          </span>
-                        ))}
+                              <TableCell>
+                                <div className="font-medium text-gray-900">{solution.SolutionName}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-gray-700 text-sm line-clamp-2">{solution.Description}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
+                                    solution.Tags.map((tag: string, idx: number) => (
+                                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                                    ))
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">No tags</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-600">{solution.LastUpdationTime}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+
+                    {/* Solutions Pagination */}
+                    {solutionsTotalCount > 10 && (
+                      <div className="flex justify-center">
+                        <Pagination>
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious 
+                                onClick={() => setSolutionsPage(Math.max(1, solutionsPage - 1))}
+                                className={solutionsPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                            {Array.from({ length: Math.ceil(solutionsTotalCount / 10) }, (_, i) => (
+                              <PaginationItem key={i + 1}>
+                                <PaginationLink
+                                  onClick={() => setSolutionsPage(i + 1)}
+                                  isActive={solutionsPage === i + 1}
+                                  className="cursor-pointer"
+                                >
+                                  {i + 1}
+                                </PaginationLink>
+                              </PaginationItem>
+                            ))}
+                            <PaginationItem>
+                              <PaginationNext 
+                                onClick={() => setSolutionsPage(Math.min(Math.ceil(solutionsTotalCount / 10), solutionsPage + 1))}
+                                className={solutionsPage === Math.ceil(solutionsTotalCount / 10) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
                       </div>
                     )}
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateSolutionDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateSolution} disabled={workspace?.status === 'Inactive' || isCreatingSolution}>
-                    {isCreatingSolution ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Solution'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search solutions by name..."
-                value={solutionsSearch}
-                onChange={(e) => {
-                  setSolutionsSearch(e.target.value);
-                  setSolutionsPage(1);
-                }}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Solutions Table */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Solution Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead>Last Modified</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {solutionsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                      Loading solutions...
-                    </TableCell>
-                  </TableRow>
-                ) : solutionsError ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-red-500">
-                      {solutionsError}
-                    </TableCell>
-                  </TableRow>
-                ) : solutionsData?.Solutions?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                      No solutions found matching your search.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  solutionsData?.Solutions?.map((solution) => (
-                    <TableRow 
-                      key={solution.SolutionId} 
-                      className="cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => handleSolutionClick(solution.SolutionId)}
-                    >
-                      <TableCell>
-                        <div className="font-medium text-gray-900">{solution.SolutionName}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-gray-700 text-sm line-clamp-2">{solution.Description}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
-                            solution.Tags.map((tag: string, idx: number) => (
-                              <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
-                            ))
-                          ) : (
-                            <span className="text-gray-400 text-xs">No tags</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-gray-600">{solution.LastUpdationTime}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {/* Solutions Pagination */}
-            {solutionsTotalCount > 10 && (
-              <div className="flex justify-center">
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious 
-                        onClick={() => setSolutionsPage(Math.max(1, solutionsPage - 1))}
-                        className={solutionsPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                    {Array.from({ length: Math.ceil(solutionsTotalCount / 10) }, (_, i) => (
-                      <PaginationItem key={i + 1}>
-                        <PaginationLink
-                          onClick={() => setSolutionsPage(i + 1)}
-                          isActive={solutionsPage === i + 1}
-                          className="cursor-pointer"
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext 
-                        onClick={() => setSolutionsPage(Math.min(Math.ceil(solutionsTotalCount / 10), solutionsPage + 1))}
-                        className={solutionsPage === Math.ceil(solutionsTotalCount / 10) ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* User Management */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>Manage users and their permissions</CardDescription>
-            </div>
-            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-              <DialogTrigger asChild>
-                <Button disabled={workspace?.status === "Inactive"}>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add User to Workspace</DialogTitle>
-                  <DialogDescription>
-                    Invite a user to join this workspace by entering their email address.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="user@company.com"
-                      value={newUserEmail}
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
-                    <Select value={newUserRole} onValueChange={setNewUserRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive"}>
-                    Send Invitation
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search users by name, email, or role..."
-                value={usersSearch}
-                onChange={(e) => {
-                  setUsersSearch(e.target.value);
-                  setUsersPage(1);
-                }}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Users Table */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Joined</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedApiUsers.map((user, idx) => (
-                  <TableRow key={user.UserId || idx}>
-                    <TableCell>
-                      <div className="font-medium text-gray-900">{user.Username}</div>
-                      <div className="text-sm text-gray-600 flex items-center space-x-1">
-                        <Mail className="w-3 h-3" />
-                        <span>{user.Email}</span>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            {/* Users Tab (only if isOwner) */}
+            {isOwner && (
+              <TabsContent value="users" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <CardTitle>User Management</CardTitle>
+                        <CardDescription>Manage users and their permissions</CardDescription>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
-                        {user.Access}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
-                  </TableRow>
-                ))}
-                {paginatedApiUsers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-gray-500">
-                      No users found matching your search.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                      <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button disabled={workspace?.status === "Inactive"}>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Share
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Share Workspace</DialogTitle>
+                            <DialogDescription>
+                              Invite a user to join this workspace by entering their email address or user ID.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="email">Username <span className="text-red-500">*</span></Label>
+                              <Input
+                                id="email"
+                                type="email"
+                                placeholder="enter email or userid"
+                                value={newUserEmail}
+                                onChange={(e) => setNewUserEmail(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                              <Select value={newUserRole} onValueChange={setNewUserRole}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="owner">Owner</SelectItem>
+                                  <SelectItem value="editor">Editor</SelectItem>
+                                  <SelectItem value="read-only">read-only</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive" || isSharing}>
+                              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <Input
+                          placeholder="Search users by name, email, or role..."
+                          value={usersSearch}
+                          onChange={(e) => {
+                            setUsersSearch(e.target.value);
+                            setUsersPage(1);
+                          }}
+                          className="pl-10"
+                        />
+                      </div>
 
-            {/* Users Pagination */}
-            {totalApiUsersPages > 1 && (
-              <div className="flex justify-center">
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious 
-                        onClick={() => setUsersPage(Math.max(1, usersPage - 1))}
-                        className={usersPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                    {[...Array(totalApiUsersPages)].map((_, i) => (
-                      <PaginationItem key={i + 1}>
-                        <PaginationLink
-                          onClick={() => setUsersPage(i + 1)}
-                          isActive={usersPage === i + 1}
-                          className="cursor-pointer"
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext 
-                        onClick={() => setUsersPage(Math.min(totalApiUsersPages, usersPage + 1))}
-                        className={usersPage === totalApiUsersPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
+                      {/* Users Table */}
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Joined</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedApiUsers.map((user, idx) => (
+                            <TableRow key={user.UserId || idx}>
+                              <TableCell>
+                                <div className="font-medium text-gray-900">{user.Username}</div>
+                                <div className="text-sm text-gray-600 flex items-center space-x-1">
+                                  <Mail className="w-3 h-3" />
+                                  <span>{user.Email}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                                  {user.Access}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
+                            </TableRow>
+                          ))}
+                          {paginatedApiUsers.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                                No users found matching your search.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+
+                      {/* Users Pagination */}
+                      {totalApiUsersPages > 1 && (
+                        <div className="flex justify-center">
+                          <Pagination>
+                            <PaginationContent>
+                              <PaginationItem>
+                                <PaginationPrevious 
+                                  onClick={() => setUsersPage(Math.max(1, usersPage - 1))}
+                                  className={usersPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                              {[...Array(totalApiUsersPages)].map((_, i) => (
+                                <PaginationItem key={i + 1}>
+                                  <PaginationLink
+                                    onClick={() => setUsersPage(i + 1)}
+                                    isActive={usersPage === i + 1}
+                                    className="cursor-pointer"
+                                  >
+                                    {i + 1}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              ))}
+                              <PaginationItem>
+                                <PaginationNext 
+                                  onClick={() => setUsersPage(Math.min(totalApiUsersPages, usersPage + 1))}
+                                  className={usersPage === totalApiUsersPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                            </PaginationContent>
+                          </Pagination>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </Tabs>
+        </div>
+
+        {/* Right Sidebar - Audit Logs */}
+        <div className="space-y-6">
+          <WorkspaceAuditLogs workspaceId={workspace?.id} />
+        </div>
+      </div>
     </div>
   );
 };

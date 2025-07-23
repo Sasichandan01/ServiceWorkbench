@@ -22,6 +22,8 @@ interface SolutionTabsProps {
   onTabChange?: (tab: string) => void;
   isNewSolution?: boolean;
   onGenerateSolution?: () => void;
+  preloadedCodeFiles?: any;
+  loadingCodeFiles?: boolean;
 }
 
 const SolutionTabs = ({ 
@@ -36,7 +38,9 @@ const SolutionTabs = ({
   activeTab,
   onTabChange,
   isNewSolution = false,
-  onGenerateSolution
+  onGenerateSolution,
+  preloadedCodeFiles,
+  loadingCodeFiles
 }: SolutionTabsProps) => {
   return (
     <>
@@ -81,7 +85,20 @@ const SolutionTabs = ({
 
         {!isNewSolution && (
           <TabsContent value="codes" className="mt-6">
-            <CodeEditor workspaceId={workspaceId} solutionId={solutionId} />
+            {loadingCodeFiles ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading code files...</p>
+                </div>
+              </div>
+            ) : (
+              <CodeEditor 
+                workspaceId={workspaceId} 
+                solutionId={solutionId} 
+                preloadedCodeFiles={preloadedCodeFiles}
+              />
+            )}
           </TabsContent>
         )}
 
