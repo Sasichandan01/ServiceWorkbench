@@ -70,6 +70,27 @@ const AISolutionGenerator = ({ solutionName, solutionDescription, onClose }: AIS
     setMessages([initialMessage]);
   }, [solutionName, solutionDescription]);
 
+  useEffect(() => {
+    // Auto-expand on first trace
+    if (currentThinking.length === 1 && isLoading) {
+      // Find the last AI message (if any) to expand its thinking
+      const lastAiMsg = messages.filter(m => m.type === 'ai').slice(-1)[0];
+      if (lastAiMsg) {
+        setExpandedThinking(prev => ({ ...prev, [lastAiMsg.id]: true }));
+      }
+    }
+  }, [currentThinking.length, isLoading]);
+
+  useEffect(() => {
+    // Auto-collapse on final AI message
+    if (!isLoading && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.type === 'ai' && lastMsg.thinking) {
+        setExpandedThinking(prev => ({ ...prev, [lastMsg.id]: false }));
+      }
+    }
+  }, [isLoading, messages]);
+
   const processWebSocketMessage = (data: string) => {
     try {
       const parsed = JSON.parse(data);

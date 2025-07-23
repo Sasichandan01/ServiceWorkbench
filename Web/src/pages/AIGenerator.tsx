@@ -161,6 +161,27 @@ const AIGenerator = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Auto-expand on first trace
+    if (currentThinking.length === 1 && isGenerating) {
+      // Find the last AI message (if any) to expand its thinking
+      const lastAiMsg = messages.filter(m => m.sender === 'ai').slice(-1)[0];
+      if (lastAiMsg) {
+        setExpandedThinking(prev => ({ ...prev, [lastAiMsg.id]: true }));
+      }
+    }
+  }, [currentThinking.length, isGenerating]);
+
+  useEffect(() => {
+    // Auto-collapse on final AI message
+    if (!isGenerating && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.sender === 'ai' && lastMsg.thinking) {
+        setExpandedThinking(prev => ({ ...prev, [lastMsg.id]: false }));
+      }
+    }
+  }, [isGenerating, messages]);
+
   const handleSendMessage = async () => {
     console.log('[Chat] handleSendMessage called');
     if (!inputValue.trim() || !wsClientRef.current || !wsConnected) {
