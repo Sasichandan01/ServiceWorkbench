@@ -248,11 +248,14 @@ def get_workspace(event,context):
         ).get('Items')
         logger.info("Access resource response: %s", access_resource_response)
         users=[]
+        user_flag=0
         for item in access_resource_response:
-            # Not important, so removed
-            user_id,access_type=item.get('Id').split('#')
+            
+            user,access_type=item.get('Id').split('#')
+            if user==user_id and access_type=='owner':
+                user_flag=1
             user_response = users_table.get_item(
-                Key={'UserId': user_id},
+                Key={'UserId': user},
                 ProjectionExpression="UserId, Username, Email, #rls",
                 ExpressionAttributeNames={
                     "#rls": "Role"
@@ -265,7 +268,8 @@ def get_workspace(event,context):
 
         resp=paginate_list('Users',users,['Username'],offset,limit,None,'asc')
         body=resp.get('body')
-        workspace_response.update(json.loads(body))
+        if user_flag==1:
+            workspace_response.update(json.loads(body))
         
         return return_response(200, workspace_response)
     except Exception as e:
