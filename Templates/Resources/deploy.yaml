@@ -1736,6 +1736,29 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ArchitectureAgentAGLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: S3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${WorkspacesBucket}/*"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
