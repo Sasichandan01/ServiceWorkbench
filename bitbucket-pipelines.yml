@@ -381,78 +381,6 @@ definitions:
 
         # echo "Lambda '$LAMBDA_NAME' updated successfully with zip containing lambda_function.py"
 
-    # - script: &zip_and_upload_lambdas
-    #     |
-    #     set -e
-    #     echo "Zipping and uploading lambda files under Code/Lambda to S3..."
-    #     BASE_DIR="Code/Lambda"
-    #     DEST_BUCKET="service-workbench-artifacts"
-    #     LAMBDA_ZIP_DIR="lambda_zips"
-
-    #     BRANCH_NAME=$(echo "$BITBUCKET_BRANCH" | tr '/' '-')
-
-    #     mkdir -p "$LAMBDA_ZIP_DIR"
-    #     trap "rm -rf $LAMBDA_ZIP_DIR" EXIT
-    #     LAMBDA_VERSION=$(date -u +"%Y%m%dT%H%M%SZ")
-    #     echo "Using Lambda version: $LAMBDA_VERSION"
-    #     export LAMBDA_VERSION
-    #     echo "$LAMBDA_VERSION" > .lambda_version
-
-
-    #     for CATEGORY in "$BASE_DIR"/*; do
-    #       if [ -d "$CATEGORY" ]; then
-    #         CATEGORY_NAME=$(basename "$CATEGORY")
-    #         echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
-    #         aws s3 rm "s3://${DEST_BUCKET}/" \
-    #           --recursive \
-    #           --exclude "*" \
-    #           --include "lambda-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
-
-    #         S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
-    #         # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
-
-    #         # Get all .py files in the category
-    #         mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f \( -name "*.py" -o -name "*.yaml" \))
-    #         if [ ${#PY_FILES[@]} -eq 0 ]; then
-    #           echo "No Python files found in $CATEGORY"
-    #           continue
-    #         fi
-    #         if [ ${#PY_FILES[@]} -eq 1 ]; then
-    #           FILE_PATH="${PY_FILES[0]}"
-    #           FILE_NAME=$(basename "$FILE_PATH" .py)
-    #           ZIP_NAME="${FILE_NAME}.zip"
-    #           TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
-
-    #           echo "Processing single file $FILE_PATH -> $ZIP_NAME"
-    #           mkdir -p "$TEMP_DIR"
-    #           cp "$FILE_PATH" "$TEMP_DIR/lambda_function.py"
-    #         else
-    #           ZIP_NAME="${CATEGORY_NAME}.zip"
-    #           TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
-
-    #           echo "Processing multiple files in $CATEGORY_NAME -> $ZIP_NAME"
-    #           mkdir -p "$TEMP_DIR"
-    #           for FILE in "${PY_FILES[@]}"; do
-    #             cp "$FILE" "$TEMP_DIR/"
-    #           done
-    #         fi
-
-    #         ZIP_PATH="${LAMBDA_ZIP_DIR}/${ZIP_NAME}"
-
-    #         (
-    #           cd "$TEMP_DIR"
-    #           zip -r "../${ZIP_NAME}" . > /dev/null
-    #         )
-    #         rm -rf "$TEMP_DIR"
-    #         echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
-    #         aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}" || {
-    #           echo "[ERROR] Failed to upload ${ZIP_PATH}"
-    #           exit 1
-    #         }
-    #       fi
-    #     done
-    #     echo "All zips uploaded to S3 under lambda/<folder>/ structure."
-
     - script: &zip_and_upload_lambdas
         |
         set -e
@@ -470,47 +398,52 @@ definitions:
         export LAMBDA_VERSION
         echo "$LAMBDA_VERSION" > .lambda_version
 
+
         for CATEGORY in "$BASE_DIR"/*; do
           if [ -d "$CATEGORY" ]; then
             CATEGORY_NAME=$(basename "$CATEGORY")
             echo "Cleaning up old lambda zips for: ${CATEGORY_NAME,,}"
-            aws s3 rm "s3://${DEST_BUCKET}/lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/" \
+            aws s3 rm "s3://${DEST_BUCKET}/" \
               --recursive \
               --exclude "*" \
-              --include "*.zip" || true
+              --include "lambda-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
 
             S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
+            # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
 
-            # Get all files to include in the zip
-            mapfile -t FILES < <(find "$CATEGORY" -maxdepth 1 -type f \( -name "*.py" -o -name "*.yaml" \))
-            if [ ${#FILES[@]} -eq 0 ]; then
-              echo "No files found in $CATEGORY"
+            # Get all .py files in the category
+            mapfile -t PY_FILES < <(find "$CATEGORY" -maxdepth 1 -type f \( -name "*.py" -o -name "*.yaml" \))
+            if [ ${#PY_FILES[@]} -eq 0 ]; then
+              echo "No Python files found in $CATEGORY"
               continue
             fi
+            if [ ${#PY_FILES[@]} -eq 1 ]; then
+              FILE_PATH="${PY_FILES[0]}"
+              FILE_NAME=$(basename "$FILE_PATH" .py)
+              ZIP_NAME="${FILE_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${FILE_NAME}"
 
-            ZIP_NAME="${CATEGORY_NAME}.zip"
-            TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
+              echo "Processing single file $FILE_PATH -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              cp "$FILE_PATH" "$TEMP_DIR/lambda_function.py"
+            else
+              ZIP_NAME="${CATEGORY_NAME}.zip"
+              TEMP_DIR="${LAMBDA_ZIP_DIR}/temp_${CATEGORY_NAME}"
 
-            echo "Processing files in $CATEGORY_NAME:"
-            printf '  - %s\n' "${FILES[@]}"
-            
-            mkdir -p "$TEMP_DIR"
-            for FILE in "${FILES[@]}"; do
-              # Special handling if it's a single Python file (for Lambda compatibility)
-              if [[ ${#FILES[@]} -eq 1 && "$FILE" == *.py ]]; then
-                cp "$FILE" "$TEMP_DIR/lambda_function.py"
-              else
+              echo "Processing multiple files in $CATEGORY_NAME -> $ZIP_NAME"
+              mkdir -p "$TEMP_DIR"
+              for FILE in "${PY_FILES[@]}"; do
                 cp "$FILE" "$TEMP_DIR/"
-              fi
-            done
+              done
+            fi
 
             ZIP_PATH="${LAMBDA_ZIP_DIR}/${ZIP_NAME}"
+
             (
               cd "$TEMP_DIR"
               zip -r "../${ZIP_NAME}" . > /dev/null
             )
             rm -rf "$TEMP_DIR"
-            
             echo "Uploading ${ZIP_PATH} to s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}"
             aws s3 cp "${ZIP_PATH}" "s3://${DEST_BUCKET}/${S3_PREFIX}/${ZIP_NAME}" || {
               echo "[ERROR] Failed to upload ${ZIP_PATH}"
@@ -518,7 +451,7 @@ definitions:
             }
           fi
         done
-        echo "All zips uploaded to S3 under lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/ structure."
+        echo "All zips uploaded to S3 under lambda/<folder>/ structure."
     
     - script: &zip_and_upload_glue_scripts
         |
