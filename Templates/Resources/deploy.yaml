@@ -707,7 +707,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '967'
+      changesetflag: '9671234'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1732,6 +1732,34 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/sharelambda/ShareLambda.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ArchitectureAgentAGLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Architecture Agent AG Lambda Function"
+      FunctionName: !Sub "${pPrefix}-ArchitectureAgentAGLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Environment:
+        Variables:
+          WORKSPACES_BUCKET: !Ref WorkspacesBucket
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architectureagentaglambda/ArchitectureAgentAGLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
