@@ -14,29 +14,6 @@ LOGGER.setLevel(logging.INFO)
 REGION = os.environ.get("REGION")
 http = urllib3.PoolManager()
 
-# def send_cfn_response(event, context, status, reason=None, data=None):
-#     """Send response to CloudFormation with proper error handling"""
-#     response_body = {
-#         "Status": status,
-#         "Reason": reason or f"See details in CloudWatch Log Stream: {context.log_stream_name}",
-#         "PhysicalResourceId": context.log_stream_name,
-#         "StackId": event["StackId"],
-#         "RequestId": event["RequestId"],
-#         "LogicalResourceId": event["LogicalResourceId"],
-#         "Data": data or {}
-#     }
-
-#     try:
-#         response = http.request(
-#             "PUT",
-#             event["ResponseURL"],
-#             body=json.dumps(response_body).encode('utf-8'),
-#             headers={"Content-Type": "application/json"}
-#         )
-#         LOGGER.info("CloudFormation response sent with status: %s", response.status)
-#     except Exception as e:
-#         LOGGER.error("Failed to send CloudFormation response: %s", e)
-#         raise
 
 def connect_to_opensearch(os_endpoint):
     """Establish connection to OpenSearch cluster with robust error handling"""
@@ -381,7 +358,3 @@ def lambda_handler(event, context):
             "FAILED", 
             reason=f"Unhandled exception: {str(e)}"
         )
-<<<<<<< HEAD
-=======
-    
->>>>>>> develop
