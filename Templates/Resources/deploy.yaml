@@ -67,15 +67,6 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
-      
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-  
-  MiscBucketCORS:
-    Type: AWS::S3::BucketCorsConfiguration
-    Properties:
-      Bucket: !Ref MiscBucket
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
@@ -83,6 +74,9 @@ Resources:
             AllowedOrigins: ["*"]
             ExposedHeaders: ["ETag"]
             MaxAge: 3000
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   MiscBucketPolicy:
     Type: AWS::S3::BucketPolicy
