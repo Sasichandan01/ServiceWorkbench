@@ -319,12 +319,24 @@
           Type: string
           Description: All extracted references (IDs and names of datasources, solutions, and workspaces) must be returned in a structured dictionary format, separating IDs and names by resource type.
           IsRequired: true
+        - Name: user_id
+          Type: string
+          Description: User_id fetched from prompt
+          IsRequired: true
     - ToolName: store_solution
       ToolDescription: store solution details
       ToolParameters:
         - Name: result
           Type: string
           Description: it will pass json formatted file
+          IsRequired: true
+        - Name: workspace_id
+          Type: string
+          Description: workspace_id fetched from prompt
+          IsRequired: true
+        - Name: solution_id
+          Type: string
+          Description: solution_id fetched from prompt
           IsRequired: true
 
 - AgentName: ArchitectureGenerationAgent
