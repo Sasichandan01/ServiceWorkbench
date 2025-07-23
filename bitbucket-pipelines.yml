@@ -406,7 +406,7 @@ definitions:
             aws s3 rm "s3://${DEST_BUCKET}/" \
               --recursive \
               --exclude "*" \
-              --include "lambda-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
+              --include "lambda-*-*-${BRANCH_NAME}/${CATEGORY_NAME,,}/*.zip" || true
 
             S3_PREFIX="lambda-${LAMBDA_VERSION}-${BRANCH_NAME}/${CATEGORY_NAME,,}"
             # S3_PREFIX="lambda/${CATEGORY_NAME,,}"
