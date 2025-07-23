@@ -1754,7 +1754,11 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:PutObject
-                Resource: !Sub "arn:aws:s3:::${WorkspacesBucket}/*"
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
+                  - !Sub
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1779,7 +1783,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          WORKSPACES_BUCKET: !Ref WorkspacesBucket
+          WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architectureagentaglambda/ArchitectureAgentAGLambda.zip"
