@@ -1760,6 +1760,9 @@ Resources:
                   - !Sub
                     - "${BucketArn}/*"
                     - {BucketArn: !ImportValue WorkspacesBucketArn}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
