@@ -440,6 +440,9 @@
           Type: string
           Description: S3 key of the memory file
           IsRequired: true
+  KnowledgeBases: 
+    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+      Description: "Knowledge base for OpenSearch documents" 
 
 
 - AgentName: CodeGenerationAgent

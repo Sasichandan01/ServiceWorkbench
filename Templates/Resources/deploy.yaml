@@ -1795,6 +1795,14 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
+  ArchitectureAgentAGLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ArchitectureAgentAGLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
 # Lambda Permission for API Gateway to invoke Roles Lambda
   RolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
