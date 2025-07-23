@@ -73,16 +73,21 @@ const AIGenerator = () => {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         console.log('[Chat] Parsed data:', data);
         
-        // Check if this is the new AITrace/AIMessage format
-        const messageType = Object.keys(data)[0];
-        const messageContent = data[messageType];
-        const metadata = data.metadata || {};
+        // Ignore system messages like 'Endpoint request timed out'
+        if (data && typeof data.message === 'string' && data.message === 'Endpoint request timed out') {
+          console.log('[Chat] Ignored system message:', data.message);
+          return;
+        }
+        // Handle the format: {"Metadata":{"IsComplete":false},"AITrace":"string"} or {"Metadata":{"IsComplete":true},"AIMessage":"string"}
+        const metadata = data.Metadata || {};
+        const aiTrace = data.AITrace;
+        const aiMessage = data.AIMessage;
 
-        if (messageType === "AITrace") {
-          // Add to current thinking
+        if (aiTrace) {
+          // This is an AITrace message - add to thinking
           const thinkingStep: ThinkingStep = {
-            id: Date.now().toString(),
-            content: messageContent,
+            id: Date.now().toString() + Math.random(),
+            content: aiTrace,
             timestamp: new Date()
           };
           setCurrentThinking(prev => {
@@ -90,23 +95,23 @@ const AIGenerator = () => {
             currentThinkingRef.current = newThinking;
             return newThinking;
           });
-          setIsGenerating(true); // Set to true on AITrace/intermediate
-        } else if (messageType === "AIMessage") {
-          // Final AI response - use ref to get current thinking
+          setIsGenerating(true);
+        } else if (aiMessage) {
+          // This is the final AIMessage - create the complete message
           setMessages(prev => {
-            const aiMessage: Message = {
+            const aiMsg: Message = {
               id: prev.length + 1,
-              content: messageContent,
+              content: aiMessage,
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString(),
               thinking: currentThinkingRef.current.length > 0 ? [...currentThinkingRef.current] : undefined,
-              isCompleted: metadata.isCompleted
+              isCompleted: metadata.IsComplete
             };
-            return [...prev, aiMessage];
+            return [...prev, aiMsg];
           });
           setCurrentThinking([]);
           currentThinkingRef.current = [];
-          setIsGenerating(false); // Set to false on final message
+          setIsGenerating(false);
         } else {
           // Fallback for other message formats
           let content = '';
@@ -162,21 +167,19 @@ const AIGenerator = () => {
   }, []);
 
   useEffect(() => {
-    // Auto-expand on first trace
+    // Auto-expand thinking when first trace arrives
     if (currentThinking.length === 1 && isGenerating) {
-      // Find the last AI message (if any) to expand its thinking
-      const lastAiMsg = messages.filter(m => m.sender === 'ai').slice(-1)[0];
-      if (lastAiMsg) {
-        setExpandedThinking(prev => ({ ...prev, [lastAiMsg.id]: true }));
-      }
+      // This is for the current generating message, we'll handle expansion differently
+      // since the message doesn't exist yet
     }
   }, [currentThinking.length, isGenerating]);
 
   useEffect(() => {
-    // Auto-collapse on final AI message
+    // Auto-collapse thinking when AI message is complete
     if (!isGenerating && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg.sender === 'ai' && lastMsg.thinking) {
+      if (lastMsg.sender === 'ai' && lastMsg.thinking && lastMsg.thinking.length > 0) {
+        // Auto-collapse the thinking section for the completed message
         setExpandedThinking(prev => ({ ...prev, [lastMsg.id]: false }));
       }
     }
@@ -196,7 +199,11 @@ const AIGenerator = () => {
     };
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
-    setIsGenerating(true); // Set to true when sending
+    setIsGenerating(true);
+    // Clear any previous thinking
+    setCurrentThinking([]);
+    currentThinkingRef.current = [];
+    
     // Send message via websocket using AWS API Gateway action format
     const payload = JSON.stringify({
       action: "sendMessage",
@@ -206,7 +213,6 @@ const AIGenerator = () => {
     });
     console.log('[Chat] Sending over websocket:', payload);
     wsClientRef.current.send(payload);
-    // setIsGenerating(false); // REMOVE THIS LINE
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -214,6 +220,13 @@ const AIGenerator = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const toggleThinking = (messageId: number) => {
+    setExpandedThinking(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
   };
 
   return (
@@ -227,23 +240,15 @@ const AIGenerator = () => {
         extra="AI Generator"
       />
 
-      {/* Header (removed workspace/solution name and subtitle) */}
-      {/* <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{solutionName || "AI Solution Generator"}</h1>
-          <p className="text-muted-foreground mt-1">Generate comprehensive solutions with AI assistance</p>
-        </div>
-      </div> */}
-
       {/* Chat Window */}
-      <Card className="shadow-lg  border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
         <CardContent className="p-0 h-screen">
           {wsError && (
             <div className="text-red-500 text-center">WebSocket error: {wsError}</div>
           )}
           {/* Initial Centered State */}
           {messages.length === 0 && (
-            <div className=" flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
+            <div className="flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
               <div className="text-center space-y-8 max-w-2xl">
                 <div className="space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto animate-pulse">
@@ -323,12 +328,12 @@ const AIGenerator = () => {
                           </AvatarFallback>
                         </Avatar>
                         <div className={`flex-1 space-y-3 ${message.sender === 'user' ? 'max-w-md' : 'max-w-3xl'}`}>
-                          {/* Thinking Section */}
+                          {/* Thinking Section - Only for AI messages with thinking */}
                           {message.sender === 'ai' && message.thinking && message.thinking.length > 0 && (
                             <div>
                               <Collapsible 
-                                open={expandedThinking[message.id]} 
-                                onOpenChange={(open) => setExpandedThinking(prev => ({...prev, [message.id]: open}))}
+                                open={expandedThinking[message.id] || false} 
+                                onOpenChange={() => toggleThinking(message.id)}
                               >
                                 <CollapsibleTrigger asChild>
                                   <Button 
@@ -337,7 +342,7 @@ const AIGenerator = () => {
                                     className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
                                   >
                                     <div className="flex items-center space-x-2">
-                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      <Brain className="w-3 h-3" />
                                       <span>Show thinking</span>
                                     </div>
                                     {expandedThinking[message.id] ? 
@@ -350,13 +355,9 @@ const AIGenerator = () => {
                                   <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
                                     {message.thinking.map((step, index) => (
                                       <div key={step.id} className="space-y-1">
-                                        {index % 2 === 0 ? (
-                                          <h4 className="font-medium text-sm text-foreground/80">{step.content}</h4>
-                                        ) : (
-                                          <p className="text-sm text-muted-foreground leading-relaxed pl-4 border-l-2 border-border/30">
-                                            {step.content}
-                                          </p>
-                                        )}
+                                        <p className="text-sm text-muted-foreground leading-relaxed">
+                                          {step.content}
+                                        </p>
                                       </div>
                                     ))}
                                   </div>
@@ -373,7 +374,7 @@ const AIGenerator = () => {
                                 : 'bg-card text-card-foreground border border-border/50 shadow-sm hover:border-border'
                             }`}
                           >
-                            <p className="leading-relaxed">{message.content}</p>
+                            <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">
                             {message.timestamp}
@@ -393,23 +394,32 @@ const AIGenerator = () => {
                         <div className="flex-1 max-w-3xl">
                           {currentThinking.length > 0 ? (
                             <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                <span className="text-sm text-muted-foreground">Thinking...</span>
-                              </div>
-                              <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
-                                {currentThinking.map((step, index) => (
-                                  <div key={step.id} className="space-y-1 animate-fade-in">
-                                    {index % 2 === 0 ? (
-                                      <h4 className="font-medium text-sm text-foreground/80">{step.content}</h4>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground leading-relaxed pl-4 border-l-2 border-border/30">
-                                        {step.content}
-                                      </p>
-                                    )}
+                              <Collapsible open={true}>
+                                <CollapsibleTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
+                                    disabled
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      <span>Show thinking</span>
+                                    </div>
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-2">
+                                  <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
+                                    {currentThinking.map((step) => (
+                                      <div key={step.id} className="space-y-1 animate-fade-in">
+                                        <p className="text-sm text-muted-foreground leading-relaxed">
+                                          {step.content}
+                                        </p>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
+                                </CollapsibleContent>
+                              </Collapsible>
                             </div>
                           ) : (
                             <div className="p-4 bg-card border border-border/50 rounded-2xl shadow-sm">
@@ -423,7 +433,9 @@ const AIGenerator = () => {
                                     />
                                   ))}
                                 </div>
-                                <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
+                                <span className="text-sm text-muted-foreground ml-2">
+                                  <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />Show thinking
+                                </span>
                               </div>
                             </div>
                           )}
