@@ -67,6 +67,13 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: ["GET", "PUT", "POST", "DELETE"]
+            AllowedOrigins: ["*"]
+            ExposedHeaders: ["ETag"]
+            MaxAge: 3000
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -788,6 +795,18 @@ Resources:
                   - logs:GetLogEvents
                   - glue:GetJobRuns
                 Resource: '*'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::develop-service-workbench-workspaces/*"
+                  - !Sub "arn:aws:s3:::develop-service-workbench-workspaces"
 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
