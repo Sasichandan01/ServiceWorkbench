@@ -1830,7 +1830,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgentLambda.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgent.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
