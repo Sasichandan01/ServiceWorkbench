@@ -173,7 +173,7 @@ def lambda_handler(event, context):
             'Username': username,
             'Email': email,
             'CreationTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-            "ProfileImage": "",
+            "ProfileImageURL": "",
             'Role': [role],
             'LastUpdatedBy': user_id,
             'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
