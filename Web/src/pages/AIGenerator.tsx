@@ -130,9 +130,9 @@ const AIGenerator = () => {
     // Send message via websocket using AWS API Gateway action format
     const payload = JSON.stringify({
       action: "sendMessage",
-      data: {
-        content: userMessage.content,
-      }
+      userMessage: userMessage.content,
+      workspaceid: workspaceId,
+      solutionid: solutionId
     });
     console.log('[Chat] Sending over websocket:', payload);
     wsClientRef.current.send(payload);
