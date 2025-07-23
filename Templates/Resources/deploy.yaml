@@ -722,7 +722,7 @@ Resources:
       MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/codegenerationlambda/CodeGenerationLambda.py"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/codegenerationlambda/CodeGenerationLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
