@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Edit, Key } from "lucide-react";
+import { useState } from "react";
+import { UserService } from "@/services/userService";
+import { useToast } from "@/hooks/use-toast";
 
 interface PersonalInfoProps {
   user: {
@@ -17,6 +20,33 @@ interface PersonalInfoProps {
 }
 
 const PersonalInfo = ({ user = {} }: PersonalInfoProps) => {
+  const [username, setUsername] = useState(user.Username || "");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast ? useToast() : { toast: () => {} };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+  };
+
+  const handleEditClick = () => {
+    setEditing(true);
+  };
+
+  const handleSaveClick = async () => {
+    if (!user.UserId) return;
+    setSaving(true);
+    try {
+      await UserService.updateUser(user.UserId, { Username: username });
+      setEditing(false);
+      toast && toast({ title: "Username updated", description: "Your username has been updated successfully." });
+    } catch (err: any) {
+      toast && toast({ title: "Error", description: err.message || "Failed to update username.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -47,7 +77,24 @@ const PersonalInfo = ({ user = {} }: PersonalInfoProps) => {
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label htmlFor="username" className="font-medium">Username</Label>
-            <Input id="username" value={user.Username || ""} readOnly className="bg-muted" />
+            <div className="flex space-x-2">
+              <Input
+                id="username"
+                value={username}
+                onChange={handleUsernameChange}
+                readOnly={!editing}
+                className={editing ? "" : "bg-muted"}
+              />
+              {!editing ? (
+                <Button variant="outline" size="sm" onClick={handleEditClick}>
+                  Edit
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleSaveClick} disabled={saving}>
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="userId" className="font-medium">User ID</Label>

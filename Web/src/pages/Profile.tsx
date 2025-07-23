@@ -65,12 +65,6 @@ const Profile = () => {
           <h1 className="text-3xl font-bold text-gray-900">Profile Settings</h1>
           <p className="text-gray-600">Manage your account and preferences</p>
         </div>
-        <div className="flex space-x-2">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Save className="w-4 h-4 mr-2" />
-            Save Changes
-          </Button>
-        </div>
       </div>
       {loading ? (
         <div className="flex justify-center items-center py-10">
