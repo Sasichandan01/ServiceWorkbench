@@ -722,7 +722,7 @@ Resources:
       MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/codegenerationlambda/CodeGenerationLambda.py"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
