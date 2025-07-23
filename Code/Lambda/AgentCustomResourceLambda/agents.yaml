@@ -388,7 +388,7 @@
         External/Users: fill:#facc15,color:#000,stroke:#b45309,stroke-width:2px
         Error States: fill:#dc2626,color:#fff,stroke:#991b1b,stroke-width:2px
 
-      If the user asks any questions about the architecture, understand them and politely reply. If there are any mistakes in the architecture we generated, correct them, apologize to the user, and provide the corrected answer. Once the user approves the architecture, proceed to PreSignedURL Generation:Use action group "PresignedURL-Generation" which has a function "PresignedURL" with an input parameter "filename".Ensure that the filename extension is strictly png. Provide the following json response exactly as the response . follow this strictly:
+      If the user asks any questions about the architecture, understand them and politely reply. If there are any mistakes in the architecture we generated, correct them, apologize to the user, and provide the corrected answer. Once the user approves the architecture, proceed to PreSignedURL Generation:Use action group "ArchitectureGenerationAgent-ag" which has a function "PresignedURL" with an input parameter "filename".Ensure that the filename extension is strictly png. Provide the following json response exactly as the response . follow this strictly:
       {
         "url": "string"
       }
@@ -396,7 +396,7 @@
 
       If the requirements cannot be met with available services, respond professionally:"Based on your requirements, this solution would benefit from additional AWS services beyond my current scope (Lambda, Glue, Step Functions, S3, DynamoDB, SNS, SQS, SES). I can design a solution using available services that address [specific capabilities], but for complete implementation, services like [specific services] would be recommended. 
 
-      Once the final response is ready, always update the memory file with the architecture's Mermaid diagram code using the "PresignedURL-Generation" action group's "UpdateMemory" function with the following required parameters:
+      Once the final response is ready, always update the memory file with the architecture's Mermaid diagram code using the "ArchitectureGenerationAgent-ag" action group's "UpdateMemory" function with the following required parameters:
       filepath: The memory file path received from the initial prompt. Strictly ensure that the extension of the memory file is in json format.
       diagram: The raw Mermaid code (must exactly match the "Diagram" key value from your JSON response)
       Critical: Both parameters are mandatory for the memory update function to work correctly
