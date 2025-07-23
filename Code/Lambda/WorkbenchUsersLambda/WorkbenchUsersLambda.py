@@ -215,20 +215,21 @@ def get_profile_image_upload_url(user_id, body):
     file_name = user_id
 
     # Get and validate file extension
-    extension = os.path.splitext(file_name)[-1].lower()
-    allowed_types = {
-        ".jpeg": "image/jpeg",
-        ".jpg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp"
-    }
+    # extension = os.path.splitext(file_name)[-1].lower()
+    # allowed_types = {
+    #     ".jpeg": "image/jpeg",
+    #     ".jpg": "image/jpeg",
+    #     ".png": "image/png",
+    #     ".webp": "image/webp"
+    # }
 
     # If no extension is provided, use .jpg
-    if not extension:
-        extension = ".jpg"
-        file_name += extension
+    # if not extension:
+    #     extension = ".jpg"
+    #     file_name += extension
         
-    content_type = allowed_types.get(extension)
+    content_type = body.get("ContentType", "")
+    LOGGER.info("Content type: %s", content_type)
     if not content_type:
         return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
 
@@ -277,6 +278,7 @@ def update_profile_image_on_s3_upload(event, context):
             s3_info = record.get("s3", {})
             bucket_name = s3_info.get("bucket", {}).get("name")
             object_key = s3_info.get("object", {}).get("key")
+            LOGGER.info("Bucket: %s, Key: %s", bucket_name, object_key)
 
             if not bucket_name or not object_key:
                 LOGGER.warning("Missing bucket or key in record: %s", record)
@@ -289,13 +291,16 @@ def update_profile_image_on_s3_upload(event, context):
                 continue
 
             user_id = parts[1]
+            LOGGER.info("Extracted user_id: %s", user_id)
+
            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
             image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
+            LOGGER.info("Image URL: %s", image_url)
 
             # Update DynamoDB record
             user_table.update_item(
                 Key={"UserId": user_id},
-                UpdateExpression="SET ProfileImage = :url",
+                UpdateExpression="SET ProfileImageURL = :url",
                 ExpressionAttributeValues={":url": image_url}
             )
 

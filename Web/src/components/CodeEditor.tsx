@@ -36,9 +36,10 @@ interface FolderTree {
 interface CodeEditorProps {
   workspaceId: string;
   solutionId: string;
+  preloadedCodeFiles?: any;
 }
 
-const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
+const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorProps) => {
   // Add custom CSS for syntax highlighting
   useEffect(() => {
     const styleId = 'syntax-highlighting-styles';
@@ -363,18 +364,25 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
   // Fetch scripts and file contents on mount or when workspaceId/solutionId changes
   useEffect(() => {
     if (!workspaceId || !solutionId) return;
+    
     const fetchScripts = async () => {
       try {
         setFolderTree({});
         setOpenFileIds([]);
         setActiveFileId("");
-        const apiUrl = `/workspaces/${workspaceId}/solutions/${solutionId}/scripts`;
-        const resp = await ApiClient.get(apiUrl);
-        if (!resp.ok) throw new Error('Failed to fetch scripts');
-        const data = await resp.json();
+        
+        // Use preloaded data if available, otherwise fetch
+        const data = preloadedCodeFiles || await (async () => {
+          const apiUrl = `/workspaces/${workspaceId}/solutions/${solutionId}/scripts`;
+          const resp = await ApiClient.get(apiUrl);
+          if (!resp.ok) throw new Error('Failed to fetch scripts');
+          return await resp.json();
+        })();
+        
         const preSigned = data?.PreSignedURLs || {};
         const newTree: FolderTree = {};
         let firstFile: ScriptFile | undefined = undefined;
+        
         for (const folder of Object.keys(preSigned)) {
           if (Array.isArray(preSigned[folder])) {
             const files = await Promise.all(
@@ -418,7 +426,7 @@ const CodeEditor = ({ workspaceId, solutionId }: CodeEditorProps) => {
       }
     };
     fetchScripts();
-  }, [workspaceId, solutionId]);
+  }, [workspaceId, solutionId, preloadedCodeFiles]);
 
   // Helper to get file by id
   const getFileById = (id: string): ScriptFile | undefined => {

@@ -12,16 +12,21 @@ ROLES_TABLE = DYNAMO_DB.Table(os.environ.get('ROLES_TABLE'))
 
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(os.environ.get('ACTIVITY_LOGS_TABLE')) 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(os.environ.get('SOLUTIONS_TABLE'))
-USERS_TABLE = DYNAMO_DB.Table(os.environ.get('USERS_TABLE'))
+USERS_TABLE = DYNAMO_DB.Table(os.environ.get('USER_TABLE_NAME'))
 
 def validate_user_exists(user_id):
     """
     Validate if a user exists in the users table
     """
     try:
-        response = USERS_TABLE.get_item(Key={'UserId': user_id})
+        if '@' in user_id:
+            response = USERS_TABLE.scan(
+                FilterExpression=Attr('Email').eq(user_id)
+            )
+        else:
+            response = USERS_TABLE.get_item(Key={'UserId': user_id})
         print(response)
-        return 'Item' in response
+        return 'Item' in response or 'Items' in response
     except Exception as e:
         print(f"Error validating user {user_id}: {e}")
         return False
@@ -36,9 +41,9 @@ def lambda_handler(event, context):
     user_id = auth.get("user_id")
     role = auth.get("role")
 
-    
-
-    if httpMethod == 'GET':
+    if resource == '/activity-logs/{resource_type}/{resource_id}' and httpMethod == 'GET':
+        return list_activity_logs(event, context)
+    elif httpMethod == 'GET':
         return get_access(event)
     elif httpMethod == 'POST':
         return share_resource(event)
@@ -96,18 +101,25 @@ def get_access(event):
 def share_resource(event):
     body = json.loads(event['body'])
 
-    required_keys = ['UserId', 'ResourceType', 'ResourceId', 'AccessType']
+    required_keys = ['Username', 'ResourceType', 'ResourceId', 'AccessType']
     if not all(k in body for k in required_keys):
         return return_response(400, {'Message': 'Missing required fields'})
 
-    if not validate_user_exists(body['UserId']):
+    if not validate_user_exists(body['Username']):
         return return_response(400, {'Message': 'Invalid user ID provided'})
 
     valid_access_types = ['read_only', 'editor', 'owner']
     if body['AccessType'] not in valid_access_types:
         return return_response(400, {'Message': f'Invalid access type. Must be one of: {valid_access_types}'})
 
-    user_id = body['UserId']
+    user_id = body['Username']
+    if '@' in user_id:
+        user_id = USERS_TABLE.scan(
+            FilterExpression=Attr('Email').eq(user_id)
+        )['Items'][0]['UserId']
+    
+    print("user_id", user_id)
+
     access_type = body['AccessType']
     resource_type = body['ResourceType'].upper()
     resource_id = body['ResourceId']
@@ -254,13 +266,22 @@ def revoke_access(event):
     body = json.loads(event['body'])
     print("inside revoke access")
 
-    required_keys = ['UserId', 'ResourceType', 'ResourceId']
+    required_keys = ['Username', 'ResourceType', 'ResourceId']
     if not all(k in body for k in required_keys):
         return return_response(400, {'Message': 'Missing required fields'})
 
     # Validate that the user exists
-    if not validate_user_exists(body['UserId']):
+    if not validate_user_exists(body['Username']):
         return return_response(400, {'Message': 'Invalid user ID provided'})
+
+    username=body['Username']
+
+    if '@' in username:
+        user_id = USERS_TABLE.scan(
+            FilterExpression=Attr('Email').eq(username)
+        )['Items'][0]['UserId']
+    else:
+        user_id = username
 
     resource_type = body['ResourceType'].upper()
     resource_id = body['ResourceId']
@@ -293,7 +314,7 @@ def revoke_access(event):
     
     items = [
         item for item in response.get('Items', [])
-        if item['Id'].startswith(f"{body['UserId']}#")
+        if item['Id'].startswith(f"{user_id}#")
     ]
 
     for item in items:
@@ -329,7 +350,7 @@ def revoke_access(event):
 
                 items = [
                     item for item in solution_response.get('Items', [])
-                    if item['Id'].startswith(f"{body['UserId']}#")
+                    if item['Id'].startswith(f"{user_id}#")
                 ]
 
                 print(items)
@@ -349,7 +370,7 @@ def revoke_access(event):
                             resource_type='SOLUTION',
                             resource_name=f'Solution in workspace {workspace_id}',
                             resource_id=f'{workspace_id}#{solution_id}',
-                            user_id=body['UserId'],
+                            user_id=user_id,
                             action='REVOKE_ACCESS'
                         )
         
@@ -363,7 +384,7 @@ def revoke_access(event):
             resource_type=body['ResourceType'],
             resource_name=body['ResourceId'],
             resource_id=body['ResourceId'],
-            user_id=body['UserId'],
+            user_id=user_id,
             action='REVOKE_ACCESS'
         )
 
@@ -371,3 +392,71 @@ def revoke_access(event):
         return return_response(200, {'Message': f'Access revoked for workspace and {solutions_revoked} solutions'})
     else:
         return return_response(200, {'Message': f'Access revoked'})
+
+def list_activity_logs(event, context):
+    """
+    List activity logs for a resource, supporting pagination and filtering by resource_type and resource_id.
+    API path: /activity-logs/{resource_type}/{resource_id}
+    Query params: limit, offset
+    """
+    try:
+        path_params = event.get('pathParameters') or {}
+        resource_type = path_params.get('resource_type')
+        resource_id = path_params.get('resource_id')
+        query_params = event.get('queryStringParameters') or {}
+        limit = int(query_params.get('limit', 10))
+        offset = int(query_params.get('offset', 1))
+
+        if not resource_type or not resource_id:
+            return return_response(400, {"Error": "resource_type and resource_id are required in the path."})
+
+        logs = []
+        if resource_type.lower() == 'user':
+            # Query using the GSI on UserId
+            user_id = resource_id
+            try:
+                response = ACTIVITY_LOGS_TABLE.query(
+                    IndexName='UserId-Index', 
+                    KeyConditionExpression=Key('UserId').eq(user_id)
+                )
+                logs = response.get('Items', [])
+            except Exception as e:
+                print(f"Error querying activity logs by user: {e}")
+                return return_response(500, {"Error": f"Internal Server Error, {e}"})
+        else:
+            # Query DynamoDB for logs matching resource_type and resource_id
+            filter_expr = (
+                Attr('ResourceType').eq(resource_type) &
+                Attr('ResourceId').eq(resource_id)
+            )
+            response = ACTIVITY_LOGS_TABLE.scan(
+                FilterExpression=filter_expr
+            )
+            logs = response.get('Items', [])
+
+        logs = [
+            {
+                "UserId": log.get('UserId', ''),
+                "ResourceName": log.get('ResourceName', ''),
+                "LogId": log.get('LogId', ''),
+                "EventTime": log.get('EventTime', ''),
+                "ResourceId": log.get('ResourceId', ''),
+                "ResourceType": log.get('ResourceType', ''),
+                "Action": log.get('Action', '')
+            }
+            for log in logs
+        ]
+
+        paginated = paginate_list(
+            name='ActivityLogs',
+            data=logs,
+            valid_keys=["UserId", "Message", "EventDate", "ResourceName", "LogId", "EventTime", "ResourceId", "ResourceType", "Action"],
+            offset=offset,
+            limit=limit,
+            sort_by='EventTime',
+            sort_order='desc'
+        )
+        return paginated
+    except Exception as e:
+        print(e)
+        return return_response(500, {"Error": f"Internal Server Error, {e}"})
