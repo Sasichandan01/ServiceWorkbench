@@ -75,7 +75,43 @@ const Profile = () => {
           {/* Left Column - Main Profile Content */}
           <div className="lg:col-span-3 space-y-6">
             {/* Profile Information */}
-            <PersonalInfo user={user || {}} />
+            <PersonalInfo user={user || {}} onProfileImageUpdated={async () => {
+              // Re-fetch user data after profile image upload
+              setLoading(true);
+              try {
+                const tokenUser = getUserInfo();
+                const userId = tokenUser?.username || reduxUser?.username;
+                if (userId) {
+                  const userData = await UserService.getUser(userId);
+                  // Normalize fields for local profile display only
+                  const backendUser = userData as any;
+                  let roles: string[] = [];
+                  if (Array.isArray(backendUser.Roles)) {
+                    roles = backendUser.Roles;
+                  } else if (Array.isArray(backendUser.Role)) {
+                    roles = backendUser.Role;
+                  } else if (typeof backendUser.Roles === 'string') {
+                    roles = [backendUser.Roles];
+                  } else if (typeof backendUser.Role === 'string') {
+                    roles = [backendUser.Role];
+                  }
+                  const normalizedUser = {
+                    ...userData,
+                    Roles: roles,
+                    LastLoginTime: backendUser.LastLoginTime || backendUser.LastLogin || backendUser.LastAccessedTime || ""
+                  };
+                  setUser(normalizedUser);
+                  // Refresh header avatar
+                  if (typeof window !== 'undefined' && (window as any).refreshProfileImage) {
+                    (window as any).refreshProfileImage();
+                  }
+                }
+              } catch (e) {
+                // Optionally handle error
+              } finally {
+                setLoading(false);
+              }
+            }} />
             {/* Two Column Layout for Security and Notifications */}
             <div className="grid md:grid-cols-2 gap-6">
               <div className="flex">
