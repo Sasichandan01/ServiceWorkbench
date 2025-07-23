@@ -707,7 +707,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '9671234'
+      changesetflag: '969971'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1771,7 +1771,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: !Sub "${DeploymentTrigger} - Architecture Agent AG Lambda Function"
-      FunctionName: !Sub "${pPrefix}-ArchitectureAgentAGLambdaFunction"
+      FunctionName: !Sub "${pPrefix}-architecture-generation-lambda"
       Handler: lambda_function.lambda_handler
       Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
       Runtime: python3.12
