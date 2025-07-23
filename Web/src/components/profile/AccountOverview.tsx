@@ -1,15 +1,19 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Users, Database, Zap, DollarSign } from "lucide-react";
-import { useAppSelector } from "@/hooks/useAppSelector";
 
-const AccountOverview = () => {
-  const user = useAppSelector((state) => state.auth.user);
+interface AccountOverviewProps {
+  user: {
+    Roles?: string[];
+    LastLoginTime?: string;
+  };
+}
+
+const AccountOverview = ({ user = {} }: AccountOverviewProps) => {
   // Determine active roles count
   let activeRoles = 0;
-  if (user && Array.isArray((user as any).Role)) {
-    activeRoles = (user as any).Role.length;
+  if (user && Array.isArray(user.Roles)) {
+    activeRoles = user.Roles.length;
   }
   return (
     <Card>
@@ -65,12 +69,8 @@ const AccountOverview = () => {
         {/* Quick Info */}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Member since</span>
-            <span className="font-medium text-gray-900">Jan 2024</span>
-          </div>
-          <div className="flex justify-between">
             <span className="text-gray-600">Last login</span>
-            <span className="font-medium text-gray-900">2 hours ago</span>
+            <span className="font-medium text-gray-900">{user.LastLoginTime || "Never"}</span>
           </div>
         </div>
       </CardContent>

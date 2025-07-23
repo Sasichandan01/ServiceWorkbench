@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   DropdownMenu,
@@ -25,7 +25,8 @@ import {
   Shield,
   Activity,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut, clearAllAuthData } from "@/lib/auth";
@@ -38,11 +39,15 @@ import { useAppDispatch } from "@/hooks/useAppDispatch";
 import { setAuth } from "@/store/slices/authSlice";
 import { clearPermissions } from "@/store/slices/permissionsSlice";
 import { RoleSwitchDialog } from "./RoleSwitchDialog";
+import { UserService } from "@/services/userService";
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [profile, setProfile] = useState<any>(null); // Store full user profile
   const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [imageCacheBust, setImageCacheBust] = useState(Date.now());
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,11 +55,42 @@ const Layout = () => {
   const { loading: authLoading } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
 
+  // Fetch basic user info from token
   useEffect(() => {
-    // Get user info from stored tokens
     const info = getUserInfo();
     setUserInfo(info);
+    if (info?.username) {
+      fetchProfile(info.username);
+    } else {
+      setProfileLoading(false);
+    }
   }, []);
+
+  // Function to fetch user profile from backend
+  const fetchProfile = async (username: string) => {
+    setProfileLoading(true);
+    try {
+      const userData = await UserService.getUser(username);
+      setProfile(userData);
+    } catch (e) {
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Expose refreshProfile globally for triggering after upload
+  useEffect(() => {
+    (window as any).refreshProfileImage = () => {
+      if (userInfo?.username) {
+        fetchProfile(userInfo.username);
+        setImageCacheBust(Date.now()); // Only update cache buster after upload
+      }
+    };
+    return () => {
+      delete (window as any).refreshProfileImage;
+    };
+  }, [userInfo]);
 
   const navigation = [
     { name: "Workspaces", href: "/workspaces", icon: Cloud, resource: "workspaces" },
@@ -312,9 +348,20 @@ const Layout = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer">
-                      <AvatarFallback className="bg-blue-600 text-white font-medium">
-                        {userInfo?.name ? getInitials(userInfo.name) : 'U'}
-                      </AvatarFallback>
+                      {profileLoading ? (
+                        <span className="flex items-center justify-center w-full h-full">
+                          <Loader2 className="animate-spin w-6 h-6 text-blue-500" />
+                        </span>
+                      ) : profile?.ProfileImageURL ? (
+                        <AvatarImage 
+                          src={profile.ProfileImageURL + (profile.ProfileImageURL.includes('?') ? `&cb=${imageCacheBust}` : `?cb=${imageCacheBust}`)} 
+                          alt={profile.Username || userInfo?.name || "User"} 
+                        />
+                      ) : (
+                        <AvatarFallback className="bg-blue-600 text-white font-medium">
+                          {userInfo?.name ? getInitials(userInfo.name) : 'U'}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
