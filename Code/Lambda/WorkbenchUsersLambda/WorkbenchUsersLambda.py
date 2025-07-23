@@ -163,7 +163,41 @@ def get_user_profile(user_id):
     if not item:
         return return_response(404, {"message": "User not found"})
 
+    image_key = f"profile-images/{user_id}/{user_id}"
+    current_time = int(datetime.now(timezone.utc).timestamp())
+    profile_image_url = item.get("ProfileImageURL")
+    profile_image_expiry = item.get("ProfileImageExpiry", 0)
+    LOGGER.info("Profile image expiry: %s", profile_image_expiry)
+    LOGGER.info("Current time: %s", current_time)
+
+    # Regenerate pre-signed URL if expired
+    if not profile_image_url or current_time >= profile_image_expiry:
+        LOGGER.info("Regenerating profile image URL for user %s", user_id)
+        s3_client = boto3.client("s3")
+        new_presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": MISC_BUCKET, "Key": image_key},
+            ExpiresIn=604800  # 7 days
+        )
+        new_expiry = current_time + 604800
+
+        item["ProfileImageURL"] = new_presigned_url
+        item["ProfileImageExpiry"] = new_expiry
+
+        # Save the updated info
+        user_table.update_item(
+            Key={"UserId": user_id},
+            UpdateExpression="SET ProfileImageURL = :url, ProfileImageExpiry = :expiry",
+            ExpressionAttributeValues={
+                ":url": new_presigned_url,
+                ":expiry": new_expiry
+            }
+        )
+
     return return_response(200, item)
+
+
+    # return return_response(200, item)
 
 
 def update_user_details(user_id, body):
@@ -294,17 +328,33 @@ def update_profile_image_on_s3_upload(event, context):
             LOGGER.info("Extracted user_id: %s", user_id)
 
            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
-            image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
-            LOGGER.info("Image URL: %s", image_url)
-
-            # Update DynamoDB record
-            user_table.update_item(
-                Key={"UserId": user_id},
-                UpdateExpression="SET ProfileImageURL = :url",
-                ExpressionAttributeValues={":url": image_url}
+            # image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
+            presigned_url = boto3.client("s3").generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket_name, "Key": object_key},
+                ExpiresIn=604800  # 7 days
             )
 
-            LOGGER.info("Updated profile image URL for user %s", user_id)
+            # Store presigned_url and timestamp
+            expiry_time = int(datetime.now(timezone.utc).timestamp()) + 604800
+            user_table.update_item(
+                Key={"UserId": user_id},
+                UpdateExpression="SET ProfileImageURL = :url, ProfileImageExpiry = :expiry",
+                ExpressionAttributeValues={
+                    ":url": presigned_url,
+                    ":expiry": expiry_time
+                }
+            )
+            LOGGER.info("Image URL: %s", image_url)
+
+            # # Update DynamoDB record
+            # user_table.update_item(
+            #     Key={"UserId": user_id},
+            #     UpdateExpression="SET ProfileImageURL = :url",
+            #     ExpressionAttributeValues={":url": image_url}
+            # )
+
+            # LOGGER.info("Updated profile image URL for user %s", user_id)
 
         return {
             "statusCode": 200,
