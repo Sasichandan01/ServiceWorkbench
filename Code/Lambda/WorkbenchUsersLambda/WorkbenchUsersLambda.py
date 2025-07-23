@@ -8,7 +8,7 @@ from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
 VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
-
+ 
 # Setup logger
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -481,8 +481,8 @@ def rag_sync(event):
     query_string_parameters = event.get("queryStringParameters", {})
     action = query_string_parameters.get("action")
     arguments = {}
-    if action is not None and action == 'web':
-        arguments['--ACTION'] = 'web'
+    if action is not None and action == 'docs':
+        arguments['--ACTION'] = 'docs'
     elif action is not None and action == 'app':
         arguments['--ACTION'] = 'app'
     else:
@@ -499,4 +499,4 @@ def rag_sync(event):
             })
     except Exception as e:
         return return_response(500, {"message": f"Error starting Glue job {str(e)}"})
-        
+    
