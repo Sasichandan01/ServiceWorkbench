@@ -57,6 +57,49 @@ function isStructuredSolutionJson(content: string): boolean {
   }
 }
 
+// Utility to parse plain text into structured solution object
+function parsePlainTextSolution(content: string) {
+  // Regexes for section headings
+  const summaryMatch = content.match(/Summary:(.*?)(Requirements:|Key Requirements Addressed:|Proposed Architecture Details:|$)/s);
+  const requirementsMatch = content.match(/(Requirements:|Key Requirements Addressed:)(.*?)(Architecture:|Proposed Architecture Details:|Cost Analysis:|Estimated Cost Analysis:|$)/s);
+  const architectureMatch = content.match(/(Architecture:|Proposed Architecture Details:)(.*?)(Cost Analysis:|Estimated Cost Analysis:|Diagram:|Architecture Diagram:|Architecture Diagram\:|mermaid\n|$)/s);
+  const costMatch = content.match(/(Cost Analysis:|Estimated Cost Analysis:)(.*?)(Diagram:|Architecture Diagram:|Architecture Diagram\:|mermaid\n|$)/s);
+  // Mermaid diagram block
+  let diagram = '';
+  // Try to find a mermaid code block
+  const mermaidBlock = content.match(/mermaid\n([\s\S]+)/);
+  if (mermaidBlock) {
+    // Only take lines that look like diagram code, stop at first blank line or line that looks like non-diagram text
+    const lines = mermaidBlock[1].split(/\r?\n/);
+    const diagramLines = [];
+    for (const line of lines) {
+      if (
+        line.trim() === '' ||
+        /^Do you approve|^Additionally|^Please confirm|^\d+\./i.test(line.trim())
+      ) {
+        break;
+      }
+      diagramLines.push(line);
+    }
+    diagram = diagramLines.join('\n').trim();
+  } else {
+    // Try to find 'Architecture Diagram:' followed by a code block
+    const archBlock = content.match(/Architecture Diagram:?\s*```mermaid([\s\S]+?)```/);
+    if (archBlock) diagram = archBlock[1].trim();
+  }
+  // If we have at least a summary and a diagram, treat as structured
+  if (summaryMatch || requirementsMatch || architectureMatch || costMatch || diagram) {
+    return {
+      Summary: summaryMatch ? summaryMatch[1].trim() : '',
+      Requirements: requirementsMatch ? requirementsMatch[2].trim() : '',
+      Architecture: architectureMatch ? architectureMatch[2].trim() : '',
+      CostAnalysis: costMatch ? costMatch[2].trim() : '',
+      Diagram: diagram,
+    };
+  }
+  return null;
+}
+
 // Component to render the structured solution JSON
 const AIChatSolutionMessage = ({ solutionJson }: { solutionJson: any }) => (
   <div>
@@ -494,16 +537,18 @@ const AIGenerator = () => {
                                 : "bg-card text-card-foreground border border-border/50 shadow-sm hover:border-border"
                             }`}
                           >
-                            {typeof message.content === "string" &&
-                            isStructuredSolutionJson(message.content) ? (
-                              <AIChatSolutionMessage
-                                solutionJson={JSON.parse(message.content)}
-                              />
-                            ) : (
-                              <p className="leading-relaxed whitespace-pre-wrap">
-                                {message.content}
-                              </p>
-                            )}
+                            {(() => {
+                              if (typeof message.content === "string" && isStructuredSolutionJson(message.content)) {
+                                return <AIChatSolutionMessage solutionJson={JSON.parse(message.content)} />;
+                              }
+                              if (typeof message.content === "string") {
+                                const parsed = parsePlainTextSolution(message.content);
+                                if (parsed && (parsed.Summary || parsed.Diagram)) {
+                                  return <AIChatSolutionMessage solutionJson={parsed} />;
+                                }
+                              }
+                              return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
+                            })()}
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">
                             {message.timestamp}
