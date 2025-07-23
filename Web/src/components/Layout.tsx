@@ -47,6 +47,7 @@ const Layout = () => {
   const [profile, setProfile] = useState<any>(null); // Store full user profile
   const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [imageCacheBust, setImageCacheBust] = useState(Date.now());
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -81,7 +82,10 @@ const Layout = () => {
   // Expose refreshProfile globally for triggering after upload
   useEffect(() => {
     (window as any).refreshProfileImage = () => {
-      if (userInfo?.username) fetchProfile(userInfo.username);
+      if (userInfo?.username) {
+        fetchProfile(userInfo.username);
+        setImageCacheBust(Date.now()); // Only update cache buster after upload
+      }
     };
     return () => {
       delete (window as any).refreshProfileImage;
@@ -350,7 +354,7 @@ const Layout = () => {
                         </span>
                       ) : profile?.ProfileImageURL ? (
                         <AvatarImage 
-                          src={profile.ProfileImageURL + (profile.ProfileImageURL.includes('?') ? `&cb=${Date.now()}` : `?cb=${Date.now()}`)} 
+                          src={profile.ProfileImageURL + (profile.ProfileImageURL.includes('?') ? `&cb=${imageCacheBust}` : `?cb=${imageCacheBust}`)} 
                           alt={profile.Username || userInfo?.name || "User"} 
                         />
                       ) : (

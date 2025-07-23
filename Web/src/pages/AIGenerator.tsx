@@ -8,14 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Brain, Send, User } from "lucide-react";
+import { Brain, Send, User, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { createWebSocketClient } from "@/lib/websocketClient";
+
+interface ThinkingStep {
+  id: string;
+  content: string;
+  timestamp: Date;
+}
 
 interface Message {
   id: number;
   content: string;
   sender: 'user' | 'ai';
   timestamp: string;
+  thinking?: ThinkingStep[];
+  isCompleted?: boolean;
 }
 
 const AIGenerator = () => {
@@ -25,6 +34,9 @@ const AIGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentThinking, setCurrentThinking] = useState<ThinkingStep[]>([]);
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const currentThinkingRef = useRef<ThinkingStep[]>([]);
   const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
@@ -56,39 +68,75 @@ const AIGenerator = () => {
     wsClient.on('message', (event) => {
       console.log('[Chat] WebSocket message received:', event);
       console.log('[Chat] Raw event data:', event.data);
-      setIsGenerating(false);
       
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         console.log('[Chat] Parsed data:', data);
         
-        // Handle different message formats
-        let content = '';
-        if (typeof data === 'string') {
-          content = data;
-        } else if (data && typeof data.response === 'string') {
-          content = data.response;
-        } else if (data && typeof data.content === 'string') {
-          content = data.content;
-        } else if (data && typeof data.message === 'string') {
-          content = data.message;
-        } else if (data && typeof data.text === 'string') {
-          content = data.text;
-        } else {
-          content = JSON.stringify(data);
-        }
-        
-        if (content.trim()) {
-          setMessages(prev => {
-            const msg: Message = {
-              id: prev.length + 1,
-              content: content,
-              sender: 'ai' as const,
-              timestamp: new Date().toLocaleTimeString(),
-            };
-            console.log('[Chat] Adding AI message:', msg);
-            return [...prev, msg];
+        // Check if this is the new AITrace/AIMessage format
+        const messageType = Object.keys(data)[0];
+        const messageContent = data[messageType];
+        const metadata = data.metadata || {};
+
+        if (messageType === "AITrace") {
+          // Add to current thinking
+          const thinkingStep: ThinkingStep = {
+            id: Date.now().toString(),
+            content: messageContent,
+            timestamp: new Date()
+          };
+          setCurrentThinking(prev => {
+            const newThinking = [...prev, thinkingStep];
+            currentThinkingRef.current = newThinking;
+            return newThinking;
           });
+          setIsGenerating(true); // Set to true on AITrace/intermediate
+        } else if (messageType === "AIMessage") {
+          // Final AI response - use ref to get current thinking
+          setMessages(prev => {
+            const aiMessage: Message = {
+              id: prev.length + 1,
+              content: messageContent,
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString(),
+              thinking: currentThinkingRef.current.length > 0 ? [...currentThinkingRef.current] : undefined,
+              isCompleted: metadata.isCompleted
+            };
+            return [...prev, aiMessage];
+          });
+          setCurrentThinking([]);
+          currentThinkingRef.current = [];
+          setIsGenerating(false); // Set to false on final message
+        } else {
+          // Fallback for other message formats
+          let content = '';
+          if (typeof data === 'string') {
+            content = data;
+          } else if (data && typeof data.response === 'string') {
+            content = data.response;
+          } else if (data && typeof data.content === 'string') {
+            content = data.content;
+          } else if (data && typeof data.message === 'string') {
+            content = data.message;
+          } else if (data && typeof data.text === 'string') {
+            content = data.text;
+          } else {
+            content = JSON.stringify(data);
+          }
+          
+          if (content.trim()) {
+            setMessages(prev => {
+              const msg: Message = {
+                id: prev.length + 1,
+                content: content,
+                sender: 'ai' as const,
+                timestamp: new Date().toLocaleTimeString(),
+              };
+              console.log('[Chat] Adding AI message:', msg);
+              return [...prev, msg];
+            });
+            setIsGenerating(false);
+          }
         }
       } catch (err) {
         console.error('[Chat] Error parsing message:', err);
@@ -104,6 +152,7 @@ const AIGenerator = () => {
             };
             return [...prev, msg];
           });
+          setIsGenerating(false);
         }
       }
     });
@@ -126,7 +175,7 @@ const AIGenerator = () => {
     };
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
-    setIsGenerating(true);
+    setIsGenerating(true); // Set to true when sending
     // Send message via websocket using AWS API Gateway action format
     const payload = JSON.stringify({
       action: "sendMessage",
@@ -136,7 +185,7 @@ const AIGenerator = () => {
     });
     console.log('[Chat] Sending over websocket:', payload);
     wsClientRef.current.send(payload);
-    setIsGenerating(false);
+    // setIsGenerating(false); // REMOVE THIS LINE
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -252,7 +301,50 @@ const AIGenerator = () => {
                             )}
                           </AvatarFallback>
                         </Avatar>
-                        <div className={`flex-1 ${message.sender === 'user' ? 'max-w-md' : 'max-w-3xl'}`}>
+                        <div className={`flex-1 space-y-3 ${message.sender === 'user' ? 'max-w-md' : 'max-w-3xl'}`}>
+                          {/* Thinking Section */}
+                          {message.sender === 'ai' && message.thinking && message.thinking.length > 0 && (
+                            <div>
+                              <Collapsible 
+                                open={expandedThinking[message.id]} 
+                                onOpenChange={(open) => setExpandedThinking(prev => ({...prev, [message.id]: open}))}
+                              >
+                                <CollapsibleTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      <span>Show thinking</span>
+                                    </div>
+                                    {expandedThinking[message.id] ? 
+                                      <ChevronDown className="w-4 h-4" /> : 
+                                      <ChevronRight className="w-4 h-4" />
+                                    }
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-2">
+                                  <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
+                                    {message.thinking.map((step, index) => (
+                                      <div key={step.id} className="space-y-1">
+                                        {index % 2 === 0 ? (
+                                          <h4 className="font-medium text-sm text-foreground/80">{step.content}</h4>
+                                        ) : (
+                                          <p className="text-sm text-muted-foreground leading-relaxed pl-4 border-l-2 border-border/30">
+                                            {step.content}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          )}
+
+                          {/* Main Message */}
                           <div
                             className={`p-4 rounded-2xl transition-all duration-300 hover:shadow-md ${
                               message.sender === 'user'
@@ -268,6 +360,8 @@ const AIGenerator = () => {
                         </div>
                       </div>
                     ))}
+                    
+                    {/* Current Thinking (while AI is processing) */}
                     {isGenerating && (
                       <div className="flex items-start space-x-4 animate-fade-in">
                         <Avatar className="w-10 h-10 flex-shrink-0 ring-2 ring-background shadow-lg">
@@ -276,20 +370,42 @@ const AIGenerator = () => {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 max-w-3xl">
-                          <div className="p-4 bg-card border border-border/50 rounded-2xl shadow-sm">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex space-x-1">
-                                {[0, 1, 2].map((i) => (
-                                  <div
-                                    key={i}
-                                    className="w-3 h-3 bg-primary rounded-full animate-bounce"
-                                    style={{ animationDelay: `${i * 0.15}s` }}
-                                  />
+                          {currentThinking.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span className="text-sm text-muted-foreground">Thinking...</span>
+                              </div>
+                              <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
+                                {currentThinking.map((step, index) => (
+                                  <div key={step.id} className="space-y-1 animate-fade-in">
+                                    {index % 2 === 0 ? (
+                                      <h4 className="font-medium text-sm text-foreground/80">{step.content}</h4>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground leading-relaxed pl-4 border-l-2 border-border/30">
+                                        {step.content}
+                                      </p>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
-                              <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="p-4 bg-card border border-border/50 rounded-2xl shadow-sm">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex space-x-1">
+                                  {[0, 1, 2].map((i) => (
+                                    <div
+                                      key={i}
+                                      className="w-3 h-3 bg-primary rounded-full animate-bounce"
+                                      style={{ animationDelay: `${i * 0.15}s` }}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-sm text-muted-foreground ml-2">AI is thinking...</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
