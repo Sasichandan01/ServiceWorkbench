@@ -618,7 +618,7 @@ Resources:
   BedrockAgentExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: BedrockAgentExecutionRole
+      RoleName: !Sub "${pPrefix}-BedrockAgentExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
