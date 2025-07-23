@@ -425,7 +425,13 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
     # Step 2: Create/update action group if Lambda is specified
     action_group_id = None
     if lambda_function_arn and input_body.get("Tools"):
-        action_group_name = f"{input_body['AgentName']}-ag"
+       
+       # Remove ENVIRONMENT prefix from agent name for action group name
+        original_agent_name = input_body["AgentName"]
+        if ENVIRONMENT and original_agent_name.startswith(f"{ENVIRONMENT}-"):
+            original_agent_name = original_agent_name[len(ENVIRONMENT)+1:]
+        action_group_name = f"{original_agent_name}-ag"
+
         function_schema = {"functions": []}
         
         # Build function schema from tools
