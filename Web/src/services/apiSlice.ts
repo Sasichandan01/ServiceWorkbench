@@ -116,6 +116,27 @@ export const apiSlice = createApi({
         { type: 'Workspace', id: workspaceId },
       ],
     }),
+     shareResource: builder.mutation<any, {
+      Username: string;
+      ResourceType: 'workspace' | 'solution' | 'datasource';
+      ResourceId: string;
+      AccessType: 'owner' | 'read-only' | 'editor';
+    }>({
+      query: (body) => ({
+        url: '/share',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (result, error, args) => [{ type: 'Workspace', id: args.ResourceId }],
+    }),
+    getActivityLogs: builder.query<any, { resourceType: string; resourceId: string; limit?: number; offset?: number }>({
+      query: ({ resourceType, resourceId, limit = 10, offset = 1 }) => {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('offset', offset.toString());
+        return `/activity-logs/${resourceType}/${resourceId}${params.toString() ? `?${params}` : ''}`;
+      },
+    }),
   }),
 });
 
@@ -130,4 +151,6 @@ export const {
   useUpdateSolutionMutation,
   useDeleteSolutionMutation,
   useGetSolutionQuery,
+  useShareResourceMutation,
+  useGetActivityLogsQuery,
 } = apiSlice;

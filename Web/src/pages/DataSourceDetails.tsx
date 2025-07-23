@@ -7,6 +7,7 @@ import EditDataSourceDialog from "@/components/data-source-details/EditDataSourc
 import DeleteDataSourceDialog from "@/components/data-source-details/DeleteDataSourceDialog";
 import { DatasourceService } from "../services/datasourceService";
 import type { DatasourceDetails } from "../services/datasourceService";
+import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
 
 const DataSourceDetails = () => {
   const { id } = useParams();
@@ -68,24 +69,37 @@ const DataSourceDetails = () => {
     <div className="space-y-6">
       <DataSourceBreadcrumb dataSourceName={dataSource.Datasource.DatasourceName} />
       
-      <DataSourceInfo 
-        datasource={dataSource.Datasource}
-        totalFiles={totalFiles}
-        totalSize={dataSource.TotalSize}
-        onEdit={() => setEditDialogOpen(true)}
-        onDelete={() => setDeleteDialogOpen(true)}
-        deleteMode={deleteMode}
-      />
+      <div className="grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="xl:col-span-3 lg:col-span-2 space-y-6">
+          <DataSourceInfo 
+            datasource={dataSource.Datasource}
+            totalFiles={totalFiles}
+            totalSize={dataSource.TotalSize}
+            onEdit={() => setEditDialogOpen(true)}
+            onDelete={() => setDeleteDialogOpen(true)}
+            deleteMode={deleteMode}
+          />
 
-      {dataSource.Folders && (
-        <FolderFileManager 
-          datasourceId={dataSource.Datasource.DatasourceId}
-          folders={dataSource.Folders}
-          onRefresh={fetchDataSource}
-          deleteMode={deleteMode}
-          setDeleteMode={setDeleteMode}
-        />
-      )}
+          {dataSource.Folders && (
+            <FolderFileManager 
+              datasourceId={dataSource.Datasource.DatasourceId}
+              folders={dataSource.Folders}
+              onRefresh={fetchDataSource}
+              deleteMode={deleteMode}
+              setDeleteMode={setDeleteMode}
+            />
+          )}
+        </div>
+
+        {/* Right Sidebar - Audit Logs */}
+        <div className="space-y-6">
+          <WorkspaceAuditLogs 
+            datasourceId={dataSource.Datasource.DatasourceId}
+            title="Data Source Activity"
+          />
+        </div>
+      </div>
 
       <EditDataSourceDialog
         open={editDialogOpen}

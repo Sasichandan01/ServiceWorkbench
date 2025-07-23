@@ -69,14 +69,16 @@ export class RoleService {
   }
 
   static async assignRole(data: AssignRoleRequest): Promise<{ Message: string }> {
-    // Call /users/{userId}?action=role with body { Role: string }
-    const endpoint = `/users/${data.UserId}?action=role`;
+    // Use /users/{userId}?action=insert_role with body { Role: string }
+    const endpoint = `/users/${data.UserId}?action=insert_role`;
     const response = await ApiClient.put(endpoint, { Role: data.Role });
     return this.handleResponse<{ Message: string }>(response);
   }
 
   static async removeRole(data: RemoveRoleRequest): Promise<{ Message: string }> {
-    const response = await ApiClient.post('/users/remove-role', data);
+    // Use /users/{userId}?action=delete_role with body { Role: string }
+    const endpoint = `/users/${data.UserId}?action=delete_role`;
+    const response = await ApiClient.put(endpoint, { Role: data.RoleName });
     return this.handleResponse<{ Message: string }>(response);
   }
 }
