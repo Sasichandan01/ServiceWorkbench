@@ -707,7 +707,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '19378456'
+      changesetflag: '96843'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1572,7 +1572,72 @@ Resources:
         - Key: Name
           Value: WorkbenchV2
 
-
+  QueryParserExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${pPrefix}-QueryParserExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudwatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsAccess
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: QueryParserTableAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !GetAtt DatasourcesTable.Arn
+                  - !GetAtt SolutionsTable.Arn
+                  - !GetAtt WorkspacesTable.Arn
+                  - !GetAtt ResourceAccessTable.Arn
+                  - !Sub "${DatasourcesTable.Arn}/index/DatasourceName-index"
+                  - !Sub "${SolutionsTable.Arn}/index/SolutionName-index"
+                  - !Sub "${WorkspacesTable.Arn}/index/WorkspaceName-index"
+                  - !Sub "${ResourceAccessTable.Arn}/index/AccessKey-Index"
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowS3AccessTosolutionBucket
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::develop-service-workbench-workspaces
+                  - arn:aws:s3:::develop-service-workbench-workspaces/*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: WorkbenchV2
 
 # Lambdas
   RolesLambdaFunction:
@@ -1735,6 +1800,40 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+  
+  QueryParserLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Query Parser Lambda Function"
+      FunctionName: !Sub "${pPrefix}-QueryParserLambdaFunction"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt QueryParserExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Environment:
+        Variables:
+          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
+          SOLUTION_TABLE_NAME: !Ref SolutionsTable
+          WORKSPACE_TABLE_NAME: !Ref WorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          SOLUTION_BUCKET_NAME: "develop-service-workbench-workspaces"
+      Layers:
+        - !ImportValue ServiceWorkbenchLambdaLayer
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgent.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
   ArchitectureAgentAGLambdaRole:
     Type: AWS::IAM::Role
@@ -1809,6 +1908,14 @@ Resources:
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
 # Lambda Permission for API Gateway to invoke Roles Lambda
+  QueryParserLambdaFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref QueryParserLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
   RolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
