@@ -701,6 +701,33 @@ Resources:
       Layers:
         - arn:aws:lambda:us-east-1:043309350924:layer:yaml-layer:1
 
+  CodeGenerationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-CodeGenerationLambda"
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+      Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/codegenerationlambda/CodeGenerationLambda.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+
   BedrockAgentManager:
     Type: AWS::CloudFormation::CustomResource
     Properties:
@@ -708,6 +735,38 @@ Resources:
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
       changesetflag: '96843'
+
+  ArchitectureAgentAGLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
+                  - !Sub
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -953,6 +1012,15 @@ Resources:
                 Action:
                   - execute-api:ManageConnections
                 Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+        - PolicyName: DDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowDDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1765,6 +1833,9 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+      Environment:
+        Variables:
+          LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
 
   ShareLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1835,41 +1906,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  ArchitectureAgentAGLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: S3
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                Resource:
-                  - !ImportValue WorkspacesBucketArn
-                  - !Sub
-                    - "${BucketArn}/*"
-                    - {BucketArn: !ImportValue WorkspacesBucketArn}
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource:
-                  - !ImportValue WorkspacesBucketArn
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
+
 
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
