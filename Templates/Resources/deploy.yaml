@@ -707,7 +707,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '969971'
+      changesetflag: '19378456'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -2018,6 +2018,74 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
+
+  # CFTGenerationAgentLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/AdministratorAccess
+  #     Tags:
+  #       - Key: Name
+  #         Value: "WorkbenchV2"
+
+  CFTGenerationAgentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
+                  - !Sub
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  CFTGenerationAgentLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${pPrefix}-CFTGenerationAgentLambda"
+      Runtime: python3.11
+      Handler: CFTGenerationAgentLambda.lambda_handler
+      Role: !GetAtt CFTGenerationAgentLambdaRole.Arn
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          ENVIRONMENT: !Sub "${pPrefix}"
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+      Code:
+        S3Bucket: !Ref pArtifactsBucketName
+        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/cftgenerationagentlambda/CFTGenerationAgentLambda.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
 
 Outputs:
 
