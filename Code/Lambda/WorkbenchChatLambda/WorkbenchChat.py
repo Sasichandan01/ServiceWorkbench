@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import logging
 import boto3
@@ -13,14 +14,25 @@ CONFIG = Config(retries={'mode':'adaptive','max_attempts':5}, connect_timeout=60
 bedrock_agent_runtime_client = boto3.client('bedrock-agent-runtime', config=CONFIG)
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
+look_up_table= os.environ.get('LOOK_UP_TABLE')
 
-def get_agent_ids():
-    ddb_look_up_table=dynamodb.Table('wb-bhargav-BedrockAgentLookup-Table')
+
+def extract_agent_info():
+    table = dynamodb.Table(look_up_table)
+    response = table.scan()
+    items = response.get('Items', [])
     
+    agents_info = {}
+    for item in items:
+        agent_name =  item.get('AgentId')  # Use appropriate key
+        if not agent_name:
+            continue
+        agents_info[agent_name] = {
+            'AgentAliasId': item.get('AgentAliasId', ''),
+            'AgentId': item.get('ReferenceId', '')
+        }
 
-
-
-
+    return agents_info
 
 
 def generate_requirements():
@@ -80,7 +92,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
     body = json.loads(event.get('body', '{}'))
     user_prompt = body.get('userMessage')
-
+    agent_info=extract_agent_info()
+    
     if 'workspaceid' not in body or 'solutionid' not in body:
         msg = "Missing WorkspaceId or SolutionId"
         LOGGER.error(msg)
