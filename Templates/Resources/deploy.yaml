@@ -1906,42 +1906,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  ArchitectureAgentAGLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Description: !Sub "${DeploymentTrigger} - Query Parser Lambda Function"
-      FunctionName: !Sub "${pPrefix}-QueryParserLambdaFunction"
-      Handler: lambda_function.lambda_handler
-      Role: !GetAtt QueryParserExecutionRole.Arn
-      Runtime: python3.12
-      Timeout: 900
-      VpcConfig:
-        SubnetIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
-        SecurityGroupIds:
-          - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
-      Environment:
-        Variables:
-          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
-          SOLUTION_TABLE_NAME: !Ref SolutionsTable
-          WORKSPACE_TABLE_NAME: !Ref WorkspacesTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          SOLUTION_BUCKET_NAME: "develop-service-workbench-workspaces"
-      Layers:
-        - !ImportValue ServiceWorkbenchLambdaLayer
-      Code:
-        S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgent.zip"
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-
-
-
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
