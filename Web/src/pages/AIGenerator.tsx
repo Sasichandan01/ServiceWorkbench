@@ -15,7 +15,18 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
+  Copy,
+  FileCode,
 } from "lucide-react";
+import Prism from 'prismjs';
+import 'prismjs/themes/prism-tomorrow.css';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-sql';
 import {
   Collapsible,
   CollapsibleContent,
@@ -241,7 +252,7 @@ const AIGenerator = () => {
           setIsGenerating(false);
         } else {
           // Fallback for other message formats
-          let content = "";
+          let content: any = "";
           if (typeof data === "string") {
             content = data;
           } else if (data && typeof data.response === "string") {
@@ -252,11 +263,14 @@ const AIGenerator = () => {
             content = data.message;
           } else if (data && typeof data.text === "string") {
             content = data.text;
+          } else if (data && data.Metadata && data.Metadata.IsCode === true) {
+            // If it's a code response, keep as object
+            content = data;
           } else {
             content = JSON.stringify(data);
           }
 
-          if (content.trim()) {
+          if ((typeof content === "string" && content.trim()) || typeof content === "object") {
             setMessages((prev) => {
               const msg: Message = {
                 id: prev.length + 1,
@@ -538,6 +552,97 @@ const AIGenerator = () => {
                             }`}
                           >
                             {(() => {
+                              // Handle code response with filename
+                              function hasMetadata(obj: any): obj is { Metadata: { IsCode: boolean } } {
+                                return obj && typeof obj === 'object' && 'Metadata' in obj;
+                              }
+                              if (typeof message.content === "object" && message.content !== null) {
+                                const contentObj: any = message.content;
+                                // Check if it's a code response
+                                if (
+                                  contentObj &&
+                                  hasMetadata(contentObj) &&
+                                  contentObj.Metadata.IsCode === true
+                                ) {
+                                  const keys = Object.keys(contentObj).filter((k) => k !== "Metadata");
+                                  if (keys.length > 0) {
+                                    return (
+                                      <div className="space-y-4">
+                                        {keys.map((filename: string) => {
+                                          const codeContent = contentObj[filename];
+                                          
+                                          // Detect language from filename
+                                          const getLanguageFromFilename = (filename: string): string => {
+                                            const ext = filename.split('.').pop()?.toLowerCase();
+                                            switch (ext) {
+                                              case 'py': return 'python';
+                                              case 'js': return 'javascript';
+                                              case 'ts': return 'typescript';
+                                              case 'json': return 'json';
+                                              case 'sh': return 'bash';
+                                              case 'yml':
+                                              case 'yaml': return 'yaml';
+                                              case 'sql': return 'sql';
+                                              default: return 'text';
+                                            }
+                                          };
+
+                                          const language = getLanguageFromFilename(filename);
+                                          const codeId = `code-${filename}`;
+                                          
+                                          // Apply syntax highlighting
+                                          let highlightedCode = codeContent;
+                                          try {
+                                            if (Prism.languages[language]) {
+                                              highlightedCode = Prism.highlight(codeContent, Prism.languages[language], language);
+                                            }
+                                          } catch (error) {
+                                            console.warn(`Failed to highlight ${language} code:`, error);
+                                          }
+
+                                          return (
+                                            <div key={filename} className="group">
+                                              <div className="bg-[#2d2d2d] border border-[#404040] rounded-lg overflow-hidden shadow-sm">
+                                                {/* Header - ChatGPT style */}
+                                                <div className="flex items-center justify-between bg-[#343434] px-4 py-3 border-b border-[#404040]">
+                                                  <div className="flex items-center">
+                                                    <span className="text-sm font-medium text-[#e5e5e5]">{filename}</span>
+                                                  </div>
+                                                  <div className="flex items-center space-x-2">
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="h-auto px-3 py-1.5 text-[#e5e5e5] hover:bg-[#404040] transition-colors text-sm"
+                                                      onClick={() => {
+                                                        navigator.clipboard.writeText(codeContent);
+                                                      }}
+                                                    >
+                                                      <Copy className="w-4 h-4 mr-1" />
+                                                      Copy
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                                
+                                                {/* Code content */}
+                                                <div className="relative bg-[#1e1e1e]">
+                                                  <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
+                                                    <code 
+                                                      className={`language-${language} block whitespace-pre`}
+                                                      dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                                                    />
+                                                  </pre>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  }
+                                }
+                                // If not a code response, render as JSON
+                                return <pre className="whitespace-pre-wrap">{JSON.stringify(contentObj, null, 2)}</pre>;
+                              }
                               if (typeof message.content === "string" && isStructuredSolutionJson(message.content)) {
                                 return <AIChatSolutionMessage solutionJson={JSON.parse(message.content)} />;
                               }
@@ -546,8 +651,10 @@ const AIGenerator = () => {
                                 if (parsed && (parsed.Summary || parsed.Diagram)) {
                                   return <AIChatSolutionMessage solutionJson={parsed} />;
                                 }
+                                return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
                               }
-                              return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
+                              // Fallback for unknown types
+                              return <pre className="whitespace-pre-wrap">{JSON.stringify(message.content, null, 2)}</pre>;
                             })()}
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">

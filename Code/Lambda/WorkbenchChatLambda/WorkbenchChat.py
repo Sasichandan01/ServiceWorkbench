@@ -1,8 +1,8 @@
 import json
+import os
 import re
 import logging
 import boto3
-import hashlib
 from datetime import datetime
 from decimal import Decimal
 from botocore.config import Config
@@ -14,7 +14,50 @@ CONFIG = Config(retries={'mode':'adaptive','max_attempts':5}, connect_timeout=60
 bedrock_agent_runtime_client = boto3.client('bedrock-agent-runtime', config=CONFIG)
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
-seen_hashes = set()
+look_up_table= os.environ.get('LOOK_UP_TABLE')
+
+KEYWORD_MAP = {
+    "cft": "cftgeneration",
+    "code": "codegeneration",
+    "architecture": "architecture",
+    "query": "queryparser",
+    "supervisor": "supervisor"
+}
+
+def extract_agent_info():
+    table = dynamodb.Table(look_up_table)
+    response = table.scan()
+    items = response.get('Items', [])
+
+    agents_info = {}
+    for item in items:
+        full_agent_id = item.get('AgentId', '')
+        if not full_agent_id:
+            continue
+
+        normalized_id = full_agent_id.lower()
+
+        # Try to match one of the known keywords
+        matched_key = None
+        for keyword, standard_key in KEYWORD_MAP.items():
+            if keyword in normalized_id:
+                matched_key = standard_key
+                break
+
+        if not matched_key:
+            # Fallback: try to extract the second last part if it ends with 'Agent'
+            parts = full_agent_id.split('-')
+            if parts[-1].lower() == "agent" and len(parts) >= 3:
+                matched_key = parts[-2].lower()
+            else:
+                matched_key = parts[-1].replace("Agent", "").lower()
+
+        agents_info[matched_key] = {
+            'AgentAliasId': item.get('AgentAliasId', ''),
+            'ReferenceId': item.get('ReferenceId', '')
+        }
+
+    return agents_info
 
 def generate_requirements():
     return ["boto3==1.28.63", "pyjwt==2.8.0", "requests==2.31.0"]
@@ -41,43 +84,40 @@ def send_message_to_websocket(client, conn_id, message):
 
 
 
-def find_code_variables(obj):
-    variables = []
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k == 'codeGenerated':
-                variables.append((k, v))
-            else:
-                variables.extend(find_code_variables(v))
-    elif isinstance(obj, list):
-        for item in obj:
-            variables.extend(find_code_variables(item))
-    return variables
+def read_all_files_from_prefix(bucket, prefix):
+    files_content = {}
 
+    try:
+        # List all objects under the given prefix
+        paginator = s3_client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
 
-def clean_response_string(input_data):
-  if isinstance(input_data, list):
-    temp_strings = []
-    for item in input_data:
-      s_item = str(item)
-      s_item = s_item.replace("\n", "")
-      s_item = s_item.replace("\\", "")
-      temp_strings.append(s_item)
-    return " ".join(temp_strings)
-  else:
-    response_string = str(input_data)
-    cleaned_string = response_string.replace("\n", "")
-    cleaned_string = cleaned_string.replace("\\", "")
-
-    return cleaned_string
-
-
+        for page in page_iterator:
+            if 'Contents' not in page:
+                continue
+            for obj in page['Contents']:
+                key = obj['Key']
+                if key.endswith('/'):  # skip folders
+                    continue
+                try:
+                    response = s3_client.get_object(Bucket=bucket, Key=key)
+                    content = response['Body'].read().decode('utf-8')
+                    filename = key.split('/')[-1]
+                    files_content[filename] = content
+                except Exception as e:
+                    LOGGER.error(f"Failed to read {key}: {e}")
+                    files_content[key] = f"<< Error reading file: {e} >>"
+    except Exception as e:
+        LOGGER.error(f" Failed to list objects from prefix '{prefix}': {e}")
+    
+    return files_content
 
 def handle_send_message(event, apigw_client, connection_id, user_id):
 
     body = json.loads(event.get('body', '{}'))
     user_prompt = body.get('userMessage')
-
+    agent_info=extract_agent_info()
+    
     if 'workspaceid' not in body or 'solutionid' not in body:
         msg = "Missing WorkspaceId or SolutionId"
         LOGGER.error(msg)
@@ -114,12 +154,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         streamingConfigurations={'streamFinalResponse': False}
     )
     
-    seen_code_vars = set()
+    
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
         print(trace)
         if trace:
-            LOGGER.info("trace", trace)
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
@@ -152,28 +191,31 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
                     ]
              
-                # elif observation_type == "ACTION_GROUP":
-                    # response_obj["AITrace"] = [{
-                    #     "Response from Lambda function" : trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
-                    # }]
+                elif observation_type == "ACTION_GROUP":
+                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    outer_json = json.loads(text)
+                    code_generated = outer_json.get("<codegenerated>", "false")
+                    
+                    if code_generated == "true":
+                        print("<codegenerated> is true")
+                        code_payload = read_all_files_from_prefix("bhargav9938", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+
+                    else:
+                        print("<codegenerated> is not true")
                 
                 elif observation_type == "FINISH" and trace['agentId']=='TCMEZDRP4O':
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
                 
-
-            
-            # if "AITrace" in response_obj:
-            #     response_obj["AITrace"] = clean_response_string(response_obj["AITrace"])
-            # elif "AIMessage" in response_obj:
-            #     response_obj["AIMessage"] = clean_response_string(response_obj["AIMessage"])
-
-     
             if "AITrace" in response_obj or "AIMessage" in response_obj:
                 send_message_to_websocket(apigw_client, connection_id,response_obj)    
 
+
+
 def lambda_handler(event, context):
     LOGGER.info("Event: %s", json.dumps(event, default=str))
+    
     rc = event['requestContext']
     cid = rc['connectionId']
 
