@@ -54,7 +54,7 @@ def extract_agent_info():
 
         agents_info[matched_key] = {
             'AgentAliasId': item.get('AgentAliasId', ''),
-            'ReferenceId': item.get('ReferenceId', '')
+            'AgentId': item.get('ReferenceId', '')
         }
 
     return agents_info
@@ -143,8 +143,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Prompt: {combined_prompt}")
 
     invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
-        agentId="TCMEZDRP4O",
-        agentAliasId="BNWPCZI2IV",
+        agentId=agent_info['supervisor'].get('AgentId'),
+        agentAliasId=agent_info['supervisor'].get('AgentAliasId'),
         sessionId=connection_id[:-1],
         inputText=combined_prompt,
         bedrockModelConfigurations={'performanceConfig': {'latency': 'standard'}},
@@ -191,7 +191,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
                     ]
              
-                elif observation_type == "ACTION_GROUP":
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['codegeneration'].get('AgentId'):
                     text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
                     outer_json = json.loads(text)
                     code_generated = outer_json.get("<codegenerated>", "false")
@@ -204,7 +204,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     else:
                         print("<codegenerated> is not true")
                 
-                elif observation_type == "FINISH" and trace['agentId']=='TCMEZDRP4O':
+                elif observation_type == "FINISH" :
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
                 
@@ -215,6 +215,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
 def lambda_handler(event, context):
     LOGGER.info("Event: %s", json.dumps(event, default=str))
+    
     
     rc = event['requestContext']
     cid = rc['connectionId']

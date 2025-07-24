@@ -1019,7 +1019,7 @@ Resources:
               - Sid: AllowDDBAccess
                 Effect: Allow
                 Action:
-                  - dynamodb:GetItem
+                  - dynamodb:Scan
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
