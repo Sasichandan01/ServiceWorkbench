@@ -1299,8 +1299,8 @@ Resources:
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      # Description: !Sub "${DeploymentTrigger}"
-      Description: "abc"
+      Description: !Sub "${DeploymentTrigger}"
+      # Description: "abc"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1905,8 +1905,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
-
 
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function

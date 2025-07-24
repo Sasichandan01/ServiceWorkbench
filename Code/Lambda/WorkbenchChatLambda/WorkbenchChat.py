@@ -1,5 +1,6 @@
 import json
 import os
+import os
 import re
 import logging
 import boto3
@@ -215,7 +216,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
 def lambda_handler(event, context):
     LOGGER.info("Event: %s", json.dumps(event, default=str))
-    
     
     rc = event['requestContext']
     cid = rc['connectionId']
