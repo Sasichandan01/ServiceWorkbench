@@ -1942,6 +1942,14 @@ Resources:
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
+  CodeGeneartorAgentAGLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CodeGenerationLambda
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
 # Lambda Permission for API Gateway to invoke Roles Lambda
   QueryParserLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission

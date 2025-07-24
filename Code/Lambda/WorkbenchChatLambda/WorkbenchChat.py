@@ -199,7 +199,20 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     
                     if code_generated == "true":
                         print("<codegenerated> is true")
-                        code_payload = read_all_files_from_prefix("bhargav9938", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
+                        code_payload = read_all_files_from_prefix("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+
+                    else:
+                        print("<codegenerated> is not true")
+
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['cftgeneration'].get('AgentId'):
+                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    outer_json = json.loads(text)
+                    code_generated = outer_json.get("<codegenerated>", "false")
+                    
+                    if code_generated == "true":
+                        print("<codegenerated> is true")
+                        code_payload = read_all_files_from_prefix("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
 
                     else:
