@@ -1232,7 +1232,7 @@ Resources:
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
       Description: !Sub "${DeploymentTrigger}"
-      Description: "abc"
+      # Description: "abc"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
