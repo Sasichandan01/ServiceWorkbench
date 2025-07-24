@@ -2036,16 +2036,16 @@ paths:
 /workspaces/{workspace_id}/solutions/{solution_id}/scripts:
   get:
     parameters:
-    - name: "solution_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
-    - name: "workspace_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
+      - name: "solution_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "workspace_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
     responses:
       "200":
         description: "200 response"
@@ -2054,7 +2054,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Empty"
     security:
-    - WorkbenchAuthorizer: []
+      - WorkbenchAuthorizer: []
     x-amazon-apigateway-integration:
       httpMethod: "POST"
       uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations"
@@ -2067,16 +2067,16 @@ paths:
       type: "aws_proxy"
   post:
     parameters:
-    - name: "solution_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
-    - name: "workspace_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
+      - name: "solution_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "workspace_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
     responses:
       "200":
         description: "200 response"
@@ -2085,7 +2085,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Empty"
     security:
-    - WorkbenchAuthorizer: []
+      - WorkbenchAuthorizer: []
     x-amazon-apigateway-integration:
       httpMethod: "POST"
       uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations"
@@ -2098,16 +2098,16 @@ paths:
       type: "aws_proxy"
   options:
     parameters:
-    - name: "workspace_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
-    - name: "solution_id"
-      in: "path"
-      required: true
-      schema:
-        type: "string"
+      - name: "workspace_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "solution_id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
     responses:
       "200":
         description: "200 response"
