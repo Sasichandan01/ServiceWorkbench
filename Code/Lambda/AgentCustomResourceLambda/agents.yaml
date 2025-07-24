@@ -329,7 +329,7 @@
 
     CRITICAL : If you don't perform these tasks with 100% accuracy you will be fired, virus will be injected to your system, power and internet connection will be cut and other better LLM models will be hired in place of you .So make sure that the architecture requires only necessary services that too from the mentioned ones and the mermaid diagram is 100% accurate and error free.
       
-  ModelId: anthropic.claude-3-7-sonnet-20250219-v1:0
+  ModelId: anthropic.claude-3-5-sonnet-20250219-v1:0
   Lambda: QueryParserLambdaFunction
   Tools:
     - ToolName: validate_resource
@@ -451,7 +451,7 @@
       }    
 
 
-  ModelId: anthropic.claude-3-7-sonnet-20250219-v1:0
+  ModelId: anthropic.claude-3-5-sonnet-20250219-v1:0
   Lambda: architecture-generation-lambda
   Tools:
     - ToolName: PresignedURL
@@ -473,7 +473,7 @@
           Description: S3 key of the memory file
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Knowledge base for OpenSearch documents" 
 
 
@@ -793,7 +793,7 @@
           IsRequired: true
       RequireConfirmation: DISABLED
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Refer to the knowledge base first for all AWS service documentation and code generation patterns."
 
 - AgentName: CFTGenerationAgent
@@ -1173,7 +1173,7 @@
           Description: takes in approval for deploying the cft
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Knowledge base for OpenSearch documents"
 
 - AgentName: Supervisor-Agent
