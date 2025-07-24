@@ -16,24 +16,48 @@ LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 look_up_table= os.environ.get('LOOK_UP_TABLE')
 
+KEYWORD_MAP = {
+    "cft": "cftgeneration",
+    "code": "codegeneration",
+    "architecture": "architecture",
+    "query": "queryparser",
+    "supervisor": "supervisor"
+}
 
 def extract_agent_info():
     table = dynamodb.Table(look_up_table)
     response = table.scan()
     items = response.get('Items', [])
-    
+
     agents_info = {}
     for item in items:
-        agent_name =  item.get('AgentId')  # Use appropriate key
-        if not agent_name:
+        full_agent_id = item.get('AgentId', '')
+        if not full_agent_id:
             continue
-        agents_info[agent_name] = {
+
+        normalized_id = full_agent_id.lower()
+
+        # Try to match one of the known keywords
+        matched_key = None
+        for keyword, standard_key in KEYWORD_MAP.items():
+            if keyword in normalized_id:
+                matched_key = standard_key
+                break
+
+        if not matched_key:
+            # Fallback: try to extract the second last part if it ends with 'Agent'
+            parts = full_agent_id.split('-')
+            if parts[-1].lower() == "agent" and len(parts) >= 3:
+                matched_key = parts[-2].lower()
+            else:
+                matched_key = parts[-1].replace("Agent", "").lower()
+
+        agents_info[matched_key] = {
             'AgentAliasId': item.get('AgentAliasId', ''),
-            'AgentId': item.get('ReferenceId', '')
+            'ReferenceId': item.get('ReferenceId', '')
         }
 
     return agents_info
-
 
 def generate_requirements():
     return ["boto3==1.28.63", "pyjwt==2.8.0", "requests==2.31.0"]
@@ -191,6 +215,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
 def lambda_handler(event, context):
     LOGGER.info("Event: %s", json.dumps(event, default=str))
+    
     rc = event['requestContext']
     cid = rc['connectionId']
 

@@ -472,9 +472,9 @@ def lambda_handler(event, context):
         workspace_id = validated_params['WorkspaceId']
         solution_id = validated_params['SolutionId']
         
-        bucket_name = 'bhargav9938'  # Consider making this configurable
+        bucket_name = 'develop-service-workbench-workspaces'  # Consider making this configurable
         
-        if function_name == 'storeServiceArtifactsInS3' and actiongroup == 'CodeStorageService':
+        if function_name == 'storeServiceArtifactsInS3' :
             generated_solution_output = validated_params['generatedSolutionOutput']
             
             # Parse and validate the solution output
@@ -502,7 +502,7 @@ def lambda_handler(event, context):
             }
             return build_agent_response(event, json.dumps(response), "true")
 
-        elif function_name== "storeMemoryinS3" and actiongroup == 'CodeStorageService':
+        elif function_name== "storeMemoryinS3" :
             summary = validated_params['Summary']
             memory_key = f"workspaces/{workspace_id}/solutions/{solution_id}/memory.json"
             print(memory_key)
