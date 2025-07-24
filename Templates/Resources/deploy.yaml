@@ -1906,41 +1906,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  ArchitectureAgentAGLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: S3
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                Resource:
-                  - !ImportValue WorkspacesBucketArn
-                  - !Sub
-                    - "${BucketArn}/*"
-                    - {BucketArn: !ImportValue WorkspacesBucketArn}
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource:
-                  - !ImportValue WorkspacesBucketArn
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
+
 
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
