@@ -26,7 +26,8 @@ import {
   Activity,
   Users,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Settings
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { signOut, clearAllAuthData } from "@/lib/auth";
@@ -108,6 +109,7 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
+    { name: "System", href: "/admin?tab=system", icon: Settings, resource: "users", action: "view" },
   ];
 
   const isActive = (path: string) => location.pathname === path;

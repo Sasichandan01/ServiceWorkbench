@@ -71,6 +71,11 @@ const AdminDashboard = () => {
             <AdminWorkspacesTable />
           </TabsContent>
         </ProtectedContent>
+        <ProtectedContent resource="users" action="view">
+          <TabsContent value="system">
+            <AdminSystemOverview />
+          </TabsContent>
+        </ProtectedContent>
         {/* Audit logs tab removed as per request */}
       </Tabs>
     </div>;
