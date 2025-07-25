@@ -50,9 +50,23 @@ const Login = ({ isSignupDefault = false }: LoginProps) => {
           title: "Success",
           description: "Signed in successfully!",
         });
-        
-        // Force navigation to trigger AuthProvider re-initialization
-        window.location.href = "/workspaces";
+
+        // Determine user role from idToken
+        const idToken = localStorage.getItem('idToken');
+        let userRole = 'Default';
+        if (idToken) {
+          try {
+            const payload = idToken.split('.')[1];
+            const decodedPayload = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            const parsedPayload = JSON.parse(decodedPayload);
+            userRole = parsedPayload['custom:Role'] || parsedPayload['custom:role'] || 'Default';
+          } catch (e) {}
+        }
+        if (userRole === 'ITAdmin') {
+          window.location.href = "/admin";
+        } else {
+          window.location.href = "/workspaces";
+        }
       } else {
         // Handle sign up
         const signUpData = {
