@@ -526,14 +526,15 @@ def delete_user_roles(user_id, body, requester_role, requester_user_id):
         LOGGER.error("Failed to delete user role: %s", e, exc_info=True)
         return return_response(500, {"message": "Error removing user role"})
 
-
 def rag_sync(event):
     '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
     LOGGER.info("Event: %s", event)
-    query_string_parameters = event.get("queryStringParameters", {})
+    query_string_parameters = event.get("queryStringParameters") or {}
     action = query_string_parameters.get("action")
     arguments = {}
-    if action is not None and action == 'docs':
+    if action is None:
+        arguments['--ACTION'] = 'docsapp'
+    elif action is not None and action == 'docs':
         arguments['--ACTION'] = 'docs'
     elif action is not None and action == 'app':
         arguments['--ACTION'] = 'app'
