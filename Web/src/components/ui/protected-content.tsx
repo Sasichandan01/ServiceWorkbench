@@ -2,6 +2,7 @@ import React from 'react';
 import { PermissionGuard } from '../auth/PermissionGuard';
 import { Alert, AlertDescription } from './alert';
 import { Shield } from 'lucide-react';
+import { useAppSelector } from '@/hooks/useAppSelector';
 
 interface ProtectedContentProps {
   children: React.ReactNode;
@@ -25,6 +26,11 @@ export const ProtectedContent: React.FC<ProtectedContentProps> = ({
   hideIfNoAccess = false,
   ...props
 }) => {
+  const { loading: authLoading } = useAppSelector((state) => state.auth);
+  if (authLoading) {
+    // Optionally, show a spinner here instead of null
+    return null;
+  }
   const fallback = hideIfNoAccess ? null : (
     <Alert variant="destructive" className="my-4">
       <Shield className="h-4 w-4" />
