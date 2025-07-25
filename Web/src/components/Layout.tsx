@@ -59,11 +59,7 @@ const Layout = () => {
   useEffect(() => {
     const info = getUserInfo();
     setUserInfo(info);
-    if (info?.username) {
-      fetchProfile(info.username);
-    } else {
-      setProfileLoading(false);
-    }
+    setProfileLoading(false);
     // Redirect default users with no permissions to /workspaces
     if (!hasAnyPermission() && location.pathname !== '/welcome' && location.pathname !== '/workspaces') {
       // If user is on /admin or /admin?tab=workspaces, force redirect to /workspaces

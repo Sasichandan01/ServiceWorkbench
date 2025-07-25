@@ -124,6 +124,13 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
         description: `Successfully switched to ${selectedRole} role.`,
       });
 
+      // Route like a fresh login for the new role
+      if (selectedRole === 'ITAdmin') {
+        window.location.href = '/admin';
+      } else {
+        window.location.href = '/workspaces';
+      }
+
       onOpenChange(false);
       setSelectedRole('');
     } catch (error) {
