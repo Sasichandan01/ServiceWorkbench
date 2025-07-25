@@ -918,7 +918,13 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: 
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*
+              - Effect: Allow
+                Action: glue:StartJobRun
+                Resource: '*'
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -997,7 +1003,7 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:PutObject
-                  - s3:ListObject
+                  - s3:ListBucket
                 Resource:
                   - !ImportValue WorkspacesBucketArn
                   - !Sub
