@@ -1,6 +1,5 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
   Activity, 
@@ -51,65 +50,29 @@ const AdminSystemOverview = () => {
       type: "error", 
       message: "Authentication service experienced brief downtime", 
       time: "6 hours ago" 
-    },
+    }
   ];
 
   const stats = [
     {
       title: "Total Users",
-      value: "1,247",
-      change: "+12% from last month",
+      value: "12",
       changeType: "positive",
       icon: Users
     },
     {
       title: "Active Workspaces",
-      value: "89",
-      change: "+8% from last month",
+      value: "10",
       changeType: "positive",
       icon: Cloud
     },
     {
       title: "Roles",
-      value: "24",
-      change: "+3 new roles",
+      value: "5",
       changeType: "positive",
       icon: Shield
-    },
-    {
-      title: "System Alerts",
-      value: "3",
-      change: "2 critical",
-      changeType: "negative",
-      icon: AlertTriangle
     }
   ];
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'healthy':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
-      case 'error':
-        return <AlertTriangle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'healthy':
-        return <Badge className="bg-green-100 text-green-800">Healthy</Badge>;
-      case 'warning':
-        return <Badge className="bg-yellow-100 text-yellow-800">Warning</Badge>;
-      case 'error':
-        return <Badge className="bg-red-100 text-red-800">Error</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
 
   const getAlertIcon = (type: string) => {
     switch (type) {

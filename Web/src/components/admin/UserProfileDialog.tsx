@@ -306,10 +306,7 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
             <div>
               <Label className="text-base font-medium">Recent Activity</Label>
               <div className="mt-3">
-                <WorkspaceAuditLogs 
-                  userId={userId}
-                  title="User Activity"
-                />
+                <UserRecentActivity userId={userId} />
               </div>
             </div>
 
@@ -325,3 +322,47 @@ const UserProfileDialog = ({ userId, trigger, isOwnProfile = false }: UserProfil
 };
 
 export default UserProfileDialog;
+
+function UserRecentActivity({ userId }: { userId: string }) {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchLogs = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res: any = await UserService.getUserActivityLogs(userId, { limit: 5 });
+        if (!ignore) setLogs(res.ActivityLogs || []);
+      } catch (err: any) {
+        if (!ignore) setError(err.message || "Failed to load activity logs");
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    if (userId) fetchLogs();
+    return () => { ignore = true; };
+  }, [userId]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading activity...</div>;
+  if (error) return <div className="text-sm text-red-600">{error}</div>;
+  if (logs.length === 0) return <div className="text-sm text-muted-foreground">No recent activity found.</div>;
+  return (
+    <div className="space-y-4">
+      {logs.map((activity, index) => (
+        <div key={index} className="flex items-start space-x-3">
+          <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {activity.Action || activity.action}
+            </p>
+            <p className="text-sm text-gray-600 truncate">{activity.ResourceName || activity.target}</p>
+            <p className="text-xs text-gray-500">{activity.EventTime || activity.time}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
