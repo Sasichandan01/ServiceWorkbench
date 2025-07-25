@@ -130,7 +130,7 @@ export const apiSlice = createApi({
       invalidatesTags: (result, error, args) => [{ type: 'Workspace', id: args.ResourceId }],
     }),
     deleteShareResource: builder.mutation<any, {
-      UserId: string;
+      Username: string;
       ResourceType: 'workspace' | 'solution' | 'datasource';
       ResourceId: string;
     }>({

@@ -288,7 +288,7 @@ const DataSourceDetails = () => {
                                   <DialogHeader>
                                     <DialogTitle>Revoke Access</DialogTitle>
                                     <DialogDescription>
-                                      User access will be revoked and they will no longer be able to access this resource.
+                                      User access will be revoked and they will no longer be able to access this datasource.
                                     </DialogDescription>
                                   </DialogHeader>
                                   <DialogFooter>
@@ -296,7 +296,7 @@ const DataSourceDetails = () => {
                                     <Button variant="destructive" onClick={async () => {
                                       try {
                                         await deleteShareResource({
-                                          UserId: user.UserId,
+                                          Username: user.Username,
                                           ResourceType: 'datasource',
                                           ResourceId: dataSource.Datasource.DatasourceId,
                                         }).unwrap();

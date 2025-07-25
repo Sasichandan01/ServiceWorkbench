@@ -398,7 +398,7 @@ const SolutionDetails = () => {
                           <DialogHeader>
                             <DialogTitle>Revoke Access</DialogTitle>
                             <DialogDescription>
-                              User access will be revoked and they will no longer be able to access this resource.
+                              User access will be revoked and they will no longer be able to access this solution.
                             </DialogDescription>
                           </DialogHeader>
                           <DialogFooter>
@@ -406,7 +406,7 @@ const SolutionDetails = () => {
                             <Button variant="destructive" onClick={async () => {
                               try {
                                 await deleteShareResource({
-                                  UserId: user.UserId,
+                                  Username: user.Username,
                                   ResourceType: 'solution',
                                   ResourceId: `${workspaceId}#${solutionId}`,
                                 }).unwrap();
