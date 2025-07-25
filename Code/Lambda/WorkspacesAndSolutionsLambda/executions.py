@@ -1,310 +1,382 @@
-import boto3
 import json
+import boto3
 import os
-import uuid
-from datetime import datetime, timezone
-from botocore.exceptions import ClientError
-from Utils.utils import log_activity,return_response,paginate_list
+import tempfile
+from datetime import datetime, timedelta, timezone
+import logging
 from boto3.dynamodb.conditions import Attr,Key
+from Utils.utils import log_activity,return_response,paginate_list
+from botocore.exceptions import ClientError
 
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb')
+s3_client = boto3.client('s3')
+logs_client = boto3.client('logs')
+glue_client = boto3.client('glue')
 lambda_client = boto3.client('lambda')
-executions_table = dynamodb.Table(os.environ['EXECUTIONS_TABLE'])
-workspaces_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
-activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
-solutions_table = dynamodb.Table(os.environ['SOLUTIONS_TABLE'])
+stepfunctions_client = boto3.client('stepfunctions')
 
-def validate_path_parameters(params, required_keys):
-    """Validate that required path parameters exist and are not empty."""
-    if not params:
-        return False, "Missing path parameters"
-    
-    for key in required_keys:
-        if key not in params or not params[key]:
-            return False, f"Missing or empty {key}"
-    return True, ""
+activity_logs_table = dynamodb.Table(os.environ.get('ACTIVITY_LOGS_TABLE'))
+executions_table = dynamodb.Table(os.environ.get('EXECUTIONS_TABLE'))
+solutions_table = dynamodb.Table(os.environ.get('SOLUTIONS_TABLE'))
+workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
 
-def get_executions(event, context):
-    """Retrieve all executions for a solution."""
+def update_execution_status(solution_id, execution_id, status):
+    """Update the log status for a given execution in the executions table."""
     try:
-
-        path_parameters = event.get('pathParameters', {})
-        queryParams = event.get('queryStringParameters') or {}
-        is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id'])
-        if not is_valid:
-            return return_response(400, {"Error": message})
-
-        solution_id = path_parameters['solution_id']
-        
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-
-        limit = queryParams.get('limit', 10)
-        offset = queryParams.get('offset', 1)    
-
-        if limit is not None:
-            try:
-                limit = int(limit)
-            except ValueError:
-                return return_response(400, {"Error": "Invalid limit parameter. Must be an integer."})
-
-        if offset is not None:
-            try:
-                offset = int(offset)
-            except ValueError:
-                return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
-
-        execution_items = executions_table.query(
-            KeyConditionExpression=Key('SolutionId').eq(solution_id),
-            ProjectionExpression="ExecutionId, ExecutionStatus, StartTime, EndTime, ExecutedBy"
-        ).get('Items', [])
-
-        pagination_response = paginate_list(
-            name='Execution',
-            data=execution_items,
-            valid_keys=['StartTime'],
-            offset=offset,
-            limit=limit,
-            sort_by='StartTime',   
-            sort_order='desc'
+        executions_table.update_item(
+            Key={
+                'SolutionId': solution_id,
+                'ExecutionId': execution_id
+            },
+            UpdateExpression='SET LogsStatus = :status',
+            ExpressionAttributeValues={
+                ':status': status
+            }
         )
-        return pagination_response
-        # return return_response(200, response)
-    except ClientError:
-        return return_response(500, {"Error": 'Internal server error retrieving execution'})
     except Exception as e:
-        return return_response(500,{"Error": str(e)})
+        logger.error(f"Error updating execution status: {str(e)}")
+        raise
 
-
-def get_execution(event, context):
-    """Retrieve details of a specific execution."""
+def fetch_resources_for_solution(workspace_id,solution_id):
+    """Fetch resources for a given solution from the solutions table."""
     try:
-       
-        path_parameters = event.get('pathParameters', {})
-        is_valid, message = validate_path_parameters(path_parameters, ['workspace_id', 'solution_id', 'execution_id'])
-        if not is_valid:
-            return return_response(400, {"Error": message})
+        response = solutions_table.get_item(Key={'WorkspaceId':workspace_id,'SolutionId': solution_id})
+        print(response)
+        return response.get('Item', {}).get('Resources', [])
+    except Exception as e:
+        logger.error(f"Error fetching resources for solution: {str(e)}")
+        raise
 
-        execution_id = path_parameters['execution_id']
-        solution_id = path_parameters['solution_id']
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        
+def fetch_execution_details(solution_id, execution_id):
+    """Fetch execution details (start/end time) from executions table."""
+    try:
         response = executions_table.get_item(
-            Key= {'SolutionId': solution_id, 'ExecutionId':execution_id}
+            Key={'SolutionId': solution_id, 'ExecutionId': execution_id}
+        )
+        item = response.get('Item')
+        return item
+    except Exception as e:
+        logger.error(f"Error fetching execution details: {str(e)}")
+        raise
+
+def fetch_logs_for_resource(resource, start_time, end_time):
+    """
+    Fetch logs for a resource between start and end times.
+    Determines the resource type and fetches logs from CloudWatch or Glue accordingly.
+    Stores logs in a temp file and returns the file path.
+    """
+    try:
+        resource_type = resource.get('Type', '').lower() if isinstance(resource, dict) else str(resource).lower()
+        resource_name = resource.get('Name') if isinstance(resource, dict) else str(resource)
+        logs_content = ""
+        print(resource_type)
+        print(resource_name)
+        if 'glue' in resource_type:
+            logs_content = fetch_glue_logs_by_time(resource_name, start_time, end_time)
+        elif 'lambda' in resource_type:
+            logs_content = fetch_lambda_logs_by_time(resource_name, start_time, end_time)
+        elif 'stepfunction' in resource_type or 'step' in resource_type:
+            logs_content = fetch_stepfunction_logs_by_time(resource_name, start_time, end_time)
+        else:
+            logs_content = f"Unsupported resource type: {resource_type} for resource {resource_name}"
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+            tmp_file.write(logs_content)
+            tmp_file_path = tmp_file.name
+        return tmp_file_path
+    except Exception as e:
+        logger.error(f"Error fetching logs for resource {resource}: {str(e)}")
+        raise
+
+def merge_and_upload_logs(logs, s3_bucket, s3_key):
+    """
+    Merge logs, store in temp file, and upload to S3. Return S3 path.
+    """
+    try:
+        combined_content = '\n'.join(logs)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+            tmp_file.write(combined_content)
+            tmp_file_path = tmp_file.name
+        
+        s3_client.upload_file(tmp_file_path, s3_bucket, s3_key)
+        os.unlink(tmp_file_path)
+        return f"s3://{s3_bucket}/{s3_key}"
+    except Exception as e:
+        logger.error(f"Error merging/uploading logs: {str(e)}")
+        raise
+
+def fetch_glue_logs_by_time(job_name, start_time, end_time):
+    """
+    Fetch Glue job logs for a given job name between start_time and end_time.
+    """
+    try:
+        response = glue_client.get_job_runs(JobName=job_name, MaxResults=50)
+        
+        logs_content = f"=== GLUE JOB LOGS: {job_name} ===\nTime Range: {start_time} to {end_time}\n\n"
+        log_groups = [f"/aws-glue/jobs/output"]
+        
+        for job_run in response.get('JobRuns', []):
+            run_id = job_run.get('Id')
+            run_start = job_run.get('StartedOn')
+            run_end = job_run.get('CompletedOn')
+            status = job_run.get('JobRunState')
+            
+            if run_start and run_start >= start_time and run_end <= end_time:
+                logs_content += f"\n--- Job Run ID: {run_id} (Status: {status}) ---\n"
+                logs_content += f"Started: {run_start}, Completed: {run_end}\n"
+                
+                found_stream = False
+                for log_group_name in log_groups:
+                    streams_resp = logs_client.describe_log_streams(
+                        logGroupName=log_group_name,
+                        logStreamNamePrefix=run_id,
+                        orderBy='LogStreamName',
+                        descending=False
+                    )
+                    for stream in streams_resp.get('logStreams', []):
+                        stream_name = stream['logStreamName']
+                        found_stream = True
+                        try:
+                            log_events = fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time)
+                            logs_content += f"[{log_group_name}]\n"
+                            logs_content += log_events
+                        except Exception as e:
+                            logs_content += f"Error fetching logs for stream {stream_name} in {log_group_name}: {str(e)}\n"
+                if not found_stream:
+                    logs_content += f"No log stream found for run ID: {run_id} in output/error log groups\n"
+        
+        return logs_content
+    except Exception as e:
+        logger.error(f"Error fetching Glue logs for {job_name}: {str(e)}")
+        return f"Error fetching Glue logs: {str(e)}"
+
+def fetch_lambda_logs_by_time(function_name, start_time, end_time):
+    """Fetch Lambda function logs from CloudWatch."""
+    try:
+        log_group_name = f"/aws/lambda/{function_name}"
+        response = logs_client.describe_log_streams(
+            logGroupName=log_group_name,
+            orderBy='LastEventTime',
+            descending=True,
+            limit=20
         )
         
-        if 'Item' not in response:
-            return return_response(404, {"Error": 'Execution not found'})
-
-
-        return return_response(200, response['Item'])
-    except ClientError:
-        return return_response(500, {"Error": 'Internal server error retrieving execution'})
-    except Exception as e:
-        return return_response(500,{"Error": str(e)})
-
-def start_execution(event, context):
-    """Start a new solution execution"""
-    try:
-        # Extract parameters
-        path_parameters = event.get('pathParameters', {})
-        workspace_id = path_parameters['workspace_id']
-        solution_id = path_parameters['solution_id']
-        execution_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        logs_content = f"=== LAMBDA LOGS: {function_name} ===\nTime Range: {start_time} to {end_time}\n\n"
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
         
-        # Get solution details
-        solution = solutions_table.get_item(
-            Key={'WorkspaceId': workspace_id, 'SolutionId': solution_id}
+        for stream in response.get('logStreams', []):
+            stream_name = stream['logStreamName']
+            stream_start = datetime.fromtimestamp(stream.get('creationTime', 0) / 1000, tz=timezone.utc)
+            print(stream_start)
+            print(start_time)
+            print(end_time)
+            if (stream_start <= end_time and stream_start >= start_time):
+                logs_content += f"\n--- Log Stream: {stream_name} ---\n"
+                logs_content += f"Stream Time: {stream_start}\n"
+                log_events = fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time)
+                logs_content += log_events
+        
+        logger.info(f"Lambda logs fetched for {function_name}")
+        return logs_content
+    except Exception as e:
+        logger.error(f"Error fetching Lambda logs for {function_name}: {str(e)}")
+        return f"Error fetching Lambda logs: {str(e)}"
+
+def fetch_stepfunction_logs_by_time(state_machine_name, start_time, end_time):
+    """Fetch Step Function logs from CloudWatch."""
+    try:
+        log_group_prefix = f"/aws/vendedlogs/states/{state_machine_name}"
+        log_groups_resp = logs_client.describe_log_groups(logGroupNamePrefix=log_group_prefix)
+        
+        logs_content = f"=== STEP FUNCTION LOGS: {state_machine_name} ===\nTime Range: {start_time} to {end_time}\n\n"
+        
+        for log_group in log_groups_resp.get('logGroups', []):
+            log_group_name = log_group['logGroupName']
+            
+            streams_resp = logs_client.describe_log_streams(
+                logGroupName=log_group_name,
+                orderBy='LastEventTime',
+                descending=True,
+                limit=20
+            )
+                
+            if start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=timezone.utc)
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=timezone.utc)
+            
+            for stream in response.get('logStreams', []):
+                stream_name = stream['logStreamName']
+                stream_start = datetime.fromtimestamp(stream.get('creationTime', 0) / 1000, tz=timezone.utc)
+                
+                if (stream_start <= end_time and stream_start >= start_time):
+                    logs_content += f"\n--- Log Stream: {stream_name} ---\n"
+                    logs_content += f"Stream Time: {stream_start} \n"
+                    log_events = fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time)
+                    logs_content += log_events
+        
+        logger.info(f"Step Function logs fetched for {state_machine_name}")
+        return logs_content
+    except Exception as e:
+        logger.error(f"Error fetching Step Function logs for {state_machine_name}: {str(e)}")
+        return f"Error fetching Step Function logs: {str(e)}"
+
+def fetch_cloudwatch_logs(log_group_name, log_stream_name, start_time, end_time):
+    """Fetch log events from CloudWatch Logs."""
+    try:
+        start_timestamp = int(start_time.timestamp() * 1000)
+        end_timestamp = int(end_time.timestamp() * 1000)
+        
+        response = logs_client.get_log_events(
+            logGroupName=log_group_name,
+            logStreamName=log_stream_name,
+            startTime=start_timestamp,
+            endTime=end_timestamp
+        )
+        
+        logs_content = ""
+        for event in response.get('events', []):
+            timestamp = datetime.fromtimestamp(event['timestamp'] / 1000)
+            message = event['message']
+            logs_content += f"{timestamp}: {message}\n"
+        return logs_content
+    except Exception as e:
+        logger.error(f"Error fetching CloudWatch logs: {str(e)}")
+        return f"Error fetching CloudWatch logs: {str(e)}"
+
+def process_log_collection(event, context):
+    """Main function to process log collection."""
+    try:
+        solution_id = event.get('solution_id')
+        execution_id = event.get('execution_id')
+        workspace_id = event.get('workspace_id')
+        
+        if not solution_id or not execution_id or not workspace_id:
+            return return_response(400, "Missing required parameters")
+        
+        logger.info("Started generating log collection")
+        update_execution_status(solution_id, execution_id, "RUNNING")
+
+        resources = fetch_resources_for_solution(workspace_id,solution_id)
+        print(resources)
+        execution_details = fetch_execution_details(solution_id, execution_id)
+        print(execution_details)
+        
+        start_time = execution_details.get('StartTime')
+        end_time = execution_details.get('EndTime')
+
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+
+        logs_contents = []
+        for resource in resources:
+            logs_contents.append(fetch_logs_for_resource(resource, start_time, end_time))
+
+        merged_logs = ""
+        for log_file in logs_contents:
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    merged_logs += f.read() + "\n"
+                os.unlink(log_file)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+            tmp_file.write(merged_logs)
+            merged_log_file = tmp_file.name
+
+        s3_key = f"workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs.txt"
+        
+        try:
+            s3_client.upload_file(merged_log_file, workspaces_bucket, s3_key)
+            logger.info("Upload successful")
+        except Exception as upload_exc:
+            logger.error(f"Upload failed: {upload_exc}")
+            return return_response(500, f"S3 upload failed: {upload_exc}")
+        
+        os.unlink(merged_log_file)
+        update_execution_status(solution_id, execution_id, "COMPLETED")
+        
+        return return_response(200, {
+            's3_location': f's3://{workspaces_bucket}/{s3_key}',
+            'processed_executions': len(resources)
+        })
+    except Exception as e:
+        logger.error(str(e))
+        return return_response(400, str(e))
+
+def get_execution_logs(event, context):
+    """Get presigned URL for execution logs."""
+    try:
+        path_parameters = event.get('pathParameters', {})
+        workspace_id = path_parameters.get('workspace_id')
+        solution_id = path_parameters.get('solution_id')
+        execution_id = path_parameters.get('execution_id')
+        
+        execution = executions_table.get_item(
+            Key={'SolutionId': solution_id, 'ExecutionId': execution_id}
         ).get('Item', {})
         
-        if not solution:
-            return return_response(404, {"Error": "Solution not found"})
-        execution_response = executions_table.query(
-            KeyConditionExpression=Key('SolutionId').eq(solution_id),
-            FilterExpression=Attr('ExecutionStatus').eq('GENERATING')
-        )
-        if execution_response.get('Count', 0) > 0:
-            return return_response(400, {"Error": "Another execution is already in progress"})
-        # Create execution record
-        execution = {
-            'ExecutionId': execution_id,
-            'SolutionId': solution_id,
-            'WorkspaceId': workspace_id,
-            'ExecutionStatus': 'GENERATING',
-            'StartTime': timestamp,
-            'ExecutedBy': event.get('requestContext', {}).get('authorizer', {}).get('user_id'),
-            'LogsStatus': 'INCOMPLETE'
-        }
-        executions_table.put_item(Item=execution)
-        # Start all resources
-        resource_statuses = {}
-        for resource in solution.get('Resources', []):
-            resource_name = resource['Name']
-            resource_type = resource['Type']
-            
-            if resource_type == 'lambda':
-                lambda_client.invoke(
-                    FunctionName=resource_name,
-                    InvocationType='Event',
-                    Payload=json.dumps({
-                        'execution_id': execution_id,
-                        'solution_id': solution_id
-                    })
-                )
-                resource_statuses[resource_name] = {
-                    'type': 'lambda',
-                    'status': 'GENERATING'
-                }
+        logs_status = execution.get('LogsStatus')
+        
 
-            elif resource_type == 'stepfunction':
-                response = sfn_client.start_execution(
-                    stateMachineArn=resource_name,
-                    input=json.dumps({'execution_id': execution_id})
-                )
-                resource_statuses[resource_name] = {
-                    'type': 'stepfunction',
-                    'status': 'GENERATING',
-                    'executionArn': response['executionArn']
-                }
+        if logs_status == 'COMPLETED' :
+            pre_signed_url = s3_client.generate_presigned_url(
+                ClientMethod='get_object',
+                Params={
+                    'Bucket': workspaces_bucket,
+                    'Key': f"workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs.txt"
+                },
+                ExpiresIn=3600
+            )
+            return return_response(200, {"PresignedURL":pre_signed_url})
+        
+        return return_response(202, "Logs are being generated. Please try again later.")
+    except Exception as e:
+        logger.error(str(e))
+        return return_response(400, str(e))
 
-            elif resource_type == 'glue':
-                response = glue_client.start_job_run(JobName=resource_name)
-                resource_statuses[resource_name] = {
-                    'type': 'glue',
-                    'status': 'GENERATING',
-                    'runId': response['JobRunId']
-                }
+def generate_execution_logs(event, context):
+    """Trigger log generation process."""
+    try:
+        path_parameters = event.get('pathParameters', {})
+        workspace_id = path_parameters.get('workspace_id')
+        solution_id = path_parameters.get('solution_id')
+        execution_id = path_parameters.get('execution_id')
+
+        execution_response = executions_table.get_item(
+            Key={'SolutionId': solution_id, 'ExecutionId': execution_id},
+            ProjectionExpression='ExecutionStatus,LogsStatus'
+        ).get('Item', {})
+        
+        if execution_response.get('ExecutionStatus') == 'RUNNING':
+            return return_response(400, "Solution is executing. Please try again later.")
+        if execution_response.get('LogsStatus') in ['RUNNING', 'COMPLETED']:
+            return return_response(400, "Logs are already being generated or completed.")
 
         payload = {
-            "execution_id": execution_id,
-            "solution_id": solution_id,
-            "workspace_id": workspace_id,
-            "resource_statuses": resource_statuses,
-            "start_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-            "action": "execution-poll"
+            'workspace_id': workspace_id,
+            'solution_id': solution_id,
+            'execution_id': execution_id,
+            'background': True,
+            'resource': f'/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs',
+            'action': 'logs-poll'
         }
+
         lambda_client.invoke(
-            FunctionName='wb-bhargav-workspacesandsolutions-lambda',  
-            InvocationType='Event', 
+            FunctionName=context.function_name,
+            InvocationType='Event',
             Payload=json.dumps(payload)
-        )       
-        
-
-
-        return return_response(201, {
-            'Message': 'Execution started successfully',
-            'ExecutionId': execution_id
-        })
-
-    except ClientError as e:
-        return return_response(500, {"Error": f"AWS error: {str(e)}"})
-    except Exception as e:
-        return return_response(500, {"Error": str(e)})
-
-def process_execution(event, context):
-    """Poll resource statuses for up to 10 minutes"""
-    print(event)
-    execution_id = event['execution_id']
-    solution_id = event['solution_id']
-    workspace_id = event['workspace_id']
-    resource_statuses = event['resource_statuses']
-    start_time = event['start_time']
-    max_duration = 100  # 10 minutes
-    poll_interval = 5   # seconds
-    
-    try:
-        while (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") - start_time) < max_duration:
-            all_completed = True
-            any_failed = False
-            
-            # Check each resource's status
-            for resource_name, status_info in resource_statuses.items():
-                if status_info['status'] in ['COMPLETED', 'FAILED']:
-                    if status_info['status'] == 'FAILED':
-                        any_failed = True
-                    continue
-                
-                try:
-                    if status_info['type'] == 'lambda':
-                        # Implement your Lambda status check here
-                        # Example: Query DynamoDB where worker Lambda reports status
-                        pass
-                        
-                    elif status_info['type'] == 'stepfunction':
-                        response = sfn_client.describe_execution(
-                            executionArn=status_info['executionArn']
-                        )
-                        print(response)
-                        if response['status'] != 'RUNNING':
-                            status_info['status'] = 'COMPLETED' if response['status'] == 'SUCCEEDED' else 'FAILED'
-                    
-                    elif status_info['type'] == 'glue':
-                        response = glue_client.get_job_run(
-                            JobName=resource_name,
-                            RunId=status_info['runId']
-                        )
-                        print(response)
-                        if response['JobRun']['JobRunState'] in ['SUCCEEDED', 'FAILED', 'STOPPED']:
-                            status_info['status'] = 'COMPLETED' if response['JobRun']['JobRunState'] == 'SUCCEEDED' else 'FAILED'
-                
-                except ClientError as e:
-                    print(f"Error checking {resource_name}: {str(e)}")
-                    continue
-                
-                if status_info.get('status') not in ['COMPLETED', 'FAILED']:
-                    all_completed = False
-                elif status_info['status'] == 'FAILED':
-                    any_failed = True
-            
- 
-            # Exit if all completed
-            if all_completed:
-                final_status = 'FAILED' if any_failed else 'GENERATED'
-                executions_table.update_item(
-                    Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
-                    UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
-                    ExpressionAttributeValues={
-                        ':status': final_status,
-                        ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                )
-                print(f"Execution completed with status: {final_status}")
-                return return_response(200, {
-                    'status': final_status,
-                    'execution_id': execution_id
-                })
-            
-            # Wait before next poll
-            time.sleep(poll_interval)
-        
-        # Timeout reached
-        executions_table.update_item(
-            Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
-            UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
-            ExpressionAttributeValues={
-                ':status': 'FAILED',
-                ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            }
         )
-        return return_response(200, {
-            'status': 'FAILED',
-            'execution_id': execution_id
-        })
-    
-    except Exception as e:
-        executions_table.update_item(
-            Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
-            UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
-            ExpressionAttributeValues={
-                ':status': 'FAILED',
-                ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            }
-        )
-        return return_response(500, {"Error": str(e)})
 
+        return return_response(200, "Log collection triggered successfully")
+    except Exception as e:
+        logger.error(str(e))
+        return return_response(500, {"Error": f"Internal Server Error: {e}"})
