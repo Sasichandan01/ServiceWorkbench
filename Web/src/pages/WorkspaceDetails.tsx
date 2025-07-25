@@ -216,7 +216,7 @@ const WorkspaceDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.data?.message || 'Failed to share workspace.',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive",
       });
     }
@@ -321,7 +321,7 @@ const WorkspaceDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.data?.message || error.message || 'Failed to create solution',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive",
       });
     }
@@ -839,7 +839,7 @@ const WorkspaceDetails = () => {
                                             setRevokeDialogOpen(false);
                                             setUserToRevoke(null);
                                           } catch (e: any) {
-                                            toast({ title: 'Error', description: e?.data?.message || 'Failed to revoke access.', variant: 'destructive' });
+                                            toast({ title: 'Error', description: e?.data?.message || e?.message || (typeof e === 'string' ? e : 'An error occurred.'), variant: 'destructive' });
                                           }
                                         }} disabled={isRevoking}>
                                           {isRevoking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}

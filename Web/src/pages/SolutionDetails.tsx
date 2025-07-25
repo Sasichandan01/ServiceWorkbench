@@ -24,6 +24,7 @@ import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { useAppSelector } from "@/hooks/useAppSelector";
+import { ExecutionService } from "../services/executionService";
 
 interface RunHistoryItem {
   id: number;
@@ -70,6 +71,9 @@ const SolutionDetails = () => {
 
   const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
   const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
+
+  // Add this line here, before any return statements
+  const loggedInUser = useAppSelector(state => state.auth.user);
 
   // Preload code files for better UX
   const preloadCodeFiles = async () => {
@@ -125,12 +129,22 @@ const SolutionDetails = () => {
     }
   };
 
-  const handleRunSolution = () => {
-    toast({
-      title: "Solution Started",
-      description: "Solution execution has been initiated successfully.",
-    });
-    setActiveTab("runs");
+  const handleRunSolution = async () => {
+    if (!workspaceId || !solutionId) return;
+    try {
+      await ExecutionService.createExecution(workspaceId, solutionId, {});
+      toast({
+        title: "Solution Started",
+        description: "Solution execution has been initiated successfully.",
+      });
+      setActiveTab("runs");
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.data?.message || err?.message || (typeof err === 'string' ? err : 'An error occurred.'),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleGenerateSolution = () => {
@@ -276,13 +290,11 @@ const SolutionDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.data?.message || 'Failed to share solution.',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive",
       });
     }
   };
-
-  const loggedInUser = useAppSelector(state => state.auth.user);
 
   // Add this function to render the users tab
   const renderUsersTab = () => (

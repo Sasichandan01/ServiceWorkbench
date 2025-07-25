@@ -34,7 +34,7 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch execution history",
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     } finally {
