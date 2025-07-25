@@ -81,7 +81,7 @@ const DataSourceDetails = () => {
       }).unwrap();
       toast({
         title: "Success",
-        description: `User invited to datasource successfully!`,
+        description: `Access granted!`,
       });
       setShareEmail("");
       setShareRole("viewer");
@@ -219,7 +219,7 @@ const DataSourceDetails = () => {
                         Cancel
                       </Button>
                       <Button onClick={handleShare} disabled={isSharing}>
-                        {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                        {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Grant Access"}
                       </Button>
                     </DialogFooter>
                   </DialogContent>

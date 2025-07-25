@@ -204,7 +204,7 @@ const WorkspaceDetails = () => {
 
       toast({
         title: "Success",
-        description: `User invited to workspace successfully!`,
+        description: `Access granted!`,
       });
 
       setNewUserEmail("");
@@ -757,7 +757,7 @@ const WorkspaceDetails = () => {
                               Cancel
                             </Button>
                             <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive" || isSharing}>
-                              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Grant Access"}
                             </Button>
                           </DialogFooter>
                         </DialogContent>

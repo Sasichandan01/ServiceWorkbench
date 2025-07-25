@@ -263,7 +263,7 @@ const SolutionDetails = () => {
       }).unwrap();
       toast({
         title: "Success",
-        description: `User invited to solution successfully!`,
+        description: `Access granted!`,
       });
       setNewUserEmail("");
       setNewUserRole("viewer");
@@ -332,7 +332,7 @@ const SolutionDetails = () => {
                   Cancel
                 </Button>
                 <Button onClick={handleAddUser} disabled={isSharing}>
-                  {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                  {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Grant Access"}
                 </Button>
               </DialogFooter>
             </DialogContent>
