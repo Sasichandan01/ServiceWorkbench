@@ -125,7 +125,7 @@ const Profile = () => {
           {/* Right Sidebar */}
           <div className="space-y-6">
             <AccountOverview user={user || {}} />
-            <RecentActivity />
+            <RecentActivity userId={user?.UserId || user?.username || ""} />
           </div>
         </div>
       )}

@@ -78,4 +78,13 @@ export class UserService {
     const data = await this.handleResponse<{ PreSignedURL: string }>(response);
     return data.PreSignedURL;
   }
+
+  static async getUserActivityLogs(userId: string, params?: { limit?: number; offset?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    const endpoint = `/activity-logs/User/${userId}${searchParams.toString() ? `?${searchParams}` : ''}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse(response);
+  }
 }

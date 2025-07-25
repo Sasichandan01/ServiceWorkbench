@@ -62,20 +62,21 @@ const getRowColor = (status: string) => {
   }
 };
 
-const formatLastActivity = (timestamp: string): string => {
-  if (!timestamp) return "Unknown";
+function formatRelativeTime(timestamp: string): string {
+  if (!timestamp || timestamp === 'Unknown') return 'Unknown';
   let isoTimestamp = timestamp;
+  // Convert 'YYYY-MM-DD HH:mm:ss' to ISO format
   if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
     isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
   }
   const date = new Date(isoTimestamp);
-  if (isNaN(date.getTime())) return "Unknown";
+  if (isNaN(date.getTime())) return timestamp; // fallback: show raw timestamp if parsing fails
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return "Just now";
+  if (diffMs < 0) return 'Just now';
   const diffInMinutes = Math.floor(diffMs / (1000 * 60));
   if (diffInMinutes < 1) {
-    return "Just now";
+    return 'Just now';
   } else if (diffInMinutes < 60) {
     return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
   } else if (diffInMinutes < 1440) {
@@ -85,7 +86,7 @@ const formatLastActivity = (timestamp: string): string => {
     const days = Math.floor(diffInMinutes / 1440);
     return `${days} day${days === 1 ? '' : 's'} ago`;
   }
-};
+}
 
 const AdminWorkspacesTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -115,7 +116,7 @@ const AdminWorkspacesTable = () => {
             id: ws.WorkspaceId,
             name: ws.WorkspaceName,
             status: ws.WorkspaceStatus,
-            lastActivity: formatLastActivity(ws.LastUpdationTime),
+            lastActivity: formatRelativeTime(ws.LastUpdationTime),
             owner: ws.CreatedBy,
             description: ws.Description,
             type: ws.WorkspaceType
@@ -285,7 +286,7 @@ const AdminWorkspacesTable = () => {
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">{workspace.lastActivity}</span>
+                          <span className="text-sm text-gray-600">{formatRelativeTime(workspace.lastActivity)}</span>
                         </div>
                       </TableCell>
                     </TableRow>

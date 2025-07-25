@@ -64,7 +64,16 @@ const Layout = () => {
     } else {
       setProfileLoading(false);
     }
-  }, []);
+    // Redirect default users with no permissions to /workspaces
+    if (!hasAnyPermission() && location.pathname !== '/welcome' && location.pathname !== '/workspaces') {
+      // If user is on /admin or /admin?tab=workspaces, force redirect to /workspaces
+      if (location.pathname === '/admin' || (location.pathname === '/admin' && location.search.includes('tab=workspaces'))) {
+        navigate('/workspaces', { replace: true });
+      } else {
+        navigate('/workspaces', { replace: true });
+      }
+    }
+  }, [location.pathname]);
 
   // Function to fetch user profile from backend
   const fetchProfile = async (username: string) => {
@@ -274,12 +283,7 @@ const Layout = () => {
             {userRole === 'ITAdmin' ? (
               <>
                 {/* Admin Navigation */}
-                <div className="mb-6">
-                  {sidebarOpen && (
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                      Administration
-                    </h3>
-                  )}
+                <div className="mb-2">
                   <ul className="space-y-2">
                     {adminNavigation.map((item) => (
                       <li key={item.name}>
@@ -288,25 +292,26 @@ const Layout = () => {
                     ))}
                   </ul>
                 </div>
-                
-                {/* Separator */}
-                <div className="border-t border-gray-200 my-4"></div>
-                
-                {/* Regular Navigation */}
-                <div>
-                  {sidebarOpen && (
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                      Main
-                    </h3>
-                  )}
-                  <ul className="space-y-2">
-                    {navigation.map((item) => (
-                      <li key={item.name}>
-                        <NavLink item={item} />
+                {/* Data Sources for ITAdmin */}
+                {canView('datasources') && (
+                  <div>
+                    <ul className="space-y-2">
+                      <li>
+                        <Link
+                          to="/data-sources"
+                          className={`flex items-center ${sidebarOpen ? 'space-x-3 px-3' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
+                            location.pathname.startsWith('/data-sources')
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                        >
+                          <Database className={`${sidebarOpen ? 'w-5 h-5' : 'w-6 h-6'}`} />
+                          {sidebarOpen && <span className="whitespace-nowrap">Data Sources</span>}
+                        </Link>
                       </li>
-                    ))}
-                  </ul>
-                </div>
+                    </ul>
+                  </div>
+                )}
               </>
             ) : (
               <ul className="space-y-2">
@@ -341,10 +346,6 @@ const Layout = () => {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Button variant="ghost" size="sm">
-                  <Bell className="w-4 h-4" />
-                </Button>
-                
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Avatar className="cursor-pointer">

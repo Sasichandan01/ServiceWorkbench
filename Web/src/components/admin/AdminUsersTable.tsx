@@ -50,16 +50,42 @@ import UserProfileDialog from "./UserProfileDialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserService } from "../../services/userService";
 
-// Remove status from LocalUser
+// Update LocalUser type to support multiple roles
+// Remove 'role' and add 'roles' as string[]
 type LocalUser = {
   id: string;
   name: string;
   email: string;
-  role: string;
+  roles: string[];
   lastLogin: string;
   workspaces: number;
   createdAt: string;
 };
+
+function formatRelativeTime(timestamp: string): string {
+  if (!timestamp || timestamp === 'Unknown') return 'Unknown';
+  let isoTimestamp = timestamp;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+    isoTimestamp = timestamp.replace(' ', 'T') + 'Z';
+  }
+  const date = new Date(isoTimestamp);
+  if (isNaN(date.getTime())) return 'Unknown';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return 'Just now';
+  const diffInMinutes = Math.floor(diffMs / (1000 * 60));
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
+  } else if (diffInMinutes < 1440) {
+    const hours = Math.floor(diffInMinutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  } else {
+    const days = Math.floor(diffInMinutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+}
 
 const AdminUsersTable = () => {
   const { toast } = useToast();
@@ -91,7 +117,7 @@ const AdminUsersTable = () => {
           id: user.UserId,
           name: user.Username,
           email: user.Email,
-          role: Array.isArray(user.Roles) ? user.Roles[0] : user.Roles as string,
+          roles: Array.isArray(user.Roles) ? user.Roles : (user.Roles ? [user.Roles] : []),
           lastLogin: user.LastLoginTime || "Unknown",
           workspaces: Math.floor(Math.random() * 5) + 1, // Mock data for workspaces if not in API
           createdAt: new Date().toISOString().split('T')[0] // Mock data
@@ -122,12 +148,11 @@ const AdminUsersTable = () => {
 
   // Remove mockUsers and any code that expects a 'status' property on user objects
 
-  // Remove status filter from filteredUsers
+  // Update role filter logic to check all roles
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role.toLowerCase() === roleFilter;
-    // Remove status filter
+    const matchesRole = roleFilter === "all" || user.roles.map(r => r.toLowerCase()).includes(roleFilter);
     return matchesSearch && matchesRole;
   });
 
@@ -135,16 +160,26 @@ const AdminUsersTable = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
 
-  const getRoleBadge = (role: string) => {
+  // Helper to render up to 3 role badges, then '+N more' if needed
+  const getRoleBadges = (roles: string[]) => {
     const colorMap: Record<string, string> = {
       Admin: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
       Editor: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
       Viewer: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
     };
+    const displayRoles = roles.slice(0, 3);
+    const remainingCount = Math.max(0, roles.length - 3);
     return (
-      <Badge className={colorMap[role] || 'bg-gray-100 text-gray-800 hover:bg-gray-200'}>
-        {role}
-      </Badge>
+      <div className="flex flex-wrap gap-1">
+        {displayRoles.map((role, idx) => (
+          <Badge key={role + idx} className={colorMap[role] || 'bg-gray-100 text-gray-800 hover:bg-gray-200'}>
+            {role}
+          </Badge>
+        ))}
+        {remainingCount > 0 && (
+          <Badge variant="outline" className="text-xs">+{remainingCount} more</Badge>
+        )}
+      </div>
     );
   };
 
@@ -171,17 +206,6 @@ const AdminUsersTable = () => {
               className="pl-10"
             />
           </div>
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="editor">Editor</SelectItem>
-              <SelectItem value="viewer">Viewer</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Users Table */}
@@ -226,8 +250,8 @@ const AdminUsersTable = () => {
                       </div>
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
-                    <TableCell className="text-sm text-gray-500">{user.lastLogin}</TableCell>
+                    <TableCell>{getRoleBadges(user.roles)}</TableCell>
+                    <TableCell className="text-sm text-gray-500">{formatRelativeTime(user.lastLogin)}</TableCell>
                     <TableCell>
                       <UserProfileDialog 
                         userId={user.id}
