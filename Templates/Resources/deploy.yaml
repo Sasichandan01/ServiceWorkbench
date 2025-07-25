@@ -879,7 +879,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-   
+  
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -918,7 +918,14 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: 
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*-workspacesandsolutions-lambda
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*
+              - Effect: Allow
+                Action: glue:StartJobRun
+                Resource: '*'
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: 
+                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -987,8 +994,22 @@ Resources:
               - Sid: AllowDDBAccess
                 Effect: Allow
                 Action:
-                  - dynamodb:GetItem
+                  - dynamodb:Scan
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue WorkspacesBucketArn
+                  - !Sub
+                    - "${BucketArn}/*"
+                    - {BucketArn: !ImportValue WorkspacesBucketArn}
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1422,7 +1443,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   ResourceAccessTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -1952,6 +1973,23 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
+  CodeGeneartorAgentAGLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CodeGenerationLambda
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
+  CFTGeneartorAgentAGLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CFTGenerationAgentLambda
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
+
 
 # Lambda Permission for API Gateway to invoke Roles Lambda
   QueryParserLambdaFunctionInvokePermission:

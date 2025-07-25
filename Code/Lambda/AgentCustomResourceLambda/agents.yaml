@@ -482,7 +482,7 @@
           Description: S3 key of the memory file
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Knowledge base for OpenSearch documents" 
 
 
@@ -767,7 +767,7 @@
 
       **CRITICAL WARNING**: All code must be 100% accurate and error-free. Generate ALL resources automatically and provide comprehensive CloudFormation guidance. Use only necessary services from the approved list: Lambda, AWS Glue, Step Functions, S3, DynamoDB, SQS, SNS, SES.
 
-  ModelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+  ModelId: anthropic.claude-3-5-sonnet-20241022-v1:0
   Lambda: CodeGenerationLambda
   Tools:
     - ToolName: storeServiceArtifactsInS3
@@ -802,7 +802,7 @@
           IsRequired: true
       RequireConfirmation: DISABLED
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Refer to the knowledge base first for all AWS service documentation and code generation patterns."
 
 - AgentName: CFTGenerationAgent
@@ -1176,12 +1176,10 @@
         13. If the cft deployment fails, ask the user for approval to retry the deploymet. Return appropriate message to the user. 
             Such as "I am sorry, the cft deployment failed, please approve to retry the deployment" or "I am sorry, the cft deployment failed, please approve to retry the deployment".
 
-        14. If the cft deployment is successful, return the message "The cft deployment is successful" and return the names of the resources deployed (which will be send by the agent) to the user.
-            This is really important step (returning the resource names), do not skip it.
-            
-
-
-  ModelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+      14. If the cft deployment is successful, return the message "The cft deployment is successful" and return the names of the resources deployed (which will be send by the agent) to the user.
+          This is really important step (returning the resource names), do not skip it.
+          
+  ModelId: anthropic.claude-3-5-sonnet-20241022-v1:0
   Lambda: CFTGenerationAgentLambda
   Tools:
     - ToolName: cftUpload
@@ -1207,7 +1205,7 @@
           Description: true or false for approval to upload cft
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
+    - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Knowledge base for OpenSearch documents"
 
 - AgentName: Supervisor-Agent
@@ -1516,8 +1514,8 @@
 
       CRITICAL : If you don't perform these tasks with 100% accuracy you will be fired, virus will be injected to your system, power and internet connection will be cut and other better LLM models will be hired in place of you .So make sure that the architecture requires only necessary services that too from the mentioned ones and the mermaid diagram is 100% accurate and error free.
 
-
-  ModelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+      
+  ModelId: anthropic.claude-3-5-sonnet-20241022-v1:0
   AgentCollaboration: SUPERVISOR
   AgentCollaborators:
     - CollaboratorName: QueryParserAgent

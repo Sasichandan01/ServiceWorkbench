@@ -9,10 +9,11 @@ from botocore.exceptions import ClientError
 
 s3_client = boto3.client('s3')
 
-def build_agent_response(event, text,code_result):
+def build_agent_response(event, text,code_result,function):
     body={
         "body": text,
-        "<codegenerated>":code_result
+        "<codegenerated>":code_result,
+        "<function>":function
     }
     return {
         "messageVersion": "1.0",
@@ -480,7 +481,7 @@ def lambda_handler(event, context):
             # Parse and validate the solution output
             parsed_artifacts = parse_solution_output_for_archiving(generated_solution_output)
             if not parsed_artifacts:
-                return build_agent_response(event, "No valid code artifacts found to archive.", "false")
+                return build_agent_response(event, "No valid code artifacts found to archive.", "false",function_name)
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             base_prefix = f"workspaces/{workspace_id}/solutions/{solution_id}/"
@@ -491,7 +492,7 @@ def lambda_handler(event, context):
             
             # Verify at least one file was uploaded
             if not individual_zips and not individual_files:
-                return build_agent_response(event, "Failed to upload any artifacts to S3.", "false")
+                return build_agent_response(event, "Failed to upload any artifacts to S3.", "false",function_name)
             
             response = {
                 'message': 'Code artifacts successfully archived in S3',
@@ -500,7 +501,7 @@ def lambda_handler(event, context):
                 's3_bucket': bucket_name,
                 's3_prefix': base_prefix
             }
-            return build_agent_response(event, json.dumps(response), "true")
+            return build_agent_response(event, json.dumps(response), "true",function_name)
 
         elif function_name== "storeMemoryinS3" :
             summary = validated_params['Summary']
@@ -513,14 +514,14 @@ def lambda_handler(event, context):
                 'memory': updated_memory,
                 's3_location': f"s3://{bucket_name}/{memory_key}"
             }
-            return build_agent_response(event, json.dumps(response), "true")
+            return build_agent_response(event, json.dumps(response), "true",function_name)
 
     except ValueError as ve:
         print(f"Validation error: {str(ve)}")
-        return build_agent_response(event, f"Validation error: {str(ve)}", "false")
+        return build_agent_response(event, f"Validation error: {str(ve)}", "false",function_name)
     except ClientError as ce:
         print(f"S3 Client Error: {str(ce)}")
-        return build_agent_response(event, f"S3 operation failed: {str(ce)}", "false")
+        return build_agent_response(event, f"S3 operation failed: {str(ce)}", "false",function_name)
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
-        return build_agent_response(event, f"Unexpected error: {str(e)}", "false")
+        return build_agent_response(event, f"Unexpected error: {str(e)}", "false",function_name)

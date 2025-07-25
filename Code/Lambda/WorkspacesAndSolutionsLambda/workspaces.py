@@ -66,7 +66,7 @@ def create_workspace(event,context):
             'CreationTime': timestamp
         }
         workspace_response=workspace_table.put_item(Item=item)
-        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'CREATE_WORKSPACE')
+        resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'WORKSPACE_CREATED')
         
         create_workspace_fgac(resource_access_table,user_id,"owner",workspace_id)
 
@@ -108,7 +108,7 @@ def update_workspace(event, context):
                     return return_response(400, {"Error": "Workspace is already active"})
                 elif workspace_response.get('WorkspaceStatus') == 'Inactive':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user ,LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Active',':user':user_id,':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'),workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'),workspace_id, user_id, 'WORKSPACE_UPDATED')
                     return return_response(200, {"Message": "Workspace enabled successfully"})
                 return return_response(400, {"Error": "Workspace status is invalid"})
             else:
@@ -116,7 +116,7 @@ def update_workspace(event, context):
                     return return_response(400, {"Error": "Workspace is already inactive"})
                 elif workspace_response.get('WorkspaceStatus') == 'Active':
                     workspace_table.update_item(Key={'WorkspaceId': workspace_id}, UpdateExpression='SET WorkspaceStatus = :val1, LastUpdatedBy = :user, LastUpdationTime =:time', ExpressionAttributeValues={':val1': 'Inactive', ':user':user_id, ':time':timestamp})
-                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
+                    log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'WORKSPACE_UPDATED')
                     return return_response(200, {"Message": "Workspace disabled successfully"})
                 else:
                     return return_response(400, {"Error": "Workspace status is invalid"})
@@ -169,7 +169,7 @@ def update_workspace(event, context):
                 ExpressionAttributeValues=expressionAttributeValues,
                 ReturnValues='UPDATED_NEW'
             )
-            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'UPDATE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'WORKSPACE_UPDATED')
             return return_response(200, {"Message": "Workspace updated successfully"})
     except Exception as e:
         logger.error("Error in update_workspace: %s", e)
@@ -214,7 +214,7 @@ def delete_workspace(event,context):
             except Exception as e:
                 print(f"Error deleting workspace permissions: {e}")
             workspace_table.delete_item(Key={'WorkspaceId': workspace_id})
-            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'DELETE_WORKSPACE')
+            log_activity(activity_logs_table, 'Workspace', workspace_response.get('WorkspaceName'), workspace_id, user_id, 'WORKSPACE_DELETED')
             return return_response(200, {"Message": "Workspace deleted successfully"})
 
         return return_response(400, {"Error": "Workspace status is invalid"})
@@ -281,7 +281,7 @@ def get_workspaces(event, context):
     try:
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
-
+        role = auth.get("role")
         queryParams = event.get('queryStringParameters') or {}
 
         filter_by = queryParams.get('filterBy')
@@ -304,23 +304,13 @@ def get_workspaces(event, context):
             except ValueError:
                 return return_response(400, {"Error": "Invalid offset parameter. Must be an integer."})
 
-        user_role_response = users_table.get_item(
-            Key={'UserId': user_id},
-            ProjectionExpression="#rls",
-            ExpressionAttributeNames={
-                "#rls": "Role"
-            }
-        ).get('Item')
-
-        if not user_role_response:
-            return return_response(404, {"Error": "User does not exist"})
-        if 'ITAdmin' in user_role_response.get('Role'):
+        if role == 'ITAdmin':
             
             response = workspace_table.scan(
                 ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime,Tags'
             )
             workspace_items = response.get('Items', [])
-
+            workspace_items = [item for item in workspace_items if item.get('WorkspaceType') != 'DEFAULT']
             
             if filter_by:
                 workspace_items = [item for item in workspace_items
