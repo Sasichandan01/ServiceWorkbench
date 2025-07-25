@@ -24,6 +24,7 @@ interface SolutionTabsProps {
   onGenerateSolution?: () => void;
   preloadedCodeFiles?: any;
   loadingCodeFiles?: boolean;
+  renderUsersTab?: () => React.ReactNode;
 }
 
 const SolutionTabs = ({ 
@@ -40,7 +41,8 @@ const SolutionTabs = ({
   isNewSolution = false,
   onGenerateSolution,
   preloadedCodeFiles,
-  loadingCodeFiles
+  loadingCodeFiles,
+  renderUsersTab
 }: SolutionTabsProps) => {
   return (
     <>
@@ -49,7 +51,7 @@ const SolutionTabs = ({
         onValueChange={onTabChange}
         className="w-full"
       >
-        <TabsList className={`grid w-full ${isNewSolution ? 'grid-cols-2' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full ${isNewSolution ? 'grid-cols-2' : 'grid-cols-6'}`}>
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <BarChart3 className="w-4 h-4" />
             <span>Overview</span>
@@ -76,6 +78,12 @@ const SolutionTabs = ({
             <Database className="w-4 h-4" />
             <span>Datasources</span>
           </TabsTrigger>
+          {isReadySolution && (
+            <TabsTrigger value="users" className="flex items-center space-x-2">
+              <Plus className="w-4 h-4" />
+              <span>Users</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -181,6 +189,11 @@ const SolutionTabs = ({
             </CardContent>
           </Card>
         </TabsContent>
+        {isReadySolution && (
+          <TabsContent value="users" className="mt-6">
+            {renderUsersTab && renderUsersTab()}
+          </TabsContent>
+        )}
       </Tabs>
       {isNewSolution && (
         <Card>

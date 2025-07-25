@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
 import SolutionTabs from "@/components/SolutionTabs";
-import { Play, Brain, Trash2, Plus } from "lucide-react";
+import { Play, Brain, Trash2, Plus, Mail, UserPlus, Search } from "lucide-react";
 import { SolutionService } from "../services/solutionService";
 import { WorkspaceService } from "../services/workspaceService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -17,10 +17,12 @@ import { DatasourceService } from "../services/datasourceService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery } from '../services/apiSlice';
+import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery, useShareResourceMutation } from '../services/apiSlice';
 import { Loader2 } from 'lucide-react';
 import { ApiClient } from "@/lib/apiClient";
 import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface RunHistoryItem {
   id: number;
@@ -54,6 +56,13 @@ const SolutionDetails = () => {
   const [datasourceSearch, setDatasourceSearch] = useState("");
   const [preloadedCodeFiles, setPreloadedCodeFiles] = useState<any>(null);
   const [loadingCodeFiles, setLoadingCodeFiles] = useState(false);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserRole, setNewUserRole] = useState("viewer");
+  const [usersSearch, setUsersSearch] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const itemsPerPage = 5;
+  const [shareResource, { isLoading: isSharing }] = useShareResourceMutation();
 
   const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
   const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
@@ -222,6 +231,201 @@ const SolutionDetails = () => {
       (Array.isArray(ds.Tags) && ds.Tags.some((tag: string) => tag.toLowerCase().includes(search)))
     );
   });
+
+  // Users tab logic
+  const apiUsers = Array.isArray(solution.Users) ? solution.Users : [];
+  const filteredApiUsers = apiUsers.filter(user =>
+    user.Username.toLowerCase().includes(usersSearch.toLowerCase()) ||
+    user.Email.toLowerCase().includes(usersSearch.toLowerCase()) ||
+    user.Access.toLowerCase().includes(usersSearch.toLowerCase())
+  );
+  const totalApiUsersPages = Math.ceil(filteredApiUsers.length / itemsPerPage);
+  const paginatedApiUsers = filteredApiUsers.slice(
+    (usersPage - 1) * itemsPerPage,
+    usersPage * itemsPerPage
+  );
+
+  const handleAddUser = async () => {
+    if (!newUserEmail.trim()) {
+      toast({
+        title: "Error",
+        description: "Email is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await shareResource({
+        Username: newUserEmail,
+        ResourceType: 'solution',
+        ResourceId: `${workspaceId}#${solutionId}`,
+        AccessType: newUserRole as 'owner' | 'read-only' | 'editor',
+      }).unwrap();
+      toast({
+        title: "Success",
+        description: `User invited to solution successfully!`,
+      });
+      setNewUserEmail("");
+      setNewUserRole("viewer");
+      setIsAddUserDialogOpen(false);
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.data?.message || 'Failed to share solution.',
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add this function to render the users tab
+  const renderUsersTab = () => (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>User Management</CardTitle>
+            <CardDescription>Manage users and their permissions</CardDescription>
+          </div>
+          <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Share
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Share Solution</DialogTitle>
+                <DialogDescription>
+                  Invite a user to join this solution by entering their email address or user ID.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Username <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="enter email or userid"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                  <Select value={newUserRole} onValueChange={setNewUserRole}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="editor">Editor</SelectItem>
+                      <SelectItem value="read-only">Read-only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddUser} disabled={isSharing}>
+                  {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="Search users by name, email, or role..."
+              value={usersSearch}
+              onChange={(e) => {
+                setUsersSearch(e.target.value);
+                setUsersPage(1);
+              }}
+              className="pl-10"
+            />
+          </div>
+          {/* Users Table */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Joined</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedApiUsers.map((user, idx) => (
+                <TableRow key={user.UserId || idx}>
+                  <TableCell>
+                    <div className="font-medium text-gray-900">{user.Username}</div>
+                    <div className="text-sm text-gray-600 flex items-center space-x-1">
+                      <Mail className="w-3 h-3" />
+                      <span>{user.Email}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
+                      {user.Access}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
+                </TableRow>
+              ))}
+              {paginatedApiUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    No users found matching your search.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+          {/* Users Pagination */}
+          {totalApiUsersPages > 1 && (
+            <div className="flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setUsersPage(Math.max(1, usersPage - 1))}
+                      className={usersPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  {[...Array(totalApiUsersPages)].map((_, i) => (
+                    <PaginationItem key={i + 1}>
+                      <PaginationLink
+                        onClick={() => setUsersPage(i + 1)}
+                        isActive={usersPage === i + 1}
+                        className="cursor-pointer"
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setUsersPage(Math.min(totalApiUsersPages, usersPage + 1))}
+                      className={usersPage === totalApiUsersPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
@@ -418,6 +622,7 @@ const SolutionDetails = () => {
             onGenerateSolution={handleGenerateSolution}
             preloadedCodeFiles={preloadedCodeFiles}
             loadingCodeFiles={loadingCodeFiles}
+            renderUsersTab={isReadySolution ? renderUsersTab : undefined}
           />
 
           {/* Resources Table */}

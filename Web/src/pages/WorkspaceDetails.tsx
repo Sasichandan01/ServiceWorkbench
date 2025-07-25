@@ -747,7 +747,7 @@ const WorkspaceDetails = () => {
                                 <SelectContent>
                                   <SelectItem value="owner">Owner</SelectItem>
                                   <SelectItem value="editor">Editor</SelectItem>
-                                  <SelectItem value="read-only">read-only</SelectItem>
+                                  <SelectItem value="read-only">Read-only</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
