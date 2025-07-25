@@ -193,11 +193,12 @@ def lambda_handler(event, context):
             'Description': 'Default workspace created for user',
             'LastUpdatedBy': user_id,
             'LastUpdationTime': now,
-            'Tags': [],
+            'Tags': [
+                {'Key': 'Type', 'Value': 'Default'}
+            ],
             'WorkspaceName': 'Default Workspace',
             'WorkspaceStatus': 'Active',
             'WorkspaceType': "DEFAULT"
-            # 'Type': "DEFAULT"
         }
 
         workspace_table.put_item(Item=workspace_item)
