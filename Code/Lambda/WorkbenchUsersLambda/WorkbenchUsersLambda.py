@@ -119,7 +119,7 @@ def get_all_users(query_params):
             "Username": item.get("Username"),
             "Email": item.get("Email"),
             "Roles": item.get("Role", []),
-            "ProfileImageURL": item.get("ProfileImage"),
+            "ProfileImageURL": item.get("ProfileImageURL"),
             "LastLoginTime": item.get("LastLoginTime", "")
         } for item in items
     ]
@@ -171,7 +171,9 @@ def get_user_profile(user_id):
     LOGGER.info("Current time: %s", current_time)
 
     # Regenerate pre-signed URL if expired
-    if not profile_image_url or current_time >= profile_image_expiry:
+    if not profile_image_url:
+        pass
+    elif profile_image_url or current_time >= profile_image_expiry:
         LOGGER.info("Regenerating profile image URL for user %s", user_id)
         s3_client = boto3.client("s3")
         new_presigned_url = s3_client.generate_presigned_url(
@@ -263,10 +265,10 @@ def get_profile_image_upload_url(user_id, body):
     #     file_name += extension
         
     content_type = body.get("ContentType", "")
-    LOGGER.info("Content type: %s", content_type)
     if not content_type:
         return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
 
+    LOGGER.info("Content type: %s", content_type)
     object_key = f"profile-images/{user_id}/{file_name}"
     s3_client = boto3.client("s3")
 
