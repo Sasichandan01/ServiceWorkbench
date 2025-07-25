@@ -17,12 +17,13 @@ import { DatasourceService } from "../services/datasourceService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery, useShareResourceMutation } from '../services/apiSlice';
+import { useUpdateSolutionMutation, useDeleteSolutionMutation, useGetSolutionQuery, useShareResourceMutation, useDeleteShareResourceMutation } from '../services/apiSlice';
 import { Loader2 } from 'lucide-react';
 import { ApiClient } from "@/lib/apiClient";
 import WorkspaceAuditLogs from "@/components/WorkspaceAuditLogs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { useAppSelector } from "@/hooks/useAppSelector";
 
 interface RunHistoryItem {
   id: number;
@@ -63,6 +64,9 @@ const SolutionDetails = () => {
   const [usersPage, setUsersPage] = useState(1);
   const itemsPerPage = 5;
   const [shareResource, { isLoading: isSharing }] = useShareResourceMutation();
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [userToRevoke, setUserToRevoke] = useState<any>(null);
+  const [deleteShareResource, { isLoading: isRevoking }] = useDeleteShareResourceMutation();
 
   const [updateSolution, { isLoading: isUpdatingSolution }] = useUpdateSolutionMutation();
   const [deleteSolution, { isLoading: isDeletingSolution }] = useDeleteSolutionMutation();
@@ -278,6 +282,8 @@ const SolutionDetails = () => {
     }
   };
 
+  const loggedInUser = useAppSelector(state => state.auth.user);
+
   // Add this function to render the users tab
   const renderUsersTab = () => (
     <Card>
@@ -361,6 +367,7 @@ const SolutionDetails = () => {
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -379,6 +386,44 @@ const SolutionDetails = () => {
                     </span>
                   </TableCell>
                   <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
+                  <TableCell>
+                    {user.UserId !== loggedInUser?.username && (
+                      <Dialog open={revokeDialogOpen && userToRevoke?.UserId === user.UserId} onOpenChange={open => { setRevokeDialogOpen(open); if (!open) setUserToRevoke(null); }}>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" size="sm" onClick={() => { setUserToRevoke(user); setRevokeDialogOpen(true); }}>
+                            Revoke
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Revoke Access</DialogTitle>
+                            <DialogDescription>
+                              User access will be revoked and they will no longer be able to access this resource.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>Cancel</Button>
+                            <Button variant="destructive" onClick={async () => {
+                              try {
+                                await deleteShareResource({
+                                  UserId: user.UserId,
+                                  ResourceType: 'solution',
+                                  ResourceId: `${workspaceId}#${solutionId}`,
+                                }).unwrap();
+                                toast({ title: 'Access Revoked', description: 'User access has been revoked.' });
+                                setRevokeDialogOpen(false);
+                                setUserToRevoke(null);
+                              } catch (e: any) {
+                                toast({ title: 'Error', description: e?.data?.message || 'Failed to revoke access.', variant: 'destructive' });
+                              }
+                            }} disabled={isRevoking}>
+                              {isRevoking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {paginatedApiUsers.length === 0 && (

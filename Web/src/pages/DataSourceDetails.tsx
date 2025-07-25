@@ -17,8 +17,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserPlus, Loader2, Mail, Search } from "lucide-react";
-import { useShareResourceMutation } from "../services/apiSlice";
+import { useShareResourceMutation, useDeleteShareResourceMutation } from "../services/apiSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useAppSelector } from "@/hooks/useAppSelector";
 
 const DataSourceDetails = () => {
   const { id } = useParams();
@@ -44,6 +45,10 @@ const DataSourceDetails = () => {
         user.Access?.toLowerCase().includes(usersSearch.toLowerCase())
       )
     : users;
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [userToRevoke, setUserToRevoke] = useState<any>(null);
+  const [deleteShareResource, { isLoading: isRevoking }] = useDeleteShareResourceMutation();
+  const loggedInUser = useAppSelector(state => state.auth.user);
 
   const fetchDataSource = useCallback(async () => {
     if (!id) return;
@@ -245,12 +250,13 @@ const DataSourceDetails = () => {
                       <TableHead>User</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Joined</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                           No users found for this data source.
                         </TableCell>
                       </TableRow>
@@ -270,6 +276,44 @@ const DataSourceDetails = () => {
                             </span>
                           </TableCell>
                           <TableCell>{user.Joined || "-"}</TableCell>
+                          <TableCell>
+                            {user.UserId !== loggedInUser?.username && (
+                              <Dialog open={revokeDialogOpen && userToRevoke?.UserId === user.UserId} onOpenChange={open => { setRevokeDialogOpen(open); if (!open) setUserToRevoke(null); }}>
+                                <DialogTrigger asChild>
+                                  <Button variant="destructive" size="sm" onClick={() => { setUserToRevoke(user); setRevokeDialogOpen(true); }}>
+                                    Revoke
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Revoke Access</DialogTitle>
+                                    <DialogDescription>
+                                      User access will be revoked and they will no longer be able to access this resource.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <DialogFooter>
+                                    <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>Cancel</Button>
+                                    <Button variant="destructive" onClick={async () => {
+                                      try {
+                                        await deleteShareResource({
+                                          UserId: user.UserId,
+                                          ResourceType: 'datasource',
+                                          ResourceId: dataSource.Datasource.DatasourceId,
+                                        }).unwrap();
+                                        toast({ title: 'Access Revoked', description: 'User access has been revoked.' });
+                                        setRevokeDialogOpen(false);
+                                        setUserToRevoke(null);
+                                      } catch (e: any) {
+                                        toast({ title: 'Error', description: e?.data?.message || 'Failed to revoke access.', variant: 'destructive' });
+                                      }
+                                    }} disabled={isRevoking}>
+                                      {isRevoking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
