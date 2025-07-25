@@ -1429,6 +1429,12 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+        - IndexName: DatasourceName-index
+          KeySchema:
+            - AttributeName: DatasourceName
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: 'true'
         RecoveryPeriodInDays: 7
