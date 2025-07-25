@@ -109,6 +109,7 @@ const Layout = () => {
     { name: "Users", href: "/admin?tab=users", icon: Users, resource: "users", action: "view" },
     { name: "Roles", href: "/admin?tab=roles", icon: Shield, resource: "roles", action: "view" },
     { name: "Workspaces", href: "/admin?tab=workspaces", icon: Cloud, resource: "workspaces", action: "view" },
+    { name: "Data Sources", href: "/admin?tab=data-sources", icon: Database, resource: "datasources", action: "view" },
     { name: "System", href: "/admin?tab=system", icon: Settings, resource: "users", action: "view" },
   ];
 
@@ -290,26 +291,6 @@ const Layout = () => {
                     ))}
                   </ul>
                 </div>
-                {/* Data Sources for ITAdmin */}
-                {canView('datasources') && (
-                  <div>
-                    <ul className="space-y-2">
-                      <li>
-                        <Link
-                          to="/data-sources"
-                          className={`flex items-center ${sidebarOpen ? 'space-x-3 px-3' : 'justify-center px-2'} py-3 rounded-lg transition-colors ${
-                            location.pathname.startsWith('/data-sources')
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                          }`}
-                        >
-                          <Database className={`${sidebarOpen ? 'w-5 h-5' : 'w-6 h-6'}`} />
-                          {sidebarOpen && <span className="whitespace-nowrap">Data Sources</span>}
-                        </Link>
-                      </li>
-                    </ul>
-                  </div>
-                )}
               </>
             ) : (
               <ul className="space-y-2">
