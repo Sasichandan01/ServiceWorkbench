@@ -159,6 +159,34 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
     }
   };
 
+  const handleRefreshLogsAndDetails = async () => {
+    if (!selectedExecution) return;
+    setDetailLoading(true);
+    setLogsLoading(true);
+    try {
+      // Refresh execution details
+      const detail = await ExecutionService.getExecution(workspaceId, solutionId, selectedExecution.ExecutionId);
+      setSelectedExecution(detail);
+      // Fetch logs
+      const logsResponse = await ExecutionService.getLogsStatus(workspaceId, solutionId, selectedExecution.ExecutionId);
+      if (logsResponse.PresignedURL) {
+        const logsContent = await ExecutionService.fetchLogs(logsResponse.PresignedURL);
+        setLogs(logsContent);
+      } else {
+        setLogs("");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to refresh execution details or logs",
+        variant: "destructive"
+      });
+    } finally {
+      setDetailLoading(false);
+      setLogsLoading(false);
+    }
+  };
+
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -189,8 +217,8 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
               </Button>
               <CardTitle>Execution Details</CardTitle>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefreshLogsStatus} disabled={detailLoading}>
-              <RefreshCw className={`w-4 h-4 ${detailLoading ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="sm" onClick={handleRefreshLogsAndDetails} disabled={detailLoading || logsLoading}>
+              <RefreshCw className={`w-4 h-4 ${(detailLoading || logsLoading) ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardHeader>
