@@ -2138,6 +2138,205 @@ paths:
       passthroughBehavior: "when_no_match"
       type: "mock"
 
+  /workspaces/{workspace_id}/solutions/{solution_id}/chat:
+    get:
+      summary: "Get all chat messages for a solution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "List of chat messages"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    delete:
+      summary: "Delete all chat messages for a solution"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "Chat deleted"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+
+  /workspaces/{workspace_id}/solutions/{solution_id}/chat/{chat_id}:
+    get:
+      summary: "Get the trace for a particular chat message"
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "chat_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "Trace for the chat message"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Trace:
+                    type: array
+                    items:
+                      type: string
+      security:
+        - WorkbenchAuthorizer: []
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:043309350924:function:placeholder-workspacesandsolutions-lambda/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    options:
+      parameters:
+        - name: "workspace_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "solution_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "chat_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+
 components:
   schemas:
     Empty:
@@ -2573,6 +2772,24 @@ components:
         ResourceId:
           type: "string"
           description: "ID of the resource"
+
+    ChatMessage:
+      type: object
+      properties:
+        ChatId:
+          type: string
+        TimeStamp:
+          type: string
+        Message:
+          type: string
+        MessageId:
+          type: string
+        Sender:
+          type: string
+        Trace:
+          type: array
+          items:
+            type: string
 
   securitySchemes:
     WorkbenchAuthorizer:

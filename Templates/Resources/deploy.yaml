@@ -734,7 +734,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '96843'
+      changesetflag: '452'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1233,6 +1233,7 @@ Resources:
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
           USERS_TABLE: !Ref UserTable
+          CHAT_TABLE: !Ref ChatHistoryTable
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
@@ -2262,7 +2263,7 @@ Resources:
     Properties:
       FunctionName: !Sub "${pPrefix}-CFTGenerationAgentLambda"
       Runtime: python3.11
-      Handler: CFTGenerationAgentLambda.lambda_handler
+      Handler: lambda_function.lambda_handler
       Role: !GetAtt CFTGenerationAgentLambdaRole.Arn
       Timeout: 900
       MemorySize: 512
@@ -2273,6 +2274,34 @@ Resources:
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/cftgenerationagentlambda/CFTGenerationAgentLambda.zip"
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-ChatHistoryTable'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ChatId
+          AttributeType: S
+        - AttributeName: TimeStamp
+          AttributeType: N
+        - AttributeName: MessageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ChatId
+          KeyType: HASH
+        - AttributeName: TimeStamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: MessageIdIndex
+          KeySchema:
+            - AttributeName: MessageId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
