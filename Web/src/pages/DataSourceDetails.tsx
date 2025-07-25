@@ -167,63 +167,64 @@ const DataSourceDetails = () => {
           )}
         </TabsContent>
         <TabsContent value="users" className="space-y-6">
-          {/* Share button and dialog now inside Users tab */}
-          <div className="flex justify-end mb-4">
-            <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Share
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Share Data Source</DialogTitle>
-                  <DialogDescription>
-                    Invite a user to access this data source by entering their email address or user ID.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Username <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="enter email or userid"
-                      value={shareEmail}
-                      onChange={(e) => setShareEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
-                    <Select value={shareRole} onValueChange={setShareRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="owner">Owner</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="read-only">Read-only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleShare} disabled={isSharing}>
-                    {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
           <Card>
             <CardHeader>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>Manage users and their permissions for this data source</CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>Manage users and their permissions for this data source</CardDescription>
+                </div>
+                <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Share
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Share Data Source</DialogTitle>
+                      <DialogDescription>
+                        Invite a user to access this data source by entering their email address or user ID.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Username <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="enter email or userid"
+                          value={shareEmail}
+                          onChange={(e) => setShareEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                        <Select value={shareRole} onValueChange={setShareRole}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="owner">Owner</SelectItem>
+                            <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="read-only">Read-only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleShare} disabled={isSharing}>
+                        {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
