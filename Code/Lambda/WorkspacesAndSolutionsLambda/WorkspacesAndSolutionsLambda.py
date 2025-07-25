@@ -1,11 +1,11 @@
-from executions import get_executions,run_solution,get_execution
+from executions import get_executions,start_execution,get_execution, process_execution
 from workspaces import create_workspace,update_workspace,get_workspace,get_workspaces,delete_workspace
 from solutions import get_solution, update_solution, delete_solution, list_solutions, create_solution
 from logs import generate_execution_logs,get_execution_logs,process_log_collection
 from scripts import handle_get, handle_post
 from RBAC.rbac import is_user_action_valid
 from Utils.utils import return_response
-import asyncio
+
 import json
 import boto3
 import os
@@ -92,6 +92,13 @@ def get_chat_trace(chat_id):
 def lambda_handler(event, context):
     try:
         print(event)
+
+        
+        if event.get('action') == 'execution-poll':
+            return process_execution(event, context)
+        if event.get('action')=='logs-poll':
+            return process_log_collection(event, context)
+
         resource = event.get('resource')
         path = event.get('path')
         httpMethod = event.get('httpMethod')
@@ -142,7 +149,7 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_executions(event, context)
             elif httpMethod == 'POST':
-                return run_solution(event, context)
+                return start_execution(event, context)
 
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
             if httpMethod == 'GET':
@@ -161,8 +168,7 @@ def lambda_handler(event, context):
                 return get_execution_logs(event, context)
             elif httpMethod == 'POST':
                 return generate_execution_logs(event, context)
-            elif event.get('InvokedBy')=='lambda':
-                return asyncio.run(process_log_collection(event, context))
+
 
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat':
             if httpMethod == 'GET':
