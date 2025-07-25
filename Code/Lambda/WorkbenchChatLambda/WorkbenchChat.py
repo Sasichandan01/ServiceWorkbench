@@ -158,25 +158,25 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        print(trace)
+        
         if trace:
+            LOGGER.info(f"Trace: {trace}")
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
                 failure_reason = trace["trace"]["failureTrace"].get("failureReason", "Unknown failure. Please try again after some time.")
-                if any(error in failure_reason for error in LAMBDA_ERROR):
+                
 
-                    response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
-                    send_message_to_websocket( apigw_client, connection_id,response_obj)
+                response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
+                send_message_to_websocket( apigw_client, connection_id,response_obj)
 
-                    response_obj.pop("AITrace")
-                    response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
-                else:
-                    response_obj["AIMessage"] = failure_reason
+                response_obj.pop("AITrace")
+                response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
 
                 response_obj["Metadata"]["IsComplete"] = True
                 send_message_to_websocket( apigw_client, connection_id,response_obj)
                 return
+                
             elif "rationale" in trace["trace"]["orchestrationTrace"]:
                 response_obj["AITrace"] = trace["trace"]["orchestrationTrace"]["rationale"]["text"]
             
@@ -198,27 +198,14 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     code_generated = outer_json.get("<codegenerated>", "false")
                     
                     if code_generated == "true":
-                        print("<codegenerated> is true")
-                        code_payload = read_all_files_from_prefix("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
+                        LOGGER.info("<codegenerated> is true")
+                        code_payload = read_all_files_from_prefix("bhargav9938", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
 
                     else:
-                        print("<codegenerated> is not true")
-
-                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['cftgeneration'].get('AgentId'):
-                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
-                    outer_json = json.loads(text)
-                    code_generated = outer_json.get("<codegenerated>", "false")
-                    
-                    if code_generated == "true":
-                        print("<codegenerated> is true")
-                        code_payload = read_all_files_from_prefix("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
-                        send_message_to_websocket(apigw_client, connection_id, code_payload)
-
-                    else:
-                        print("<codegenerated> is not true")
+                        LOGGER.info("<codegenerated> is not true")
                 
-                elif observation_type == "FINISH" :
+                elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId')==trace['agentId']:
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
                 
@@ -248,7 +235,3 @@ def lambda_handler(event, context):
         # send_message_to_websocket(client, cid, {'status': 'Success', 'message': 'Completed'})
 
     return {'statusCode': 400}
-
-
-
-
