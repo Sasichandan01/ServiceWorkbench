@@ -924,7 +924,8 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
+                Resource: 
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:stateMachine:*
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
