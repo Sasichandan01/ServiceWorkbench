@@ -531,6 +531,7 @@ def rag_sync(event):
     LOGGER.info("Event: %s", event)
     query_string_parameters = event.get("queryStringParameters") or {}
     action = query_string_parameters.get("action")
+    print(action)
     arguments = {}
     if action is None:
         arguments['--ACTION'] = 'docsapp'

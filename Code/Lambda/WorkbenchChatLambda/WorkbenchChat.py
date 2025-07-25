@@ -193,6 +193,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 send_message_to_websocket( apigw_client, connection_id,response_obj)
                 return
                 
+                
             elif "rationale" in trace["trace"]["orchestrationTrace"]:
                 response_obj["AITrace"] = trace["trace"]["orchestrationTrace"]["rationale"]["text"]
             
