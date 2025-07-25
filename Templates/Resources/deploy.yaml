@@ -1442,7 +1442,7 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-
+ 
   ResourceAccessTable:
     Type: AWS::DynamoDB::Table
     Properties:
