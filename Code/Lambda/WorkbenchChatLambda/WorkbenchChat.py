@@ -1,5 +1,6 @@
 import json
 import os
+import os
 import re
 import logging
 import boto3
@@ -185,7 +186,7 @@ def extract_agent_info():
 
         agents_info[matched_key] = {
             'AgentAliasId': item.get('AgentAliasId', ''),
-            'ReferenceId': item.get('ReferenceId', '')
+            'AgentId': item.get('ReferenceId', '')
         }
 
     return agents_info
@@ -193,15 +194,29 @@ def extract_agent_info():
 def generate_requirements():
     return ["boto3==1.28.63", "pyjwt==2.8.0", "requests==2.31.0"]
 
-def read_s3_file(bucket: str, key: str, as_text: bool = True) -> str | None:
+def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
+    result = {}
     try:
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        body = response['Body'].read()
-        return body.decode('utf-8') if as_text else body
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        if 'Contents' not in response:
+            LOGGER.warning(f"No files found under s3://{bucket}/{prefix}")
+            return result
+
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith('/'):  # skip folders
+                continue
+            file_obj = s3_client.get_object(Bucket=bucket, Key=key)
+            body = file_obj['Body'].read()
+            filename = key.split('/')[-1]
+            result[filename] = body.decode('utf-8')
+        return result
+
     except ClientError as e:
         code = e.response['Error']['Code']
-        LOGGER.warning(f"S3 error {code} for s3://{bucket}/{key}")
-        return None
+        LOGGER.warning(f"S3 error {code} for prefix s3://{bucket}/{prefix}")
+        return result
+
 
 def send_message_to_websocket(client, conn_id, message):
     try:
@@ -269,18 +284,18 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id)
 
     s3_key = f"{body['workspaceid']}/{body['solutionid']}/memory.txt"
-    memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
+    # memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
     current_lambda_requirements = generate_requirements()
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the username {user_id}"
+    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}"
 
-    if memory_content:
-        combined_prompt += f" Here is the memory context: {memory_content}"
+    # if memory_content:
+    #     combined_prompt += f" Here is the memory context: {memory_content}"
     
     LOGGER.info(f"Prompt: {combined_prompt}")
 
     invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
-        agentId="TCMEZDRP4O",
-        agentAliasId="BNWPCZI2IV",
+        agentId=agent_info['cftgeneration'].get('AgentId'),
+        agentAliasId=agent_info['cftgeneration'].get('AgentAliasId'),
         sessionId=connection_id[:-1],
         inputText=combined_prompt,
         bedrockModelConfigurations={'performanceConfig': {'latency': 'standard'}},
@@ -289,29 +304,31 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         sessionState={'sessionAttributes': {'user_id': user_id}},
         streamingConfigurations={'streamFinalResponse': False}
     )
-    
-    
+    code_payload={}
+    code_generated="false"
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        print(trace)
+        
+        
         if trace:
+            LOGGER.info(f"{code_generated}")
+            LOGGER.info(f"Trace: {trace}")
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
                 failure_reason = trace["trace"]["failureTrace"].get("failureReason", "Unknown failure. Please try again after some time.")
-                if any(error in failure_reason for error in LAMBDA_ERROR):
+                
 
-                    response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
-                    send_message_to_websocket( apigw_client, connection_id,response_obj)
+                response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
+                send_message_to_websocket( apigw_client, connection_id,response_obj)
 
-                    response_obj.pop("AITrace")
-                    response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
-                else:
-                    response_obj["AIMessage"] = failure_reason
+                response_obj.pop("AITrace")
+                response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
 
                 response_obj["Metadata"]["IsComplete"] = True
                 send_message_to_websocket( apigw_client, connection_id,response_obj)
                 return
+                
             elif "rationale" in trace["trace"]["orchestrationTrace"]:
                 response_obj["AITrace"] = trace["trace"]["orchestrationTrace"]["rationale"]["text"]
             
@@ -327,20 +344,45 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
                     ]
              
-                elif observation_type == "ACTION_GROUP":
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['codegeneration'].get('AgentId'):
+                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    outer_json = json.loads(text)
+                    code_generated = outer_json.get("<codegenerated>", "false")
+                    function = outer_json.get("<function>", None)
+                    if code_generated == "true" and function == "storeServiceArtifactsInS3":
+                        LOGGER.info("<codegenerated> is true")
+                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes")
+                        print(code_payload)
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['Metadata']['IsCode']=True
+                        code_payload['Metadata']['IsComplete']=True
+                        
+
+                    else:
+                        code_generated="false"
+                        LOGGER.info("<codegenerated> is not true")
+
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['cftgeneration'].get('AgentId'):
                     text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
                     outer_json = json.loads(text)
                     code_generated = outer_json.get("<codegenerated>", "false")
                     
                     if code_generated == "true":
-                        print("<codegenerated> is true")
-                        code_payload = read_all_files_from_prefix("bhargav9938", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}")
-                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        LOGGER.info("<codegenerated> is true")
+                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft")
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['Metadata']['IsCode']=True
+                        code_payload['Metadata']['IsComplete']=True
+                        
 
                     else:
-                        print("<codegenerated> is not true")
+                        print(code_generated)
+                        LOGGER.info("<codegenerated> is not true")
+
                 
-                elif observation_type == "FINISH" and trace['agentId']=='TCMEZDRP4O':
+                elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId')==trace['agentId']:
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
                     # Store assistant response
@@ -351,6 +393,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 send_message_to_websocket(apigw_client, connection_id,response_obj)
                 # Store assistant response
                 add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
+                LOGGER.info(f"code_generated:{code_generated}")
+                if code_generated=="true" :
+
+                    send_message_to_websocket(apigw_client, connection_id, code_payload)
+                    code_generated="false"
 
 
 
