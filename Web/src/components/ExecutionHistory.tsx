@@ -36,8 +36,6 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
   const [generatingLogs, setGeneratingLogs] = useState(false);
   const limit = 10;
   const { toast } = useToast();
-  // Controls if the refresh button is enabled after generate logs is clicked
-  const [canRefreshLogs, setCanRefreshLogs] = useState(false);
 
   const fetchExecutions = async (pageNum = page) => {
     setLoading(true);
@@ -105,7 +103,6 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
   const handleGenerateLogs = async () => {
     if (!selectedExecution) return;
     setGeneratingLogs(true);
-    setCanRefreshLogs(false);
     try {
       await ExecutionService.generateLogs(workspaceId, solutionId, selectedExecution.ExecutionId);
       toast({
@@ -114,7 +111,6 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
       });
       // Refresh execution details to get updated LogsStatus
       handleRefreshLogsStatus();
-      setCanRefreshLogs(true);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -189,9 +185,13 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
             <div className="flex items-center space-x-2">
               <Button variant="ghost" size="sm" onClick={() => setSelectedExecution(null)}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
               </Button>
               <CardTitle>Execution Details</CardTitle>
             </div>
+            <Button variant="outline" size="sm" onClick={handleRefreshLogsStatus} disabled={detailLoading}>
+              <RefreshCw className={`w-4 h-4 ${detailLoading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -273,22 +273,6 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
                         Generate Logs
                       </Button>
                     )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleRefreshLogsStatus}
-                      disabled={!canRefreshLogs || generatingLogs || detailLoading}
-                    >
-                      {generatingLogs ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating Logs...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className={`w-4 h-4 ${detailLoading ? 'animate-spin' : ''}`} /> Refresh
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </div>
                 
