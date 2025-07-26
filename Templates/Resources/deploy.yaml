@@ -2360,6 +2360,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+    Value: !Sub "${UserPoolDomain}"
     Export:
-      Name: "CognitoUserPoolDomainURL"
+      Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
