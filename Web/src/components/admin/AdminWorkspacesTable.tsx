@@ -20,6 +20,19 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ProtectedButton } from "@/components/ui/protected-button";
+import {
   Cloud,
   Search,
   FolderOpen,
@@ -29,10 +42,12 @@ import {
   Users,
   Loader2,
   Plus,
-  DollarSign
+  DollarSign,
+  X
 } from "lucide-react";
 import { WorkspaceService } from "../../services/workspaceService";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface LocalWorkspace {
   id: string;
@@ -95,8 +110,16 @@ const AdminWorkspacesTable = () => {
   const [workspaces, setWorkspaces] = useState<LocalWorkspace[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceDescription, setWorkspaceDescription] = useState("");
+  const [workspaceType, setWorkspaceType] = useState("Private");
+  const [currentTag, setCurrentTag] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
   const itemsPerPage = 10;
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Fetch workspaces
   useEffect(() => {
@@ -156,6 +179,131 @@ const AdminWorkspacesTable = () => {
     navigate(`/workspaces/${workspaceId}`);
   };
 
+  const handleAddTag = () => {
+    if (currentTag.trim() && !tags.includes(currentTag.trim())) {
+      setTags([...tags, currentTag.trim()]);
+      setCurrentTag("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
+
+  const handleCreateWorkspace = async () => {
+    if (!workspaceName.trim()) {
+      toast({
+        title: "Error",
+        description: "Workspace name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!workspaceDescription.trim()) {
+      toast({
+        title: "Error",
+        description: "Workspace description is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!workspaceType || workspaceType === "" || workspaceType === undefined) {
+      toast({
+        title: "Error",
+        description: "Workspace type is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (tags.length === 0) {
+      toast({
+        title: "Error",
+        description: "At least one tag is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      await WorkspaceService.createWorkspace({
+        WorkspaceName: workspaceName,
+        Description: workspaceDescription,
+        Tags: tags,
+        WorkspaceType: workspaceType
+      });
+      toast({
+        title: "Success",
+        description: `Workspace "${workspaceName}" created successfully!`,
+      });
+      resetForm();
+      setIsCreateDialogOpen(false);
+      // Refresh the workspaces list
+      const searchParams: any = {
+        limit: itemsPerPage,
+        offset: currentPage,
+      };
+      if (searchTerm.trim()) {
+        searchParams.filter = searchTerm.trim();
+      }
+      const response = await WorkspaceService.getWorkspaces(searchParams);
+      if (response && response.Workspaces && Array.isArray(response.Workspaces)) {
+        const transformedWorkspaces: LocalWorkspace[] = response.Workspaces.map(ws => ({
+          id: ws.WorkspaceId,
+          name: ws.WorkspaceName,
+          status: ws.WorkspaceStatus,
+          lastActivity: formatRelativeTime(ws.LastUpdationTime),
+          owner: ws.CreatedBy,
+          description: ws.Description,
+          type: ws.WorkspaceType
+        }));
+        setWorkspaces(transformedWorkspaces);
+        setTotalCount(response.Pagination?.TotalCount || transformedWorkspaces.length);
+      }
+    } catch (error: any) {
+      let errorMsg = '';
+      if (error && typeof error.message === 'string') {
+        try {
+          const parsed = JSON.parse(error.message);
+          if (parsed && parsed.Error) {
+            errorMsg = parsed.Error;
+          } else {
+            errorMsg = error.message;
+          }
+        } catch {
+          errorMsg = error.message;
+        }
+      } else {
+        errorMsg = error?.data?.message || error.message || 'Failed to create workspace';
+      }
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetForm = () => {
+    setWorkspaceName("");
+    setWorkspaceDescription("");
+    setWorkspaceType("Standard");
+    setTags([]);
+    setCurrentTag("");
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -168,8 +316,100 @@ const AdminWorkspacesTable = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Search and Filters */}
-        {/* Removed search bar and filter dropdown above the summary cards */}
+        {/* Create Workspace Button */}
+        <div className="flex justify-end">
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <ProtectedButton 
+                resource="workspaces" 
+                action="manage"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Workspace
+              </ProtectedButton>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create New Workspace</DialogTitle>
+                <DialogDescription>
+                  Create a collaborative workspace for your team projects.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Workspace Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter workspace name"
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter workspace description"
+                    value={workspaceDescription}
+                    onChange={(e) => setWorkspaceDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="type">Workspace Type <span className="text-red-500">*</span></Label>
+                  <Select value={workspaceType} onValueChange={setWorkspaceType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select workspace type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Private">Private</SelectItem>
+                      <SelectItem value="Public">Public</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tags">Tags <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="tags"
+                    placeholder="Add a tag and press Enter"
+                    value={currentTag}
+                    onChange={(e) => setCurrentTag(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                  />
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {tags.map((tag, index) => (
+                        <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                          {tag}
+                          <X 
+                            className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                            onClick={() => handleRemoveTag(tag)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    resetForm();
+                    setIsCreateDialogOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateWorkspace} disabled={isCreating} className="bg-blue-600 hover:bg-blue-700">
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Workspace'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 p-4 rounded-lg">
