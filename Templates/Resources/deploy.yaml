@@ -2515,6 +2515,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "{UserPoolDomain}"
+    Value: !Sub "${UserPoolDomain}"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
