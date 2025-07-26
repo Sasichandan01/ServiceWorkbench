@@ -881,6 +881,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
   
+  
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -978,7 +979,7 @@ Resources:
               - Sid: AllowLogsAndGlueAccess
                 Effect: Allow
                 Action:
-                  - bedrock:Invoke
+                  - bedrock:InvokeAgent
                 Resource: '*'     
         - PolicyName: WebSocketAccess
           PolicyDocument:
@@ -997,6 +998,16 @@ Resources:
                 Action:
                   - dynamodb:Scan
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pPrefix}-BedrockAgentLookup-Table"
+              - Sid: DynamoDBActivityLogsAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
         - PolicyName: S3Access
           PolicyDocument:
             Version: '2012-10-17'
@@ -1248,8 +1259,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-datasource-bucket"
-      VersioningConfiguration:
-        Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -1833,6 +1842,7 @@ Resources:
       Environment:
         Variables:
           LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
+          CHAT_TABLE: !Ref ChatHistoryTable
 
   ShareLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1960,6 +1970,7 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
+          SOLUTIONS_TABLE: !ImportValue "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
@@ -2211,23 +2222,6 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
 
-  # CFTGenerationAgentLambdaRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: lambda.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     ManagedPolicyArns:
-  #       - arn:aws:iam::aws:policy/AdministratorAccess
-  #     Tags:
-  #       - Key: Name
-  #         Value: "WorkbenchV2"
-
   CFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2348,3 +2342,8 @@ Outputs:
     Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${pWebSocketStage}"
     Export:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
+    
+  CognitoUserPoolDomainURL:
+    Value: !Sub "${UserPoolDomain}"
+    Export:
+      Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"

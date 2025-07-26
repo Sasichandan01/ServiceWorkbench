@@ -411,8 +411,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-website"
-      VersioningConfiguration:
-        Status: Enabled
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -486,7 +484,7 @@ Resources:
       EngineVersion: 'OpenSearch_2.17'
       ClusterConfig:
         InstanceCount: 3
-        InstanceType: t3.small.search
+        InstanceType: t3.medium.search
         ZoneAwarenessEnabled: true
         ZoneAwarenessConfig: 
           AvailabilityZoneCount: 3

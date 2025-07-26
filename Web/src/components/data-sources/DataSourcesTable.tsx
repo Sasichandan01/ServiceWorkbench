@@ -121,6 +121,12 @@ const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPa
                   </div>
                 </TableCell>
               </TableRow>
+            ) : filteredDataSources.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                  No datasources found
+                </TableCell>
+              </TableRow>
             ) : (
               filteredDataSources.map((dataSource) => (
                 <TableRow key={dataSource.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onDataSourceClick(dataSource.id)}>

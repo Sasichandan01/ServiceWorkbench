@@ -5,7 +5,8 @@ import { setPermissions, clearPermissions } from '../../store/slices/permissions
 import { getUserInfo } from '../../lib/tokenUtils';
 import { PermissionService } from '../../services/permissionService';
 import { ApiClient } from '../../lib/apiClient';
-import { refreshAccessToken } from '../../lib/auth';
+import { refreshAccessToken, checkAuthState } from '../../lib/auth';
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -22,6 +23,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         dispatch(setLoading(true));
         
+        // Try to check Amplify auth state first
+        try {
+          const amplifyUser = await getCurrentUser();
+          const session = await fetchAuthSession();
+          
+          if (amplifyUser && session.tokens) {
+            // User is authenticated via Amplify (Google/social)
+            const userInfo = {
+              name: amplifyUser.username || 'User',
+              email: amplifyUser.signInDetails?.loginId || '',
+              sub: amplifyUser.userId,
+              username: amplifyUser.username,
+              role: 'Default' // You might want to get this from user attributes
+            };
+
+            const userRole = userInfo.role || 'Default';
+            const permissions = PermissionService.getPermissionsForRole(userRole);
+            dispatch(setPermissions(permissions));
+            
+            dispatch(setAuth({
+              user: userInfo,
+              isAuthenticated: true,
+            }));
+            
+            return; // Exit early if Amplify auth successful
+          }
+        } catch (amplifyError) {
+          // Amplify auth failed, continue to check local storage
+          console.log('No Amplify auth session found, checking local storage...');
+        }
+        
+        // Fallback to original logic for username/password auth
         const accessToken = localStorage.getItem('accessToken');
         const userInfo = getUserInfo();
 
