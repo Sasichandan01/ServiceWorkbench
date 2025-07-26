@@ -425,6 +425,7 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+          USERS_TABLE: !Ref UserTable
           ROLE_TABLE_NAME: !Ref RolesTable
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
