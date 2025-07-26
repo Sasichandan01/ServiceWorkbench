@@ -1969,8 +1969,8 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
-          SOLUTIONS_TABLE: !ImportValue "SolutionsTable"
+          WORKSPACES_BUCKET: !Ref "WorkspacesBucket"
+          SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
