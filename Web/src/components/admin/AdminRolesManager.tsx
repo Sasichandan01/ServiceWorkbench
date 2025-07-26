@@ -161,7 +161,7 @@ const AdminRolesManager = () => {
       console.error('Error fetching roles:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
       setRoles([]);
@@ -234,7 +234,7 @@ const AdminRolesManager = () => {
       console.error('Error creating role:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     }

@@ -526,7 +526,6 @@ def delete_user_roles(user_id, body, requester_role, requester_user_id):
         LOGGER.error("Failed to delete user role: %s", e, exc_info=True)
         return return_response(500, {"message": "Error removing user role"})
 
-
 def rag_sync(event):
     '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
     LOGGER.info("Event: %s", event)

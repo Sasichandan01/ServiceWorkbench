@@ -141,7 +141,7 @@ def start_execution(event, context):
             'ExecutedBy': event.get('requestContext', {}).get('authorizer', {}).get('user_id'),
             'LogsStatus': 'INCOMPLETE'
         }
-        
+        executions_table.put_item(Item=execution)
         # Start all resources
         resource_statuses = {}
         for resource in solution.get('Resources', []):
@@ -180,9 +180,6 @@ def start_execution(event, context):
                     'status': 'GENERATING',
                     'runId': response['JobRunId']
                 }
-
-
-        executions_table.put_item(Item=execution)
 
         payload = {
             "execution_id": execution_id,
@@ -296,7 +293,7 @@ def process_execution(event, context):
             }
         )
         return return_response(200, {
-            'status': 'TIMED_OUT',
+            'status': 'FAILED',
             'execution_id': execution_id
         })
     
@@ -310,3 +307,4 @@ def process_execution(event, context):
             }
         )
         return return_response(500, {"Error": str(e)})
+

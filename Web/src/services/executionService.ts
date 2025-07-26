@@ -5,10 +5,25 @@ export interface Execution {
   ExecutedBy: string;
   Duration: string;
   StartTime: string;
+  EndTime?: string;
   ExecutionStatus: string;
   Message: string;
   LogsStatus?: string;
   LogsS3Path?: string;
+}
+
+export interface ExecutionDetail {
+  ExecutionId: string;
+  ExecutedBy: string;
+  EndTime: string;
+  StartTime: string;
+  ExecutionStatus: string;
+  Message: string;
+  LogsStatus?: string;
+}
+
+export interface LogsResponse {
+  PresignedURL: string;
 }
 
 export interface ExecutionListResponse {
@@ -83,8 +98,34 @@ export class ExecutionService {
     workspaceId: string,
     solutionId: string,
     executionId: string
-  ): Promise<Execution> {
+  ): Promise<ExecutionDetail> {
     const response = await ApiClient.get(`/workspaces/${workspaceId}/solutions/${solutionId}/executions/${executionId}`);
-    return this.handleResponse<Execution>(response);
+    return this.handleResponse<ExecutionDetail>(response);
+  }
+
+  static async generateLogs(
+    workspaceId: string,
+    solutionId: string,
+    executionId: string
+  ): Promise<any> {
+    const response = await ApiClient.post(`/workspaces/${workspaceId}/solutions/${solutionId}/executions/${executionId}/logs`, {});
+    return this.handleResponse<any>(response);
+  }
+
+  static async getLogsStatus(
+    workspaceId: string,
+    solutionId: string,
+    executionId: string
+  ): Promise<LogsResponse> {
+    const response = await ApiClient.get(`/workspaces/${workspaceId}/solutions/${solutionId}/executions/${executionId}/logs`);
+    return this.handleResponse<LogsResponse>(response);
+  }
+
+  static async fetchLogs(presignedUrl: string): Promise<string> {
+    const response = await fetch(presignedUrl);
+    if (!response.ok) {
+      throw new Error('Failed to fetch logs');
+    }
+    return response.text();
   }
 }
