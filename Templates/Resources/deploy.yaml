@@ -1257,8 +1257,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-datasource-bucket"
-      VersioningConfiguration:
-        Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -1970,6 +1968,7 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
+          SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
@@ -2220,23 +2219,6 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
-
-  # CFTGenerationAgentLambdaRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: lambda.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     ManagedPolicyArns:
-  #       - arn:aws:iam::aws:policy/AdministratorAccess
-  #     Tags:
-  #       - Key: Name
-  #         Value: "WorkbenchV2"
 
   CFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
