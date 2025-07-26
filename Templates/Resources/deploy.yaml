@@ -734,7 +734,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '452'
+      changesetflag: '4512'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
