@@ -728,7 +728,6 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-
   BedrockAgentManager:
     Type: AWS::CloudFormation::CustomResource
     Properties:
