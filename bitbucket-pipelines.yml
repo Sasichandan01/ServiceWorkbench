@@ -211,12 +211,19 @@ definitions:
           --region "$REGION" \
           --query "Stacks[0].Outputs[?OutputKey=='WebSocketApiUrl'].OutputValue" \
           --output text)
+        
+        COGNITO_DOMAIN_URL=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" \
+          --region "$REGION" \
+          --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolDomainURL'].OutputValue" \
+          --output text)
 
         echo "Creating .env file with Cognito values..."
         cat > .env <<EOF
         VITE_COGNITO_USER_POOL_ID="${USER_POOL_ID}"
         VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
         VITE_COGNITO_REGION="${REGION_VALUE}"
+        VITE_COGNITO_DOMAIN="${COGNITO_DOMAIN_URL}"
         VITE_API_URL="${API_URL}"
         VITE_WEBSOCKET_URL="${WEBSOCKET_API_URL}"
         EOF

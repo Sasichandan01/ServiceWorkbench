@@ -13,6 +13,7 @@ ROLES_TABLE = DYNAMO_DB.Table(os.environ.get('ROLES_TABLE'))
 ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(os.environ.get('ACTIVITY_LOGS_TABLE')) 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(os.environ.get('SOLUTIONS_TABLE'))
 USERS_TABLE = DYNAMO_DB.Table(os.environ.get('USER_TABLE_NAME'))
+WORKSPACES_TABLE = DYNAMO_DB.Table(os.environ.get('WORKSPACES_TABLE'))
 
 def validate_user_exists(user_id):
     """
@@ -113,10 +114,15 @@ def share_resource(event):
         return return_response(400, {'Message': f'Invalid access type. Must be one of: {valid_access_types}'})
 
     user_id = body['Username']
+    user_record = None
     if '@' in user_id:
-        user_id = USERS_TABLE.scan(
+        user_scan = USERS_TABLE.scan(
             FilterExpression=Attr('Email').eq(user_id)
-        )['Items'][0]['UserId']
+        )
+        user_record = user_scan['Items'][0]
+        user_id = user_record['UserId']
+    else:
+        user_record = USERS_TABLE.get_item(Key={'UserId': user_id}).get('Item')
     
     print("user_id", user_id)
 
@@ -260,6 +266,48 @@ def share_resource(event):
         msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated, {solutions_skipped} skipped (higher permissions already exist)."
         return return_response(200, {'Message': msg})
 
+    # If only a solution is shared (not a workspace), add it to the user's default workspace
+    if resource_type == 'SOLUTION':
+        # Look up the user's default workspace by type
+        default_workspace_id = None
+        try:
+            workspaces_response = WORKSPACES_TABLE.query(
+                IndexName='CreatedBy-index',
+                KeyConditionExpression=Key('CreatedBy').eq(user_id)
+            )
+            for ws in workspaces_response.get('Items', []):
+                if ws.get('WorkspaceType') == 'DEFAULT':
+                    default_workspace_id = ws.get('WorkspaceId')
+                    break
+        except Exception as e:
+            print(f"Error looking up default workspace for user {user_id}: {e}")
+        if default_workspace_id and workspace_id != default_workspace_id:
+            default_access_key = f'SOLUTION#{default_workspace_id}#{solution_id}'
+            # Revoke any existing access entry for the same user and this default workspace/solution
+            existing_default_items = RESOURCE_ACCESS_TABLE.scan(
+                FilterExpression=Attr('Id').begins_with(f"{user_id}#") & Attr('AccessKey').eq(default_access_key),
+                ProjectionExpression='Id, AccessKey'
+            ).get('Items', [])
+            for item in existing_default_items:
+                RESOURCE_ACCESS_TABLE.delete_item(Key={
+                    'Id': item['Id'],
+                    'AccessKey': item['AccessKey']
+                })
+            RESOURCE_ACCESS_TABLE.put_item(Item={
+                'Id': f"{user_id}#{access_type}",
+                'AccessKey': default_access_key,
+                'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            })
+            if ACTIVITY_LOGS_TABLE:
+                log_activity(
+                    ACTIVITY_LOGS_TABLE,
+                    resource_type='SOLUTION',
+                    resource_name=f'Solution in default workspace {default_workspace_id}',
+                    resource_id=f'{default_workspace_id}#{solution_id}',
+                    user_id=user_id,
+                    action=f'GRANT_{access_type.upper()}_ACCESS'
+                )
+    
     return return_response(200, {'Message': 'Access granted'})
     
 def revoke_access(event):
