@@ -767,7 +767,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '954'
+      changesetflag: '954234'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -2515,6 +2515,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "{UserPoolDomain}"
+    Value: !Sub "${UserPoolDomain}"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
