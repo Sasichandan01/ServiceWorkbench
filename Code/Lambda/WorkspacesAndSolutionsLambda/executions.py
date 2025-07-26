@@ -10,6 +10,8 @@ from boto3.dynamodb.conditions import Attr,Key
 
 dynamodb = boto3.resource('dynamodb')
 lambda_client = boto3.client('lambda')
+sfn_client=boto3.client('stepfunctions')
+glue_client=boto3.client('glue')
 executions_table = dynamodb.Table(os.environ['EXECUTIONS_TABLE'])
 workspaces_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])

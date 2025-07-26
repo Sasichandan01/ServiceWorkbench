@@ -482,7 +482,7 @@
           Description: S3 key of the memory file
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: "XZE6LQ7KWF"
+    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
       Description: "Knowledge base for OpenSearch documents" 
 
 
@@ -802,7 +802,7 @@
           IsRequired: true
       RequireConfirmation: DISABLED
   KnowledgeBases: 
-    - KnowledgeBaseId: "XZE6LQ7KWF"
+    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
       Description: "Refer to the knowledge base first for all AWS service documentation and code generation patterns."
 
 - AgentName: CFTGenerationAgent
@@ -1205,7 +1205,7 @@
           Description: true or false for approval to upload cft
           IsRequired: true
   KnowledgeBases: 
-    - KnowledgeBaseId: "XZE6LQ7KWF"
+    - KnowledgeBaseId: ${KNOWLEDGE_BASE_ID}
       Description: "Knowledge base for OpenSearch documents"
 
 - AgentName: Supervisor-Agent
