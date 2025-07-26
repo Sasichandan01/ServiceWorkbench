@@ -1243,7 +1243,7 @@ Resources:
           DATASOURCES_TABLE: !Ref DatasourcesTable
           ROLES_TABLE: !Ref RolesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          WORKSPACES_BUCKET: !Ref WorkspacesBucket
+          WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
           USERS_TABLE: !Ref UserTable
           CHAT_TABLE: !Ref ChatHistoryTable
       Code:
@@ -1969,7 +1969,7 @@ Resources:
               Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          WORKSPACES_BUCKET: !Ref "WorkspacesBucket"
+          WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
           SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
