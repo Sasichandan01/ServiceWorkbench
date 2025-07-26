@@ -62,14 +62,17 @@ const AdminSystemOverview = () => {
   const [costData, setCostData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // New: Handle workspace selection for solutions
   const [selectedWorkspaceForSolutions, setSelectedWorkspaceForSolutions] = useState<string>("");
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [solutionSearch, setSolutionSearch] = useState("");
 
   // Fetch workspaces
   const fetchWorkspaces = async () => {
     try {
-      const response = await WorkspaceService.getWorkspaces({ limit: 100 });
+      const response = await WorkspaceService.getWorkspaces({ 
+        limit: 10,
+        filterBy: workspaceSearch.trim() || undefined
+      });
       setWorkspaces(response.Workspaces || []);
     } catch (err) {
       console.error('Error fetching workspaces:', err);
@@ -79,7 +82,10 @@ const AdminSystemOverview = () => {
   // Fetch solutions for a specific workspace
   const fetchSolutions = async (workspaceId: string) => {
     try {
-      const response = await SolutionService.getSolutions(workspaceId, { limit: 100 });
+      const response = await SolutionService.getSolutions(workspaceId, { 
+        limit: 10,
+        filterBy: solutionSearch.trim() || undefined
+      });
       setSolutions(response.Solutions || []);
     } catch (err) {
       console.error('Error fetching solutions:', err);
@@ -111,19 +117,26 @@ const AdminSystemOverview = () => {
   // Load initial data
   useEffect(() => {
     fetchWorkspaces();
-  }, []);
+  }, [workspaceSearch]);
 
   // Fetch cost data when groupBy or selectedItem changes
   useEffect(() => {
     fetchCostData();
   }, [groupBy, selectedItem]);
 
+  // Fetch solutions when workspace or search changes
+  useEffect(() => {
+    if (selectedWorkspaceForSolutions && selectedWorkspaceForSolutions !== "all") {
+      fetchSolutions(selectedWorkspaceForSolutions);
+    }
+  }, [selectedWorkspaceForSolutions, solutionSearch]);
+
   // Handle groupBy change
   const handleGroupByChange = (value: string) => {
     setGroupBy(value);
     setSelectedItem("all");
     setSolutions([]);
-    setSelectedWorkspaceForSolutions("all"); // Reset workspace selection
+    setSelectedWorkspaceForSolutions("");
   };
 
   // Handle selected item change
@@ -134,7 +147,7 @@ const AdminSystemOverview = () => {
     }
   };
 
-  // New: Handle workspace selection for solutions
+  // Handle workspace selection for solutions
   const handleWorkspaceForSolutionsChange = (value: string) => {
     setSelectedWorkspaceForSolutions(value);
     setSelectedItem("all");
@@ -206,6 +219,14 @@ const AdminSystemOverview = () => {
                     <SelectValue placeholder="Select workspace" />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="p-2">
+                      <input
+                        placeholder="Search workspaces..."
+                        value={workspaceSearch}
+                        onChange={(e) => setWorkspaceSearch(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                     <SelectItem value="all">All Workspaces</SelectItem>
                     {workspaces.map((workspace) => (
                       <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
@@ -223,6 +244,14 @@ const AdminSystemOverview = () => {
                     <SelectValue placeholder="Select workspace" />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="p-2">
+                      <input
+                        placeholder="Search workspaces..."
+                        value={workspaceSearch}
+                        onChange={(e) => setWorkspaceSearch(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                     <SelectItem value="all">All Workspaces</SelectItem>
                     {workspaces.map((workspace) => (
                       <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
@@ -237,6 +266,14 @@ const AdminSystemOverview = () => {
                     <SelectValue placeholder="Select solution" />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="p-2">
+                      <input
+                        placeholder="Search solutions..."
+                        value={solutionSearch}
+                        onChange={(e) => setSolutionSearch(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                     <SelectItem value="all">All Solutions</SelectItem>
                     {solutions.map((solution) => (
                       <SelectItem key={solution.SolutionId} value={solution.SolutionId}>
