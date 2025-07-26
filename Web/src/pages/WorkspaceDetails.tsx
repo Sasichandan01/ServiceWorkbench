@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
-import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation, useShareResourceMutation } from '../services/apiSlice';
+import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation, useShareResourceMutation, useDeleteShareResourceMutation } from '../services/apiSlice';
 import { useAppSelector } from "@/hooks/useAppSelector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -83,6 +83,9 @@ const WorkspaceDetails = () => {
   const [newTagInput, setNewTagInput] = useState("");
   const [createSolution, { isLoading: isCreatingSolution }] = useCreateSolutionMutation();
   const [shareResource, { isLoading: isSharing }] = useShareResourceMutation();
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [userToRevoke, setUserToRevoke] = useState<any>(null);
+  const [deleteShareResource, { isLoading: isRevoking }] = useDeleteShareResourceMutation();
 
   // Search and pagination states
   const [solutionsSearch, setSolutionsSearch] = useState("");
@@ -204,7 +207,7 @@ const WorkspaceDetails = () => {
 
       toast({
         title: "Success",
-        description: `User invited to workspace successfully!`,
+        description: `Access granted!`,
       });
 
       setNewUserEmail("");
@@ -213,7 +216,7 @@ const WorkspaceDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.data?.message || 'Failed to share workspace.',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive",
       });
     }
@@ -318,7 +321,7 @@ const WorkspaceDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.data?.message || error.message || 'Failed to create solution',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive",
       });
     }
@@ -343,6 +346,8 @@ const WorkspaceDetails = () => {
       user.sub === workspace.owner ||
       user.email === workspace.owner
     );
+
+  const loggedInUser = useAppSelector(state => state.auth.user);
 
   const [activeTab, setActiveTab] = useState("solutions");
 
@@ -747,7 +752,7 @@ const WorkspaceDetails = () => {
                                 <SelectContent>
                                   <SelectItem value="owner">Owner</SelectItem>
                                   <SelectItem value="editor">Editor</SelectItem>
-                                  <SelectItem value="read-only">read-only</SelectItem>
+                                  <SelectItem value="read-only">Read-only</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -757,7 +762,7 @@ const WorkspaceDetails = () => {
                               Cancel
                             </Button>
                             <Button onClick={handleAddUser} disabled={workspace?.status === "Inactive" || isSharing}>
-                              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Grant Access"}
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -787,6 +792,7 @@ const WorkspaceDetails = () => {
                             <TableHead>User</TableHead>
                             <TableHead>Role</TableHead>
                             <TableHead>Joined</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -805,6 +811,44 @@ const WorkspaceDetails = () => {
                                 </span>
                               </TableCell>
                               <TableCell className="text-gray-600">{user.CreationTime}</TableCell>
+                              <TableCell>
+                                {user.UserId !== loggedInUser?.username && (
+                                  <Dialog open={revokeDialogOpen && userToRevoke?.UserId === user.UserId} onOpenChange={open => { setRevokeDialogOpen(open); if (!open) setUserToRevoke(null); }}>
+                                    <DialogTrigger asChild>
+                                      <Button variant="destructive" size="sm" onClick={() => { setUserToRevoke(user); setRevokeDialogOpen(true); }}>
+                                        Revoke
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Revoke Access</DialogTitle>
+                                        <DialogDescription>
+                                          User access will be revoked and they will no longer be able to access this workspace.
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      <DialogFooter>
+                                        <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>Cancel</Button>
+                                        <Button variant="destructive" onClick={async () => {
+                                          try {
+                                            await deleteShareResource({
+                                              Username: user.Username,
+                                              ResourceType: 'workspace',
+                                              ResourceId: id!,
+                                            }).unwrap();
+                                            toast({ title: 'Access Revoked', description: 'User access has been revoked.' });
+                                            setRevokeDialogOpen(false);
+                                            setUserToRevoke(null);
+                                          } catch (e: any) {
+                                            toast({ title: 'Error', description: e?.data?.message || e?.message || (typeof e === 'string' ? e : 'An error occurred.'), variant: 'destructive' });
+                                          }
+                                        }} disabled={isRevoking}>
+                                          {isRevoking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
+                                        </Button>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </TableCell>
                             </TableRow>
                           ))}
                           {paginatedApiUsers.length === 0 && (

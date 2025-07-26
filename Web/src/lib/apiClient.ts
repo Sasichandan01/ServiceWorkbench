@@ -116,4 +116,12 @@ export class ApiClient {
       headers,
     });
   }
+
+  static async ragSync(action?: 'docs' | 'app'): Promise<Response> {
+    let endpoint = '/rag-sync';
+    if (action) {
+      endpoint += `?action=${action}`;
+    }
+    return this.post(endpoint);
+  }
 }

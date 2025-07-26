@@ -55,7 +55,7 @@ const Verification = () => {
       console.error("Verification error:", error);
       toast({
         title: "Verification Failed",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     } finally {
@@ -80,7 +80,7 @@ const Verification = () => {
       console.error("Resend error:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     } finally {

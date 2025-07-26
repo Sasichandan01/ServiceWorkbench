@@ -1,5 +1,6 @@
 
 import { CognitoIdentityProviderClient, SignUpCommand, InitiateAuthCommand, ConfirmSignUpCommand, ResendConfirmationCodeCommand, GlobalSignOutCommand, UpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
+import { signInWithRedirect, getCurrentUser, signOut as amplifySignOut } from 'aws-amplify/auth';
 
 // AWS Cognito configuration from environment variables
 const COGNITO_CONFIG = {
@@ -204,5 +205,26 @@ export const refreshAccessToken = async () => {
   } catch (error) {
     console.error('Token refresh error:', error);
     throw error;
+  }
+};
+
+export const signInWithGoogle = async () => {
+  try {
+    await signInWithRedirect({
+      provider: 'Google'
+    });
+  } catch (error) {
+    console.error('Google sign in error:', error);
+    throw error;
+  }
+};
+
+export const checkAuthState = async () => {
+  try {
+    const user = await getCurrentUser();
+    return user;
+  } catch (error) {
+    console.error('Error checking auth state:', error);
+    return null;
   }
 };

@@ -10,6 +10,8 @@ import AdminWorkspacesTable from "@/components/admin/AdminWorkspacesTable";
 import { ProtectedContent } from "@/components/ui/protected-content";
 import { usePermissions } from "@/hooks/usePermissions";
 import AdminSystemOverview from "@/components/admin/AdminSystemOverview";
+import DataSources from "./DataSources";
+import SystemSettings from "./SystemSettings";
 const AdminDashboard = () => {
   const {
     canView
@@ -69,6 +71,16 @@ const AdminDashboard = () => {
         <ProtectedContent resource="workspaces" action="view">
           <TabsContent value="workspaces">
             <AdminWorkspacesTable />
+          </TabsContent>
+        </ProtectedContent>
+        <ProtectedContent resource="datasources" action="view">
+          <TabsContent value="data-sources">
+            <DataSources />
+          </TabsContent>
+        </ProtectedContent>
+        <ProtectedContent resource="users" action="view">
+          <TabsContent value="system">
+            <SystemSettings />
           </TabsContent>
         </ProtectedContent>
         {/* Audit logs tab removed as per request */}
