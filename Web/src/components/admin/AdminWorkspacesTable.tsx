@@ -430,20 +430,6 @@ const AdminWorkspacesTable = () => {
               <Play className="w-8 h-8 text-green-500" />
             </div>
           </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-orange-600">Monthly Cost</p>
-                <p className="text-2xl font-bold text-orange-900">
-                  ${workspaces.reduce((sum, w) => {
-                    const cost = Number((w as any).cost || (w as any).Cost || 0);
-                    return sum + (isNaN(cost) ? 0 : cost);
-                  }, 0)}
-                </p>
-              </div>
-              <DollarSign className="w-8 h-8 text-orange-500" />
-            </div>
-          </div>
         </div>
         {/* Workspaces Table */}
         <Card>

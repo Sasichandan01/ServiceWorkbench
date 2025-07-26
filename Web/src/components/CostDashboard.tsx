@@ -131,6 +131,19 @@ const CostDashboard = () => {
     }
   };
 
+  // New: Handle workspace selection for solutions
+  const [selectedWorkspaceForSolutions, setSelectedWorkspaceForSolutions] = useState<string>("");
+
+  const handleWorkspaceForSolutionsChange = (value: string) => {
+    setSelectedWorkspaceForSolutions(value);
+    setSelectedItem("all");
+    if (value !== "all") {
+      fetchSolutions(value);
+    } else {
+      setSolutions([]);
+    }
+  };
+
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index);
   };
@@ -188,34 +201,55 @@ const CostDashboard = () => {
               </Select>
             </div>
 
-            <div>
-              <Select value={selectedItem} onValueChange={handleSelectedItemChange}>
-                <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
-                  <SelectValue placeholder="Select item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groupBy === "workspaces" ? (
-                    <>
-                      <SelectItem value="all">All Workspaces</SelectItem>
-                      {workspaces.map((workspace) => (
-                        <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
-                          {workspace.WorkspaceName}
-                        </SelectItem>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="all">All Solutions</SelectItem>
-                      {workspaces.map((workspace) => (
-                        <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
-                          {workspace.WorkspaceName}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Second dropdown logic */}
+            {groupBy === "workspaces" ? (
+              <div>
+                <Select value={selectedItem} onValueChange={handleSelectedItemChange}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Workspaces</SelectItem>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
+                        {workspace.WorkspaceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                {/* First: select workspace for solutions */}
+                <Select value={selectedWorkspaceForSolutions} onValueChange={handleWorkspaceForSolutionsChange}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Workspaces</SelectItem>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
+                        {workspace.WorkspaceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Then: select solution for that workspace */}
+                <Select value={selectedItem} onValueChange={handleSelectedItemChange} disabled={!selectedWorkspaceForSolutions || selectedWorkspaceForSolutions === "all"}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select solution" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Solutions</SelectItem>
+                    {solutions.map((solution) => (
+                      <SelectItem key={solution.SolutionId} value={solution.SolutionId}>
+                        {solution.SolutionName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Enhanced Pie Chart Container */}

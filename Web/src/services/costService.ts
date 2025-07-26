@@ -14,6 +14,18 @@ export interface CostsResponse {
   totalCost: number;
 }
 
+export interface WorkspaceCostResponse {
+  cost: number;
+  currency: string;
+  period: string;
+}
+
+export interface SolutionCostResponse {
+  cost: number;
+  currency: string;
+  period: string;
+}
+
 export class CostService {
   private static handleResponse = async <T>(response: Response): Promise<T> => {
     if (!response.ok) {
@@ -37,5 +49,23 @@ export class CostService {
     const endpoint = `/costs?${searchParams.toString()}`;
     const response = await ApiClient.get(endpoint);
     return this.handleResponse<CostsResponse>(response);
+  }
+
+  static async getCostByWorkspaceId(workspaceId: string): Promise<WorkspaceCostResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('workspaceid', workspaceId);
+    
+    const endpoint = `/cost?${searchParams.toString()}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse<WorkspaceCostResponse>(response);
+  }
+
+  static async getCostBySolutionId(solutionId: string): Promise<SolutionCostResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('solutionid', solutionId);
+    
+    const endpoint = `/costs?${searchParams.toString()}`;
+    const response = await ApiClient.get(endpoint);
+    return this.handleResponse<SolutionCostResponse>(response);
   }
 } 
