@@ -1,6 +1,5 @@
 import json
 import os
-import os
 import re
 import logging
 import boto3
