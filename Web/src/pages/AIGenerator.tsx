@@ -43,7 +43,7 @@ interface ThinkingStep {
 
 interface Message {
   id: number;
-  content: string;
+  content: string | object;
   sender: "user" | "ai";
   timestamp: string;
   thinking?: ThinkingStep[];
@@ -222,7 +222,9 @@ const AIGenerator = () => {
           // This is an AITrace message - add to thinking
           const thinkingStep: ThinkingStep = {
             id: Date.now().toString() + Math.random(),
-            content: aiTrace,
+            content: Array.isArray(aiTrace) 
+              ? aiTrace.map(item => typeof item === 'object' ? `${item.Dataset}/${item.Domain}/${item.File}` : String(item)).join(', ')
+              : typeof aiTrace === 'object' ? JSON.stringify(aiTrace, null, 2) : String(aiTrace),
             timestamp: new Date(),
           };
           setCurrentThinking((prev) => {
@@ -653,8 +655,8 @@ const AIGenerator = () => {
                                 }
                                 return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
                               }
-                              // Fallback for unknown types
-                              return <pre className="whitespace-pre-wrap">{JSON.stringify(message.content, null, 2)}</pre>;
+                              // Fallback for unknown types - ensure objects are stringified
+                              return <pre className="whitespace-pre-wrap">{typeof message.content === 'object' ? JSON.stringify(message.content, null, 2) : String(message.content)}</pre>;
                             })()}
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">

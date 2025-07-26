@@ -18,7 +18,8 @@ import { UserService } from '@/services/userService';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { setAuth } from '@/store/slices/authSlice';
-import { clearPermissions } from '@/store/slices/permissionsSlice';
+import { clearPermissions, setPermissions } from '@/store/slices/permissionsSlice';
+import { PermissionService } from '@/services/permissionService';
 import { useToast } from '@/hooks/use-toast';
 import { updateUserAttributes, refreshAccessToken } from '@/lib/auth';
 import { RefreshCw, AlertCircle } from 'lucide-react';
@@ -114,6 +115,10 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
       // Clear permissions to force re-fetch with new role
       dispatch(clearPermissions());
 
+      // Re-fetch permissions for the new role
+      const permissions = PermissionService.getPermissionsForRole(selectedRole);
+      dispatch(setPermissions(permissions));
+
       toast({
         title: "Role Switched",
         description: `Successfully switched to ${selectedRole} role.`,
@@ -121,9 +126,6 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
 
       onOpenChange(false);
       setSelectedRole('');
-      
-      // Reload the page to ensure all components reflect the new role
-      window.location.reload();
     } catch (error) {
       console.error('Error switching role:', error);
       toast({
@@ -191,7 +193,6 @@ export function RoleSwitchDialog({ open, onOpenChange }: RoleSwitchDialogProps) 
                       <p className="font-medium text-foreground">Important:</p>
                       <p className="text-muted-foreground">
                         Switching roles will change your permissions and may affect your access to certain features.
-                        The page will reload to apply the new role.
                       </p>
                     </div>
                   </div>

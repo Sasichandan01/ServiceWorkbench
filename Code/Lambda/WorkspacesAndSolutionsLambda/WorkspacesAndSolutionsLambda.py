@@ -1,21 +1,104 @@
-from executions import get_executions,run_solution,get_execution
+from executions import get_executions,start_execution,get_execution, process_execution
 from workspaces import create_workspace,update_workspace,get_workspace,get_workspaces,delete_workspace
 from solutions import get_solution, update_solution, delete_solution, list_solutions, create_solution
 from logs import generate_execution_logs,get_execution_logs,process_log_collection
 from scripts import handle_get, handle_post
 from RBAC.rbac import is_user_action_valid
 from Utils.utils import return_response
-import asyncio
+
 import json
 import boto3
 import os
- 
+from boto3.dynamodb.conditions import Key
+import logging
+
+LOGGER=logging.getLogger()
+LOGGER.setLevel(logging.INFO)
+
 dynamodb = boto3.resource("dynamodb")
 roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
+
+chat_table = dynamodb.Table(os.environ.get('CHAT_TABLE'))
+
+def build_chat_pk(solution_id, user_id):
+    return f"{solution_id}#{user_id}"
+
+def get_chat_history(workspace_id, solution_id, user_id):
+    pk = build_chat_pk(solution_id, user_id)
+    response = chat_table.query(
+        KeyConditionExpression=Key('ChatId').eq(pk),
+        ScanIndexForward=True  # oldest first
+    )
+    items = response.get('Items', [])
+    LOGGER.info(f"Chat history for {solution_id} by {user_id}: {items}")
+    chat_list = []
+    for item in items:
+        trace = item.get("Trace", [])
+        # Ensure trace is always a list
+        if not isinstance(trace, list):
+            try:
+                import json
+                trace = json.loads(trace) if trace else []
+            except Exception:
+                trace = [trace] if trace else []
+        chat_list.append({
+            "ChatId": item.get("ChatId"),
+            "TimeStamp": item.get("Timestamp"),
+            "Message": item.get("Message", ""),
+            "MessageId": item.get("MessageId"),
+            "Sender": item.get("Sender"),
+            "Trace": trace
+        })
+    return return_response(200, chat_list)
+
+def delete_chat_history(workspace_id, solution_id, user_id):
+    pk = build_chat_pk(solution_id, user_id)
+    response = chat_table.query(
+        KeyConditionExpression=Key('ChatId').eq(pk),
+        ProjectionExpression='ChatId, #ts',
+        ExpressionAttributeNames={
+            '#ts': 'Timestamp'
+        }
+    )
+    items = response.get('Items', [])
+    for item in items:
+        chat_table.delete_item(Key={
+            'ChatId': item['ChatId'],
+            'Timestamp': item['Timestamp']
+        })
+    return return_response(200, {"Message": "All chat messages deleted"})
+
+def get_chat_trace(chat_id):
+    # Query the GSI on MessageId
+
+    response = chat_table.query(
+        IndexName='MessageIdIndex',
+        KeyConditionExpression=Key('MessageId').eq(chat_id)
+    )
+    items = response.get('Items', [])
+    if not items:
+        return return_response(404, {"Message": "Chat message not found"})
+    item = items[0]
+    trace = item.get("Trace", [])
+    # Ensure trace is always a list
+    if not isinstance(trace, list):
+        try:
+            import json
+            trace = json.loads(trace) if trace else []
+        except Exception:
+            trace = [trace] if trace else []
+    return return_response(200, {"Trace": trace})
 
 def lambda_handler(event, context):
     try:
         print(event)
+
+        
+        if event.get('action') == 'execution-poll':
+            return process_execution(event, context)
+        if event.get('action')=='logs-poll':
+            return process_log_collection(event, context)
+
         resource = event.get('resource')
         path = event.get('path')
         httpMethod = event.get('httpMethod')
@@ -29,6 +112,7 @@ def lambda_handler(event, context):
         query_params = event.get('queryStringParameters') or {}
         workspace_id = path_params.get('workspace_id',None)
         solution_id = path_params.get('solution_id',None)
+        chat_id = path_params.get('chat_id', None)
 
         if resource == '/workspaces':
             if httpMethod == 'POST':
@@ -65,7 +149,7 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_executions(event, context)
             elif httpMethod == 'POST':
-                return run_solution(event, context)
+                return start_execution(event, context)
 
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
             if httpMethod == 'GET':
@@ -84,8 +168,16 @@ def lambda_handler(event, context):
                 return get_execution_logs(event, context)
             elif httpMethod == 'POST':
                 return generate_execution_logs(event, context)
-            elif event.get('InvokedBy')=='lambda':
-                return asyncio.run(process_log_collection(event, context))
+
+
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat':
+            if httpMethod == 'GET':
+                return get_chat_history(workspace_id, solution_id, user_id)
+            elif httpMethod == 'DELETE':
+                return delete_chat_history(workspace_id, solution_id, user_id)
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat/{chat_id}':
+            if httpMethod == 'GET':
+                return get_chat_trace(chat_id)
 
         return return_response(404, {"Error": "Resource not found"})
     except Exception as e:

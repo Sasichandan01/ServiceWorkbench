@@ -19,6 +19,7 @@ import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-yaml';
 import { ApiClient } from '@/lib/apiClient';
+import { createWebSocketClient } from '@/lib/websocketClient';
 
 // Add new types for folder/file structure
 interface ScriptFile {
@@ -306,6 +307,9 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   const highlightRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
 
   // Indentation settings
   const getIndentSize = (language: string): number => {
@@ -833,23 +837,56 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  useEffect(() => {
+    const wsClient = createWebSocketClient();
+    wsClientRef.current = wsClient;
+    wsClient.connect();
+    wsClient.on('open', () => {
+      setWsConnected(true);
+      setWsError(null);
+    });
+    wsClient.on('close', () => {
+      setWsConnected(false);
+    });
+    wsClient.on('error', (e) => {
+      setWsError('WebSocket error');
+      setWsConnected(false);
+    });
+    wsClient.on('message', (event) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        // Handle AI response
+        let content = '';
+        if (typeof data === 'string') {
+          content = data;
+        } else if (data && typeof data.response === 'string') {
+          content = data.response;
+        } else if (data && typeof data.content === 'string') {
+          content = data.content;
+        } else if (data && typeof data.message === 'string') {
+          content = data.message;
+        } else if (data && typeof data.text === 'string') {
+          content = data.text;
+        } else {
+          content = JSON.stringify(data);
+        }
+        if (content.trim()) {
+          setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content }]);
+        }
+      } catch (err) {
+        setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: String(event.data) }]);
+      }
+    });
+    return () => {
+      wsClient.close();
+    };
+  }, []);
+
   const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    
-    const userMessage = { id: Date.now(), role: "user" as const, content: chatInput };
-    
-    // Simple AI responses based on keywords
-    let assistantResponse = "I'll help you with that! This is a demo response.";
-    
-    if (chatInput.toLowerCase().includes('python') || chatInput.toLowerCase().includes('indent')) {
-      assistantResponse = "For Python indentation:\n\n• Use **Tab** to insert 4 spaces\n• Use **Shift+Tab** to remove indentation\n• Press **Enter** after a line ending with ':' for auto-indent\n• The editor automatically handles if/for/while/def/class blocks\n\nTry typing:\n```python\nif True:\n    print('Hello')\n```";
-    } else if (chatInput.toLowerCase().includes('yaml')) {
-      assistantResponse = "For YAML indentation:\n\n• Use **Tab** to insert 2 spaces\n• Use **Shift+Tab** to remove indentation\n• Press **Enter** after a line ending with ':' for auto-indent\n• YAML is sensitive to indentation - be careful!\n\nTry typing:\n```yaml\napp:\n  name: MyApp\n  version: 1.0.0\n```";
-    } else if (chatInput.toLowerCase().includes('format') || chatInput.toLowerCase().includes('beautify')) {
-      assistantResponse = "To format your code:\n\n• **Python**: The editor auto-indents based on syntax\n• **YAML**: Auto-indents after colons and list items\n• Use **Tab** and **Shift+Tab** for manual indentation\n• The status bar shows current language and indent size";
-    }
-    
-    setChatMessages(prev => [...prev, userMessage, { id: Date.now() + 1, role: "assistant", content: assistantResponse }]);
+    if (!chatInput.trim() || !wsClientRef.current || !wsConnected) return;
+    const userMessage = { id: Date.now(), role: 'user' as const, content: chatInput };
+    setChatMessages(prev => [...prev, userMessage]);
+    wsClientRef.current.send(JSON.stringify({ action: 'sendMessage', message: chatInput, workspaceId, solutionId }));
     setChatInput("");
   };
 
@@ -1204,6 +1241,12 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {!wsConnected && (
+                <div className="text-xs text-yellow-600 mb-2">Connecting to AI chat...</div>
+              )}
+              {wsError && (
+                <div className="text-xs text-red-600 mb-2">{wsError}</div>
+              )}
               {chatMessages.map((message) => (
                 <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
                   <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
