@@ -1968,7 +1968,7 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
-          SOLUTIONS_TABLE: !ImportValue "SolutionsTable"
+          SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
