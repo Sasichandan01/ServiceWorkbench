@@ -767,7 +767,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '4521'
+      changesetflag: '954'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1060,6 +1060,7 @@ Resources:
                     - "${BucketArn}/*"
                     - {BucketArn: !ImportValue WorkspacesBucketArn}
       ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
@@ -1286,7 +1287,7 @@ Resources:
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
           USERS_TABLE: !Ref UserTable
-          CHAT_TABLE: !Ref ChatHistoryTable
+          CHAT_TABLE: "Wokbench-chathistory"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
@@ -1347,7 +1348,6 @@ Resources:
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
       Description: !Sub "${DeploymentTrigger}"
-      # Description: "abc"
 
   WorkspaceLambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1924,7 +1924,8 @@ Resources:
       Environment:
         Variables:
           LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
-          CHAT_TABLE: !Ref ChatHistoryTable
+          # CHAT_TABLE: !Ref ChatHistoryTable
+          CHAT_TABLE: "Wokbench-chathistory"
 
   ShareLambdaFunction:
     Type: AWS::Lambda::Function
@@ -2332,30 +2333,91 @@ Resources:
   CFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: S3
+        - PolicyName: S3Access
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:GetObject
                   - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
                 Resource:
-                  - !ImportValue WorkspacesBucketArn
-                  - !Sub
-                    - "${BucketArn}/*"
-                    - {BucketArn: !ImportValue WorkspacesBucketArn}
+                  - !Sub "arn:aws:s3:::develop-service-workbench-workspaces/*"
+                  - !Sub "arn:aws:s3:::develop-service-workbench-workspaces"
+      
+        - PolicyName: ServiceCatalogAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - servicecatalog:CreateProduct
+                  - servicecatalog:AssociateProductWithPortfolio
+                  - servicecatalog:ProvisionProduct
+                  - servicecatalog:DescribeRecord
+                  - servicecatalog:DescribeProvisionedProduct
+                Resource: "*"
+      
+        - PolicyName: CloudFormationAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResources
+                Resource: "*"
+      
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*"
+      
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agent-runtime:InvokeAgent
+                Resource: "*"
+      
+        - PolicyName: StepFunctionsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:DescribeExecution
+                Resource: "*"
+      
+        - PolicyName: STSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+    
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+    
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -2384,46 +2446,42 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ChatHistoryTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-ChatHistoryTable'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: ChatId
-          AttributeType: S
-        - AttributeName: Timestamp
-          AttributeType: S
-        - AttributeName: MessageId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: ChatId
-          KeyType: HASH
-        - AttributeName: Timestamp
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: MessageIdIndex
-          KeySchema:
-            - AttributeName: MessageId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-      Tags:
-        - Key: Name
-          Value: "WorkbenchV2"
-        - Key: SWB-User
-          Value: "ServiceWorkbench"
+  # ChatHistoryTable:
+  #   Type: AWS::DynamoDB::Table
+  #   Properties:
+  #     TableName: !Sub 'Workbench-${pPrefix}-ChatHistoryTable'
+  #     BillingMode: PAY_PER_REQUEST
+  #     AttributeDefinitions:
+  #       - AttributeName: ChatId
+  #         AttributeType: S
+  #       - AttributeName: Timestamp
+  #         AttributeType: S
+  #       - AttributeName: MessageId
+  #         AttributeType: S
+  #     KeySchema:
+  #       - AttributeName: ChatId
+  #         KeyType: HASH
+  #       - AttributeName: Timestamp
+  #         KeyType: RANGE
+  #     GlobalSecondaryIndexes:
+  #       - IndexName: MessageIdIndex
+  #         KeySchema:
+  #           - AttributeName: MessageId
+  #             KeyType: HASH
+  #         Projection:
+  #           ProjectionType: ALL
+  #     Tags:
+  #       - Key: Name
+  #         Value: "WorkbenchV2"
 
 Outputs:
 
   WorkspaceLambdaFunctionName:
     Description: Name of the Workspace Lambda function
     Value: !Ref WorkspacesAndSolutionsLambdaFunction
-
   ApiUrl:
     Description: "Invoke URL for the deployed API"
     Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  
   CloudfrontDistributionId:
     Description: CloudFront distribution ID
     Value: !GetAtt WebsiteDistribution.Id
