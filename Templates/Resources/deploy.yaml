@@ -735,7 +735,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '452'
+      changesetflag: '4529'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1243,7 +1243,7 @@ Resources:
           DATASOURCES_TABLE: !Ref DatasourcesTable
           ROLES_TABLE: !Ref RolesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
+          WORKSPACES_BUCKET: !Ref WorkspacesBucket
           USERS_TABLE: !Ref UserTable
           CHAT_TABLE: !Ref ChatHistoryTable
       Code:
