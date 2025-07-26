@@ -55,7 +55,7 @@ const DataSources = () => {
       console.error('Error fetching datasources:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
       setDataSources([]);
@@ -122,7 +122,7 @@ const DataSources = () => {
       console.error('Error creating datasource:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     }

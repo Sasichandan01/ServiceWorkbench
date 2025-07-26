@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Cloud, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { signUp, signIn } from "@/lib/auth";
+import { signUp, signIn, signInWithGoogle } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" className="mr-2">
@@ -247,7 +247,21 @@ const Login = ({ isSignupDefault = false }: LoginProps) => {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full mb-4">
+              <Button 
+                variant="outline" 
+                className="w-full mb-4"
+                onClick={async () => {
+                  try {
+                    await signInWithGoogle();
+                  } catch (error: any) {
+                    toast({
+                      title: "Error",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
                 <GoogleIcon />
                 Sign in with Google
               </Button>

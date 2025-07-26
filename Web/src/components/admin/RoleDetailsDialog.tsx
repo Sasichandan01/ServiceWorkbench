@@ -90,7 +90,7 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       console.error('Error fetching role details:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     } finally {
@@ -168,7 +168,7 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       console.error('Error updating role:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     }
@@ -207,7 +207,7 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       console.error('Error deleting role:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: "destructive"
       });
     }

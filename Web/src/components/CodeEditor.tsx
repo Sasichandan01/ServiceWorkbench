@@ -777,7 +777,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to save file',
+        description: error?.data?.message || error?.message || (typeof error === 'string' ? error : 'An error occurred.'),
         variant: 'destructive'
       });
     }

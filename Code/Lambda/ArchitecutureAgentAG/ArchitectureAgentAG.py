@@ -11,10 +11,13 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 S3_BUCKET = os.getenv('WORKSPACES_BUCKET', '')
+SOLUTIONS_TABLE = os.getenv('SOLUTIONS_TABLE', '')
 PRESIGN_EXPIRES_IN = int(os.getenv('PRESIGN_EXPIRES_IN', '3600'))
 
 # AWS clients
 s3_client = boto3.client('s3')
+dynamodb=boto3.resource('dynamodb')
+table=dynamodb.Table(SOLUTIONS_TABLE)
 
 # Type Aliases
 Event = Dict[str, Any]
@@ -90,55 +93,45 @@ def handle_presigned_url(event: Event) -> Response:
     )
     return create_success_response(action_group, function, version, {'body': url})
 
-
-def handle_update_memory(event: Event) -> Response:
+def handle_update_invoke_point(event: Event) -> Response:
     """
-    Read a JSON memory file from S3, update or add a 'diagram' key, and write it back.
+    Update the invoke point for the solution.
     """
     action_group = event['actionGroup']
     function = event['function']
     version = event.get('messageVersion', '1.0')
     params = event.get('parameters', [])
 
-    new_diagram = get_parameter_value(params, 'diagram')
-    filepath = get_parameter_value(params, 'filepath')
-    missing = [p for p, v in [('diagram', new_diagram), ('filepath', filepath)] if not v]
-    if missing:
-        return create_error_response(action_group, function, version, f'Missing parameters: {", ".join(missing)}')
+    solution_id = get_parameter_value(params, 'solutionId')
+    if not solution_id:
+        return create_error_response(action_group, function, version, 'Missing "solutionId" parameter')
+    
+    invoke_point = get_parameter_value(params, 'invokePoint')
+    if not invoke_point:
+        return create_error_response(action_group, function, version, 'Missing "invokePoint" parameter')
 
     try:
-        # Fetch existing JSON memory
-        existing = s3_client.get_object(Bucket=S3_BUCKET, Key=filepath)
-        content_str = existing['Body'].read().decode('utf-8')
-        memory = json.loads(content_str)
-    except s3_client.exceptions.NoSuchKey:
-        # If file doesn't exist, start with empty dict
-        memory = {}
-    except Exception as err:
-        LOGGER.error('Failed to read memory file: %s', err)
-        return create_error_response(action_group, function, version, f'Failed to read memory: {err}')
-
-    # Update or add diagram
-    memory['diagram'] = new_diagram
-
-    try:
-        s3_client.put_object(
-            Bucket=S3_BUCKET,
-            Key=filepath,
-            Body=json.dumps(memory),
-            ContentType='application/json'
+        response = table.get_item(Key={'SolutionId': solution_id})
+        solution = response.get('Item')
+        if not solution:
+            return create_error_response(action_group, function, version, f'Solution with ID {solution_id} not found')
+        
+        table.update_item(
+            Key={'SolutionId': solution_id},
+            UpdateExpression='SET #invokePoint = :invokePoint',
+            ExpressionAttributeNames={'#invokePoint': 'InvokePoint'},
+            ExpressionAttributeValues={':invokePoint': invoke_point}
         )
-        message = f'Memory file "{filepath}" updated successfully'
-        return create_success_response(action_group, function, version, {'body': message})
-    except Exception as err:
-        LOGGER.error('S3 upload failed: %s', err)
-        return create_error_response(action_group, function, version, f'Failed to upload memory: {err}')
+    except Exception as e:
+        LOGGER.error('Error updating invoke point for solution %s: %s', solution_id, e)
+        return create_error_response(action_group, function, version, f'Error updating invoke point for solution {solution_id}: {e}')
 
+    return create_success_response(action_group, function, version, {'body': 'Invoke point updated successfully'})
 
 # Mapping of function names to handlers
 HANDLERS: Dict[str, Callable[[Event], Response]] = {
     'PresignedURL': handle_presigned_url,
-    'UpdateMemory': handle_update_memory,
+    'UpdateInvokePoint': handle_update_invoke_point,
 }
 
 
