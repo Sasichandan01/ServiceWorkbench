@@ -876,9 +876,9 @@ pipelines:
       - step: *update_cftemplates
       - step: *zipping_and_uploading_lambdas
       - step: *zipping_and_uploading_glue
+      - step: *deploy_infra_stack
       - step: *deploy
       - step: *update_selected_lambdas_with_layer_step
-      - step: *deploy_infra_stack
       - step: *build_and_deploy_ui
 
   custom:
