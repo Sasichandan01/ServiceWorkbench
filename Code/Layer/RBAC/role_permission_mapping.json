@@ -1,4 +1,5 @@
 {
-    "ITAdmin": ["users.fullaccess", "roles.fullaccess","workspaces.fullaccess","solutions.fullaccess","datasources.fullaccess","executions.fullaccess","rag.fullaccess"],
-    "Default": ["users.view"]
-}
+    "ITAdmin": ["users.fullaccess", "roles.fullaccess","workspaces.fullaccess","solutions.fullaccess","datasources.fullaccess"],
+    "Default": ["users.view","solutions.view","workspaces.view","datasources.view"]
+  }
+  
