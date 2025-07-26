@@ -179,6 +179,15 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_chat_trace(chat_id)
 
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat':
+            if httpMethod == 'GET':
+                return get_chat_history(workspace_id, solution_id, user_id)
+            elif httpMethod == 'DELETE':
+                return delete_chat_history(workspace_id, solution_id, user_id)
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat/{chat_id}':
+            if httpMethod == 'GET':
+                return get_chat_trace(chat_id)
+
         return return_response(404, {"Error": "Resource not found"})
     except Exception as e:
         print(e)
