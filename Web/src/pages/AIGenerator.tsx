@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Copy,
   FileCode,
+  Pause,
 } from "lucide-react";
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -370,6 +371,13 @@ const AIGenerator = () => {
     wsClientRef.current.send(payload);
   };
 
+  const handlePauseGeneration = () => {
+    if (wsClientRef.current) {
+      wsClientRef.current.close();
+      setIsGenerating(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -426,22 +434,32 @@ const AIGenerator = () => {
 
                 {/* Centered Input */}
                 <div className="w-full max-w-2xl space-y-4">
-                  <div className="relative">
+                  <div className="flex items-center space-x-4">
                     <Textarea
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyPress}
                       placeholder="Ask anything..."
-                      className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10"
+                      className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10 flex-1"
                       disabled={isGenerating}
                     />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isGenerating}
-                      className="absolute right-3 bottom-3 h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    {isGenerating ? (
+                      <Button
+                        onClick={handlePauseGeneration}
+                        className="h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                        variant="default"
+                      >
+                        <Pause className="w-5 h-5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isGenerating}
+                        className="h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
+                    )}
                   </div>
 
                   {isGenerating && (
@@ -742,24 +760,32 @@ const AIGenerator = () => {
                 {/* Bottom Input Area - Only show after any message */}
                 {messages.length > 0 && (
                   <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
-                    <div className="flex items-end space-x-4 max-w-4xl mx-auto">
-                      <div className="flex-1 relative">
-                        <Textarea
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          onKeyDown={handleKeyPress}
-                          placeholder="Continue the conversation..."
-                          className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
-                          disabled={isGenerating}
-                        />
-                      </div>
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim() || isGenerating}
-                        className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                      >
-                        <Send className="w-5 h-5" />
-                      </Button>
+                    <div className="flex items-center space-x-4 max-w-4xl mx-auto">
+                      <Textarea
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        placeholder="Continue the conversation..."
+                        className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10 flex-1"
+                        disabled={isGenerating}
+                      />
+                      {isGenerating ? (
+                        <Button
+                          onClick={handlePauseGeneration}
+                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                          variant="default"
+                        >
+                          <Pause className="w-5 h-5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSendMessage}
+                          disabled={!inputValue.trim() || isGenerating}
+                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                        >
+                          <Send className="w-5 h-5" />
+                        </Button>
+                      )}
                     </div>
                     <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
                       Press Enter to send

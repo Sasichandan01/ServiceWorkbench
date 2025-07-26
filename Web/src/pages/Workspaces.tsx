@@ -57,15 +57,15 @@ const Workspaces = () => {
 
   // Map RTK Query response to LocalWorkspace[]
   const workspaces: LocalWorkspace[] = (data?.Workspaces ?? []).map(ws => ({
-    id: ws.WorkspaceId,
-    name: ws.WorkspaceName,
-    status: ws.WorkspaceStatus,
+    id: ws.WorkspaceId || '',
+    name: ws.WorkspaceName || '',
+    status: ws.WorkspaceStatus || '',
     members: ws.Users?.Pagination?.TotalCount ?? 0,
     projects: 0, // Placeholder, update if you have project info
-    lastActivity: ws.LastUpdationTime || ws.CreationTime,
-    owner: ws.CreatedBy,
-    description: ws.Description,
-    type: ws.WorkspaceType,
+    lastActivity: ws.LastUpdationTime || ws.CreationTime || '',
+    owner: ws.CreatedBy || '',
+    description: ws.Description || '',
+    type: ws.WorkspaceType || '',
     tags: Array.isArray(ws.Tags) ? ws.Tags : [],
   }));
   const totalWorkspaces = data?.Pagination?.TotalCount || 0;
@@ -79,7 +79,7 @@ const Workspaces = () => {
   const { toast } = useToast();
 
   const formatLastActivity = (timestamp: string): string => {
-    if (!timestamp) return "Unknown";
+    if (!timestamp || typeof timestamp !== 'string') return "Unknown";
     // If timestamp is in 'YYYY-MM-DD HH:mm:ss' format, treat as UTC
     let isoTimestamp = timestamp;
     if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
@@ -111,6 +111,7 @@ const Workspaces = () => {
   // No client-side filtering or slicing; use backend data directly
 
   const getStatusBadgeClass = (status: string) => {
+    if (typeof status !== 'string') return "bg-gray-100 text-gray-800 border-gray-200";
     switch (status) {
       case "Active": return "bg-green-100 text-green-800 border-green-200";
       case "Archived": return "bg-gray-100 text-gray-800 border-gray-200";
@@ -120,6 +121,7 @@ const Workspaces = () => {
   };
 
   const getRowColor = (status: string) => {
+    if (typeof status !== 'string') return "hover:bg-gray-50";
     switch (status) {
       case "Active": return "hover:bg-green-50";
       case "Archived": return "hover:bg-gray-50 bg-gray-25";
@@ -445,11 +447,11 @@ const Workspaces = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                workspaces.map((workspace) => (
+                workspaces.map((workspace, workspaceIdx) => (
                 <TableRow 
-                  key={workspace.id} 
+                  key={typeof workspace.id === 'string' ? workspace.id : `workspace-${workspaceIdx}`} 
                   className={`${getRowColor(workspace.status)} cursor-pointer`}
-                  onClick={() => handleWorkspaceClick(workspace.id)}
+                  onClick={() => handleWorkspaceClick(typeof workspace.id === 'string' ? workspace.id : '')}
                 >
                   <TableCell>
                     <div className="flex items-center space-x-3">
@@ -458,29 +460,31 @@ const Workspaces = () => {
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                          {workspace.name}
+                          {typeof workspace.name === 'string' ? workspace.name : 'Unknown'}
                         </div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-gray-900">{workspace.owner}</div>
+                    <div className="font-medium text-gray-900">{typeof workspace.owner === 'string' ? workspace.owner : 'Unknown'}</div>
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-200">
-                      <span>{workspace.type}</span>
+                      <span>{typeof workspace.type === 'string' ? workspace.type : 'Unknown'}</span>
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(workspace.status)}`}>
-                      <span>{workspace.status}</span>
+                      <span>{typeof workspace.status === 'string' ? workspace.status : 'Unknown'}</span>
                     </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {workspace.tags.length > 0 ? (
-                        workspace.tags.map((tag, idx) => (
-                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                        workspace.tags.map((tag: any, idx) => (
+                          <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
+                            {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
+                          </span>
                         ))
                       ) : (
                         <span className="text-gray-400 text-xs">No tags</span>
@@ -490,7 +494,7 @@ const Workspaces = () => {
                   <TableCell>
                     <div className="flex items-center space-x-1">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{workspace.lastActivity}</span>
+                      <span className="text-sm text-gray-600">{formatLastActivity(workspace.lastActivity)}</span>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -1,15 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { CostService } from "@/services/costService";
+import { WorkspaceService } from "@/services/workspaceService";
+import { SolutionService } from "@/services/solutionService";
+import { getUserInfo } from "@/lib/tokenUtils";
 
 const CostDashboard = () => {
-  const [selectedWorkspace, setSelectedWorkspace] = useState("all");
   const [selectedTimeRange, setSelectedTimeRange] = useState("7d");
-  const [pieSelectedWorkspace, setPieSelectedWorkspace] = useState("all");
-  const [pieSelectedTimeRange, setPieSelectedTimeRange] = useState("7d");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  
+  // New state for dropdowns
+  const [groupBy, setGroupBy] = useState("workspaces");
+  const [selectedItem, setSelectedItem] = useState("all");
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [solutions, setSolutions] = useState<any[]>([]);
+  const [pieChartData, setPieChartData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Sample data for the cost trend chart
   const costTrendData = [
@@ -20,50 +30,6 @@ const CostDashboard = () => {
     { name: "May", cost: 4800 },
     { name: "Jun", cost: 3800 },
     { name: "Jul", cost: 4300 },
-  ];
-
-  // Enhanced pie chart data with modern gradient colors
-  const pieChartData = [
-    { 
-      name: "Compute", 
-      value: 1580, 
-      color: '#6366F1', 
-      hoverColor: '#4F46E5',
-      gradient: 'url(#computeGradient)',
-      description: 'Virtual machines & containers'
-    },
-    { 
-      name: "Storage", 
-      value: 680, 
-      color: '#10B981', 
-      hoverColor: '#059669',
-      gradient: 'url(#storageGradient)',
-      description: 'Data storage & backups'
-    },
-    { 
-      name: "Network", 
-      value: 420, 
-      color: '#F59E0B', 
-      hoverColor: '#D97706',
-      gradient: 'url(#networkGradient)',
-      description: 'Bandwidth & CDN'
-    },
-    { 
-      name: "Database", 
-      value: 880, 
-      color: '#EF4444', 
-      hoverColor: '#DC2626',
-      gradient: 'url(#databaseGradient)',
-      description: 'SQL & NoSQL databases'
-    },
-    { 
-      name: "Analytics", 
-      value: 320, 
-      color: '#8B5CF6', 
-      hoverColor: '#7C3AED',
-      gradient: 'url(#analyticsGradient)',
-      description: 'Data processing & insights'
-    },
   ];
 
   const chartConfig = {
@@ -78,6 +44,105 @@ const CostDashboard = () => {
   };
 
   const totalCost = pieChartData.reduce((sum, item) => sum + item.value, 0);
+
+  // Color palette for pie chart segments
+  const colors = [
+    { color: '#6366F1', hoverColor: '#4F46E5' },
+    { color: '#10B981', hoverColor: '#059669' },
+    { color: '#F59E0B', hoverColor: '#D97706' },
+    { color: '#EF4444', hoverColor: '#DC2626' },
+    { color: '#8B5CF6', hoverColor: '#7C3AED' },
+    { color: '#06B6D4', hoverColor: '#0891B2' },
+    { color: '#84CC16', hoverColor: '#65A30D' },
+    { color: '#F97316', hoverColor: '#EA580C' },
+  ];
+
+  // Fetch workspaces
+  const fetchWorkspaces = async () => {
+    try {
+      const response = await WorkspaceService.getWorkspaces({ limit: 100 });
+      setWorkspaces(response.Workspaces || []);
+    } catch (err) {
+      console.error('Error fetching workspaces:', err);
+    }
+  };
+
+  // Fetch solutions for a specific workspace
+  const fetchSolutions = async (workspaceId: string) => {
+    try {
+      const response = await SolutionService.getSolutions(workspaceId, { limit: 100 });
+      setSolutions(response.Solutions || []);
+    } catch (err) {
+      console.error('Error fetching solutions:', err);
+    }
+  };
+
+  // Fetch cost data
+  const fetchCostData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const userInfo = getUserInfo();
+      if (!userInfo?.sub) {
+        throw new Error('User ID not found');
+      }
+
+      const response = await CostService.getCosts(groupBy, userInfo.sub);
+      
+      // Transform the API response to match our pie chart format
+      const transformedData = response.costs.map((item, index) => ({
+        ...item,
+        gradient: `url(#gradient${index})`,
+      }));
+      
+      setPieChartData(transformedData);
+    } catch (err: any) {
+      console.error('Error fetching cost data:', err);
+      setError(err.message || 'Failed to fetch cost data');
+      setPieChartData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load initial data
+  useEffect(() => {
+    fetchWorkspaces();
+  }, []);
+
+  // Fetch cost data when groupBy or selectedItem changes
+  useEffect(() => {
+    fetchCostData();
+  }, [groupBy, selectedItem]);
+
+  // Handle groupBy change
+  const handleGroupByChange = (value: string) => {
+    setGroupBy(value);
+    setSelectedItem("all");
+    setSolutions([]);
+  };
+
+  // Handle selected item change
+  const handleSelectedItemChange = (value: string) => {
+    setSelectedItem(value);
+    if (groupBy === "solutions" && value !== "all") {
+      fetchSolutions(value);
+    }
+  };
+
+  // New: Handle workspace selection for solutions
+  const [selectedWorkspaceForSolutions, setSelectedWorkspaceForSolutions] = useState<string>("");
+
+  const handleWorkspaceForSolutionsChange = (value: string) => {
+    setSelectedWorkspaceForSolutions(value);
+    setSelectedItem("all");
+    if (value !== "all") {
+      fetchSolutions(value);
+    } else {
+      setSolutions([]);
+    }
+  };
 
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index);
@@ -112,75 +177,6 @@ const CostDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Cost Trend Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cost Trend</CardTitle>
-          <CardDescription>Monthly cost trends over time</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Filter Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by Workspace" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Workspaces</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                  <SelectItem value="development">Development</SelectItem>
-                  <SelectItem value="testing">Testing</SelectItem>
-                  <SelectItem value="staging">Staging</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="1m">Last 1 month</SelectItem>
-                  <SelectItem value="3m">Last 3 months</SelectItem>
-                  <SelectItem value="6m">Last 6 months</SelectItem>
-                  <SelectItem value="1y">Last 1 year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <ChartContainer config={chartConfig} className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={costTrendData}>
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis 
-                  tick={{ fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="cost" 
-                  stroke="#2563eb" 
-                  strokeWidth={2}
-                  dot={{ fill: "#2563eb", strokeWidth: 2, r: 4 }}
-                  activeDot={{ r: 6, stroke: "#2563eb", strokeWidth: 2 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </CardContent>
-      </Card>
-
       {/* Enhanced Cost Distribution Pie Chart */}
       <Card className="overflow-hidden">
         <CardHeader>
@@ -188,40 +184,72 @@ const CostDashboard = () => {
             Cost Distribution
             <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse"></div>
           </CardTitle>
-          <CardDescription>Real-time distribution of costs across different services</CardDescription>
+          <CardDescription>Real-time distribution of costs across workspaces</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Filter Controls */}
+          {/* New Filter Controls */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div>
-              <Select value={pieSelectedWorkspace} onValueChange={setPieSelectedWorkspace}>
+              <Select value={groupBy} onValueChange={handleGroupByChange}>
                 <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
-                  <SelectValue placeholder="Filter by Workspace" />
+                  <SelectValue placeholder="Group by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Workspaces</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                  <SelectItem value="development">Development</SelectItem>
-                  <SelectItem value="testing">Testing</SelectItem>
-                  <SelectItem value="staging">Staging</SelectItem>
+                  <SelectItem value="workspaces">Workspaces</SelectItem>
+                  <SelectItem value="solutions">Solutions</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Select value={pieSelectedTimeRange} onValueChange={setPieSelectedTimeRange}>
-                <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
-                  <SelectValue placeholder="Select time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="1m">Last 1 month</SelectItem>
-                  <SelectItem value="3m">Last 3 months</SelectItem>
-                  <SelectItem value="6m">Last 6 months</SelectItem>
-                  <SelectItem value="1y">Last 1 year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Second dropdown logic */}
+            {groupBy === "workspaces" ? (
+              <div>
+                <Select value={selectedItem} onValueChange={handleSelectedItemChange}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Workspaces</SelectItem>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
+                        {workspace.WorkspaceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                {/* First: select workspace for solutions */}
+                <Select value={selectedWorkspaceForSolutions} onValueChange={handleWorkspaceForSolutionsChange}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Workspaces</SelectItem>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
+                        {workspace.WorkspaceName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Then: select solution for that workspace */}
+                <Select value={selectedItem} onValueChange={handleSelectedItemChange} disabled={!selectedWorkspaceForSolutions || selectedWorkspaceForSolutions === "all"}>
+                  <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select solution" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Solutions</SelectItem>
+                    {solutions.map((solution) => (
+                      <SelectItem key={solution.SolutionId} value={solution.SolutionId}>
+                        {solution.SolutionName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Enhanced Pie Chart Container */}
@@ -231,150 +259,161 @@ const CostDashboard = () => {
             <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-200/30 to-purple-200/30 rounded-full blur-xl"></div>
             <div className="absolute bottom-6 left-6 w-12 h-12 bg-gradient-to-br from-green-200/30 to-blue-200/30 rounded-full blur-lg"></div>
             
-            <ChartContainer config={chartConfig} className="h-[500px] w-full max-w-3xl relative z-10">
-              <PieChart>
-                <defs>
-                  {/* Gradient definitions for each segment */}
-                  <linearGradient id="computeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#6366F1" />
-                    <stop offset="100%" stopColor="#4F46E5" />
-                  </linearGradient>
-                  <linearGradient id="storageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10B981" />
-                    <stop offset="100%" stopColor="#059669" />
-                  </linearGradient>
-                  <linearGradient id="networkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#F59E0B" />
-                    <stop offset="100%" stopColor="#D97706" />
-                  </linearGradient>
-                  <linearGradient id="databaseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#EF4444" />
-                    <stop offset="100%" stopColor="#DC2626" />
-                  </linearGradient>
-                  <linearGradient id="analyticsGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#8B5CF6" />
-                    <stop offset="100%" stopColor="#7C3AED" />
-                  </linearGradient>
+            {loading ? (
+              <div className="flex items-center justify-center h-[500px]">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading cost data...</p>
+                </div>
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-[500px]">
+                <div className="text-center">
+                  <p className="text-red-600 mb-2">Error loading cost data</p>
+                  <p className="text-gray-600 text-sm">{error}</p>
+                </div>
+              </div>
+            ) : pieChartData.length === 0 ? (
+              <div className="flex items-center justify-center h-[500px]">
+                <div className="text-center">
+                  <p className="text-gray-600">No cost data available</p>
+                </div>
+              </div>
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[500px] w-full max-w-3xl relative z-10">
+                <PieChart>
+                  <defs>
+                    {/* Dynamic gradient definitions */}
+                    {pieChartData.map((entry, index) => (
+                      <linearGradient key={index} id={`gradient${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={colors[index % colors.length].color} />
+                        <stop offset="100%" stopColor={colors[index % colors.length].hoverColor} />
+                      </linearGradient>
+                    ))}
+                    
+                    {/* Drop shadow filter */}
+                    <filter id="dropshadow" height="130%">
+                      <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="rgba(0,0,0,0.15)"/>
+                    </filter>
+                  </defs>
                   
-                  {/* Drop shadow filter */}
-                  <filter id="dropshadow" height="130%">
-                    <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="rgba(0,0,0,0.15)"/>
-                  </filter>
-                </defs>
-                
-                <Pie
-                  data={pieChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={CustomLabel}
-                  outerRadius={180}
-                  paddingAngle={2}
-                  dataKey="value"
-                  onMouseEnter={onPieEnter}
-                  onMouseLeave={onPieLeave}
-                  stroke="rgba(255,255,255,0.8)"
-                  strokeWidth={3}
-                  filter="url(#dropshadow)"
-                >
-                  {pieChartData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={activeIndex === index ? entry.hoverColor : entry.gradient}
-                      className="transition-all duration-500 ease-out cursor-pointer"
-                      style={{
-                        transform: activeIndex === index ? 'scale(1.05)' : 'scale(1)',
-                        transformOrigin: 'center',
-                        filter: activeIndex === index 
-                          ? 'brightness(1.1) drop-shadow(0 8px 16px rgba(0,0,0,0.25))' 
-                          : 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
-                      }}
-                    />
-                  ))}
-                </Pie>
-                
-                <ChartTooltip 
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0];
-                      const entry = pieChartData[payload[0].payload.name === pieChartData[0].name ? 0 : 
-                                                 payload[0].payload.name === pieChartData[1].name ? 1 :
-                                                 payload[0].payload.name === pieChartData[2].name ? 2 :
-                                                 payload[0].payload.name === pieChartData[3].name ? 3 : 4];
-                      return (
-                        <div className="bg-white/95 backdrop-blur-sm p-4 border border-gray-200 rounded-xl shadow-lg border-l-4" 
-                             style={{ borderLeftColor: entry.color }}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></div>
-                            <p className="font-bold text-gray-800">{data.name}</p>
+                  <Pie
+                    data={pieChartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={CustomLabel}
+                    outerRadius={180}
+                    paddingAngle={2}
+                    dataKey="value"
+                    onMouseEnter={onPieEnter}
+                    onMouseLeave={onPieLeave}
+                    stroke="rgba(255,255,255,0.8)"
+                    strokeWidth={3}
+                    filter="url(#dropshadow)"
+                  >
+                    {pieChartData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={activeIndex === index ? colors[index % colors.length].hoverColor : entry.gradient}
+                        className="transition-all duration-500 ease-out cursor-pointer"
+                        style={{
+                          transform: activeIndex === index ? 'scale(1.05)' : 'scale(1)',
+                          transformOrigin: 'center',
+                          filter: activeIndex === index 
+                            ? 'brightness(1.1) drop-shadow(0 8px 16px rgba(0,0,0,0.25))' 
+                            : 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
+                        }}
+                      />
+                    ))}
+                  </Pie>
+                  
+                  <ChartTooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0];
+                        const entry = pieChartData[payload[0].payload.name === data.name ? 
+                          pieChartData.findIndex(item => item.name === data.name) : 0];
+                        const colorIndex = pieChartData.findIndex(item => item.name === data.name);
+                        const color = colors[colorIndex % colors.length].color;
+                        
+                        return (
+                          <div className="bg-white/95 backdrop-blur-sm p-4 border border-gray-200 rounded-xl shadow-lg border-l-4" 
+                               style={{ borderLeftColor: color }}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
+                              <p className="font-bold text-gray-800">{data.name}</p>
+                            </div>
+                            <p className="text-2xl font-bold text-blue-600 mb-1">${data.value?.toLocaleString()}</p>
+                            <p className="text-gray-600 text-sm mb-1">{entry?.description || 'No description'}</p>
+                            <p className="text-gray-500 text-xs">
+                              {((data.value as number / totalCost) * 100).toFixed(1)}% of total cost
+                            </p>
                           </div>
-                          <p className="text-2xl font-bold text-blue-600 mb-1">${data.value?.toLocaleString()}</p>
-                          <p className="text-gray-600 text-sm mb-1">{entry.description}</p>
-                          <p className="text-gray-500 text-xs">
-                            {((data.value as number / totalCost) * 100).toFixed(1)}% of total cost
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }} 
-                />
-              </PieChart>
-            </ChartContainer>
+                        );
+                      }
+                      return null;
+                    }} 
+                  />
+                </PieChart>
+              </ChartContainer>
+            )}
           </div>
           
           {/* Enhanced Legend with Cards */}
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {pieChartData.map((entry, index) => (
-              <div 
-                key={index} 
-                className={`relative overflow-hidden rounded-xl border-2 transition-all duration-300 cursor-pointer transform hover:scale-105 ${
-                  activeIndex === index 
-                    ? 'border-gray-300 shadow-lg bg-white' 
-                    : 'border-gray-100 hover:border-gray-200 bg-white hover:shadow-md'
-                }`}
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseLeave={() => setActiveIndex(null)}
-                style={{
-                  background: activeIndex === index 
-                    ? `linear-gradient(135deg, ${entry.color}08 0%, ${entry.color}12 100%)` 
-                    : 'white'
-                }}
-              >
-                {/* Colored top border */}
+          {pieChartData.length > 0 && (
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {pieChartData.map((entry, index) => (
                 <div 
-                  className="h-1 w-full" 
-                  style={{ backgroundColor: entry.color }}
-                />
-                
-                <div className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div 
-                      className="w-5 h-5 rounded-full shadow-sm ring-2 ring-white" 
-                      style={{ backgroundColor: activeIndex === index ? entry.hoverColor : entry.color }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-gray-900 truncate">
-                        {entry.name}
+                  key={index} 
+                  className={`relative overflow-hidden rounded-xl border-2 transition-all duration-300 cursor-pointer transform hover:scale-105 ${
+                    activeIndex === index 
+                      ? 'border-gray-300 shadow-lg bg-white' 
+                      : 'border-gray-100 hover:border-gray-200 bg-white hover:shadow-md'
+                  }`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                  style={{
+                    background: activeIndex === index 
+                      ? `linear-gradient(135deg, ${colors[index % colors.length].color}08 0%, ${colors[index % colors.length].color}12 100%)` 
+                      : 'white'
+                  }}
+                >
+                  {/* Colored top border */}
+                  <div 
+                    className="h-1 w-full" 
+                    style={{ backgroundColor: colors[index % colors.length].color }}
+                  />
+                  
+                  <div className="p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div 
+                        className="w-5 h-5 rounded-full shadow-sm ring-2 ring-white" 
+                        style={{ backgroundColor: activeIndex === index ? colors[index % colors.length].hoverColor : colors[index % colors.length].color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-bold text-gray-900 truncate">
+                          {entry.name}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="text-xl font-bold" style={{ color: colors[index % colors.length].color }}>
+                        ${entry.value.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {entry.description || 'No description'}
+                      </div>
+                      <div className="text-xs font-medium text-gray-600">
+                        {((entry.value / totalCost) * 100).toFixed(1)}% of total
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="space-y-1">
-                    <div className="text-xl font-bold" style={{ color: entry.color }}>
-                      ${entry.value.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {entry.description}
-                    </div>
-                    <div className="text-xs font-medium text-gray-600">
-                      {((entry.value / totalCost) * 100).toFixed(1)}% of total
-                    </div>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

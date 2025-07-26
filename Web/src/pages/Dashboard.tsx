@@ -1,23 +1,45 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ProtectedContent } from "@/components/ui/protected-content";
-import { ProtectedButton } from "@/components/ui/protected-button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Cloud, 
-  Database, 
-  DollarSign, 
-  Activity, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Plus,
-  AlertTriangle,
-  BarChart3
-} from "lucide-react";
+import { ArrowUpRight, Cloud, Database, DollarSign, AlertTriangle, BarChart3 } from "lucide-react";
 import CostDashboard from "@/components/CostDashboard";
+import { CostService } from "@/services/costService";
+import { getUserInfo } from "@/lib/tokenUtils";
 
 const Dashboard = () => {
+  const [monthlyCost, setMonthlyCost] = useState<number>(0);
+  const [costLoading, setCostLoading] = useState(true);
+  const [costError, setCostError] = useState<string | null>(null);
+
+  // Fetch monthly cost data
+  const fetchMonthlyCost = async () => {
+    setCostLoading(true);
+    setCostError(null);
+    
+    try {
+      const userInfo = getUserInfo();
+      if (!userInfo?.sub) {
+        throw new Error('User information not available');
+      }
+
+      // For now, use a default workspace ID
+      // In a real implementation, you would get this from the current workspace context
+      // or from URL parameters, or from user preferences
+      const workspaceId = 'default'; // This should be replaced with actual workspace ID
+      const response = await CostService.getCostByWorkspaceId(workspaceId);
+      setMonthlyCost(response.cost);
+    } catch (err: any) {
+      console.error('Error fetching monthly cost:', err);
+      setCostError(err.message || 'Failed to fetch cost data');
+      setMonthlyCost(0);
+    } finally {
+      setCostLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMonthlyCost();
+  }, []);
+
   const stats = [
     {
       title: "Active Workspaces",
@@ -35,7 +57,7 @@ const Dashboard = () => {
     },
     {
       title: "Monthly Cost",
-      value: "$2,847",
+      value: costLoading ? "Loading..." : costError ? "Error" : `$${monthlyCost.toLocaleString()}`,
       change: "-12% from last month",
       changeType: "positive",
       icon: DollarSign
@@ -62,10 +84,17 @@ const Dashboard = () => {
             <DollarSign className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">$2,847</div>
-            <div className="flex items-center text-xs text-gray-600 mt-1">
-              <ArrowUpRight className="w-3 h-3 text-green-500 mr-1" />
-              -12% from last month
+            <div className="text-2xl font-bold text-gray-900">
+              {costLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span>Loading...</span>
+                </div>
+              ) : costError ? (
+                <span className="text-red-600">Error</span>
+              ) : (
+                `$${monthlyCost.toLocaleString()}`
+              )}
             </div>
           </CardContent>
         </Card>

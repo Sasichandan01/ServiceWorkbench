@@ -87,7 +87,7 @@ const SolutionTabs = ({
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
-          <SolutionOverviewCards solutionData={solution} />
+          <SolutionOverviewCards solutionData={solution} solutionId={solutionId} />
           <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
         </TabsContent>
 

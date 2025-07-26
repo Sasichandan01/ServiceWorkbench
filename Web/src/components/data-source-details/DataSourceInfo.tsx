@@ -72,9 +72,9 @@ const DataSourceInfo = ({ datasource, totalFiles, totalSize, onEdit, onDelete, d
             <label className="text-sm font-medium text-muted-foreground">Tags</label>
             <div className="flex flex-wrap gap-1 mt-1">
               {datasource.Tags && datasource.Tags.length > 0 ? (
-                datasource.Tags.map((tag, index) => (
+                datasource.Tags.map((tag: any, index) => (
                   <Badge key={index} variant="outline" className="text-xs">
-                    {tag}
+                    {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
                   </Badge>
                 ))
               ) : (
