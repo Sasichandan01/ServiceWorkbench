@@ -71,6 +71,7 @@ def check_workspace_access(table, user_id, workspace_id):
             return None  # User not found
 
     access_key = f"WORKSPACE#{workspace_id}"
+    LOGGER.info(f"Checking access for user {user_id} to workspace {workspace_id} with access key {access_key}")
     
     # Query the table to find the access record for this user and workspace
     try:
@@ -83,6 +84,7 @@ def check_workspace_access(table, user_id, workspace_id):
                 ':user_id': f"{user_id}#"
             }
         )
+        LOGGER.info(f"Query response: {response}")
         
         items = response.get('Items', [])
         
@@ -211,4 +213,3 @@ def check_datasource_access(table, user_id, datasource_id):
     except Exception as e:
         LOGGER.error(f"Error checking datasource access: {str(e)}")
         return None
-

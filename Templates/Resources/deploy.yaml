@@ -77,6 +77,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   MiscBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -140,6 +142,8 @@ Resources:
         IPV6Enabled: true
       Tags:
         - Key: Name
+          Value: "ServiceWorkbench"
+        - Key: SWB-User
           Value: "ServiceWorkbench"
 
 # S3 Bucket Policy to allow CloudFront OAC access only
@@ -268,6 +272,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
     
   CognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
@@ -294,6 +300,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   CognitoTriggersResource:
     Type: Custom::CognitoTriggers
@@ -309,6 +317,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PreSignUpFunction:
     Type: AWS::Lambda::Function
@@ -341,6 +351,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PreAuthFunction:
     Type: AWS::Lambda::Function
@@ -370,6 +382,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PreTokenGenerationFunction:
     Type: AWS::Lambda::Function
@@ -399,6 +413,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PostConfirmationFunction:
     Type: AWS::Lambda::Function
@@ -431,11 +447,14 @@ Resources:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          USERS_TABLE: !Ref UserTable
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PostAuthFunction:
     Type: AWS::Lambda::Function
@@ -466,6 +485,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   UserPoolCleanUp:
     Type: AWS::Lambda::Function
@@ -497,6 +518,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   PreSignUpPermission:
     Type: AWS::Lambda::Permission
@@ -549,6 +572,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
 # Main SQS queue with redrive policy
   CleanupQueue:
@@ -564,6 +589,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   # IAM Role for the Custom Resource Lambda
   CustomResourceLambdaExecutionRole:
@@ -599,6 +626,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   BedrockAgentLookupTable:
     Type: AWS::DynamoDB::Table
@@ -614,6 +643,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   BedrockAgentExecutionRole:
     Type: AWS::IAM::Role
@@ -726,6 +757,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
 
   BedrockAgentManager:
@@ -734,7 +767,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '452'
+      changesetflag: '4521'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -848,6 +881,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   RolesLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -879,6 +914,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
   
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -957,6 +994,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ChatLambdaRole:
     Type: AWS::IAM::Role
@@ -1026,6 +1065,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   GlueJobRole:
     Type: AWS::IAM::Role
@@ -1212,7 +1253,9 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
-          Value: "WorkbenchV2" 
+          Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench" 
 
   WorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1252,11 +1295,15 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
   
   DatasourceBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-datasource-bucket"
+      VersioningConfiguration:
+        Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -1272,6 +1319,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
   
   DatasourceBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -1334,6 +1383,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ActivityLogsTable:
     Type: AWS::DynamoDB::Table
@@ -1361,6 +1412,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   WorkspacesTable:
     Type: AWS::DynamoDB::Table
@@ -1392,6 +1445,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   SolutionsTable:
     Type: AWS::DynamoDB::Table
@@ -1414,6 +1469,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   DatasourcesTable:
     Type: AWS::DynamoDB::Table
@@ -1451,6 +1508,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
  
   ResourceAccessTable:
     Type: AWS::DynamoDB::Table
@@ -1480,6 +1539,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   SolutionExecutionsTable:
     Type: AWS::DynamoDB::Table
@@ -1502,6 +1563,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
  
   TemplatesTable:
     Type: AWS::DynamoDB::Table
@@ -1524,6 +1587,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   RolesTable:
     Type: AWS::DynamoDB::Table
@@ -1542,6 +1607,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
  
   RBACCustomResourceLambda:
     Type: AWS::Lambda::Function
@@ -1560,6 +1627,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
  
   RBACCustomResource:
     Type: Custom::RBACCustomResource
@@ -1572,6 +1641,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
 # Lambda Roles
   DatasourceLambdaRole:
@@ -1643,6 +1714,8 @@ Resources:
       Tags:
         - Key: Name
           Value: WorkbenchV2
+        - Key: SWB-User
+          Value: ServiceWorkbench
 
   QueryParserExecutionRole:
     Type: AWS::IAM::Role
@@ -1710,6 +1783,8 @@ Resources:
       Tags:
         - Key: Name
           Value: WorkbenchV2
+        - Key: SWB-User
+          Value: ServiceWorkbench
 
 # Lambdas
   RolesLambdaFunction:
@@ -1742,6 +1817,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   UsersLambda:
     Type: AWS::Lambda::Function
@@ -1776,6 +1853,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   DatasourcesLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1793,6 +1872,7 @@ Resources:
           ROLES_TABLE: !Ref RolesTable
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          USERS_TABLE: !Ref UserTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1810,6 +1890,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ChatLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1837,6 +1919,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
       Environment:
         Variables:
           LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
@@ -1876,6 +1960,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
   
   QueryParserLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1902,6 +1988,7 @@ Resources:
           WORKSPACE_TABLE_NAME: !Ref WorkspacesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
           SOLUTION_BUCKET_NAME: "develop-service-workbench-workspaces"
+          USERS_TABLE: !Ref UserTable
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1910,6 +1997,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ArchitectureAgentAGLambdaRole:
     Type: AWS::IAM::Role
@@ -1946,6 +2035,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1968,13 +2059,14 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
-          SOLUTIONS_TABLE: !ImportValue "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ArchitectureAgentAGLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -2220,6 +2312,23 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
 
+  # CFTGenerationAgentLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/AdministratorAccess
+  #     Tags:
+  #       - Key: Name
+  #         Value: "WorkbenchV2"
+
   CFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2250,6 +2359,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   CFTGenerationAgentLambda:
     Type: AWS::Lambda::Function
@@ -2270,6 +2381,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
   ChatHistoryTable:
     Type: AWS::DynamoDB::Table
@@ -2279,14 +2392,14 @@ Resources:
       AttributeDefinitions:
         - AttributeName: ChatId
           AttributeType: S
-        - AttributeName: TimeStamp
-          AttributeType: N
+        - AttributeName: Timestamp
+          AttributeType: S
         - AttributeName: MessageId
           AttributeType: S
       KeySchema:
         - AttributeName: ChatId
           KeyType: HASH
-        - AttributeName: TimeStamp
+        - AttributeName: Timestamp
           KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: MessageIdIndex
@@ -2298,6 +2411,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
 
 Outputs:
 
@@ -2342,6 +2457,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "${UserPoolDomain}"
+    Value: !Sub "{UserPoolDomain}"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
