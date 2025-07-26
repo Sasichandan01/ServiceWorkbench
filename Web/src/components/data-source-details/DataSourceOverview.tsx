@@ -135,9 +135,9 @@ const DataSourceOverview = ({ dataSource }: DataSourceOverviewProps) => {
           <div>
             <label className="text-sm font-medium text-gray-600">Tags</label>
             <div className="flex flex-wrap gap-2 mt-1">
-              {dataSource.tags.map((tag, index) => (
+              {dataSource.tags.map((tag: any, index) => (
                 <Badge key={index} variant="secondary" className="text-xs">
-                  {tag}
+                  {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
                 </Badge>
               ))}
             </div>

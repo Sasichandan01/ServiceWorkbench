@@ -432,8 +432,10 @@ const WorkspaceDetails = () => {
               <div>
                 <div className="flex flex-wrap gap-1">
                   {Array.isArray(workspace?.tags) && workspace.tags.length > 0 ? (
-                    workspace.tags.map((tag: string, idx: number) => (
-                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                    workspace.tags.map((tag: any, idx: number) => (
+                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
+                        {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
+                      </span>
                     ))
                   ) : (
                     <span className="text-gray-400 text-xs">No tags</span>
@@ -656,8 +658,10 @@ const WorkspaceDetails = () => {
                               <TableCell>
                                 <div className="flex flex-wrap gap-1">
                                   {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
-                                    solution.Tags.map((tag: string, idx: number) => (
-                                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                                    solution.Tags.map((tag: any, idx: number) => (
+                                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
+                                        {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
+                                      </span>
                                     ))
                                   ) : (
                                     <span className="text-gray-400 text-xs">No tags</span>

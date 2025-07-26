@@ -139,9 +139,9 @@ const DataSourcesTable = ({ dataSources, onDataSourceClick, currentPage, totalPa
                   <TableCell>
                     {dataSource.tags && dataSource.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {dataSource.tags.map((tag: string, idx: number) => (
+                        {dataSource.tags.map((tag: any, idx: number) => (
                           <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                            {tag}
+                            {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
                           </span>
                         ))}
                       </div>
