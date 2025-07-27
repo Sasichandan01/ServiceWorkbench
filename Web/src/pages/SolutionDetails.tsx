@@ -720,6 +720,16 @@ const SolutionDetails = () => {
         <div className="space-y-6">
           <div className="h-1"></div>
           <div className="flex flex-row justify-end items-center gap-3 mb-4">
+            {isReadySolution && (
+              <Button 
+                variant="default" 
+                onClick={() => navigate(`/workspaces/${workspaceId}/solutions/${solutionId}/ai-generator`)}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                Chat with AI
+              </Button>
+            )}
             <Button variant="outline" onClick={handleOpenEditDialog}>Edit Details</Button>
             <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
               <Trash2 className="w-4 h-4 mr-2" />
