@@ -52,7 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ThinkingStep {
   id: string;
-  content: string;
+  content: string | object;
   timestamp: Date;
 }
 
@@ -234,14 +234,14 @@ const AIGenerator = () => {
           return {
             id: chatMsg.MessageId, // Use the actual MessageId string from API
             content: chatMsg.Message,
-            sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
+            sender: (chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai') as "user" | "ai",
             timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
             chatId: chatMsg.ChatId, // Store the original chat ID
             tracesLoaded: false, // Mark traces as not loaded initially
             thinking: undefined // Don't load traces initially
           };
         })
-        .filter((msg): msg is Message => msg !== null); // Remove null messages
+        .filter((msg) => msg !== null) as Message[]; // Remove null messages
       
       setMessages(historyMessages);
     } catch (error) {
@@ -795,9 +795,9 @@ const AIGenerator = () => {
                                           key={step.id}
                                           className="space-y-1"
                                         >
-                                          <p className="text-sm text-muted-foreground leading-relaxed">
-                                            {step.content}
-                                          </p>
+                                           <p className="text-sm text-muted-foreground leading-relaxed">
+                                             {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                           </p>
                                         </div>
                                       ))
                                     ) : (
@@ -982,9 +982,9 @@ const AIGenerator = () => {
                                         key={step.id}
                                         className="space-y-1 animate-fade-in"
                                       >
-                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                          {step.content}
-                                        </p>
+                                         <p className="text-sm text-muted-foreground leading-relaxed">
+                                           {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                         </p>
                                       </div>
                                     ))}
                                   </div>

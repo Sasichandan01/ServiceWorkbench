@@ -68,8 +68,8 @@ export class PermissionService {
       return false;
     }
 
-    const requiredPermissions = endpointConfig[method as keyof typeof endpointConfig];
-    if (!requiredPermissions) {
+    const requiredPermissions = endpointConfig[method as keyof typeof endpointConfig] as string[];
+    if (!requiredPermissions || !Array.isArray(requiredPermissions)) {
       return false;
     }
 
