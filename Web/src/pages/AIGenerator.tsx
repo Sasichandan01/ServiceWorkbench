@@ -57,7 +57,7 @@ interface ThinkingStep {
 }
 
 interface Message {
-  id: number; // This should be the actual MessageId from the API
+  id: string; // This should be the actual MessageId from the API
   content: string | object;
   sender: "user" | "ai";
   timestamp: string;
@@ -185,7 +185,7 @@ const AIGenerator = () => {
   const [wsError, setWsError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
-  const [loadingTraces, setLoadingTraces] = useState<Record<number, boolean>>({});
+  const [loadingTraces, setLoadingTraces] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Function to load chat history
@@ -232,7 +232,7 @@ const AIGenerator = () => {
           }
           
           return {
-            id: parseInt(chatMsg.MessageId) || index + 1, // Use actual MessageId from API, fallback to index
+            id: chatMsg.MessageId, // Use the actual MessageId string from API
             content: chatMsg.Message,
             sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
             timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
@@ -258,12 +258,12 @@ const AIGenerator = () => {
   };
 
   // Function to load traces for a specific message
-  const loadMessageTraces = async (messageId: number) => {
+  const loadMessageTraces = async (messageId: string) => {
     if (!workspaceId || !solutionId) return;
     
     try {
       setLoadingTraces(prev => ({ ...prev, [messageId]: true }));
-      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, messageId.toString());
+      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, messageId);
       
       // Update the message with traces
       setMessages(prev => prev.map(msg => {
@@ -392,7 +392,7 @@ const AIGenerator = () => {
           // This is the final AIMessage - create the complete message
           setMessages((prev) => {
             const aiMsg: Message = {
-              id: prev.length + 1,
+              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
               content: aiMessage,
               sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
@@ -440,7 +440,7 @@ const AIGenerator = () => {
           if ((typeof content === "string" && content.trim()) || typeof content === "object") {
             setMessages((prev) => {
               const msg: Message = {
-                id: prev.length + 1,
+                id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
                 content: content,
                 sender: "ai" as const,
                 timestamp: new Date().toLocaleTimeString(),
@@ -459,7 +459,7 @@ const AIGenerator = () => {
         if (content.trim()) {
           setMessages((prev) => {
             const msg: Message = {
-              id: prev.length + 1,
+              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
               content: content,
               sender: "ai" as const,
               timestamp: new Date().toLocaleTimeString(),
@@ -511,7 +511,7 @@ const AIGenerator = () => {
       return;
     }
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: `temp-${Date.now()}`, // Temporary ID for new messages
       content: inputValue,
       sender: "user" as const,
       timestamp: new Date().toLocaleTimeString(),
@@ -549,7 +549,7 @@ const AIGenerator = () => {
     }
   };
 
-  const toggleThinking = async (messageId: number) => {
+  const toggleThinking = async (messageId: string) => {
     const message = messages.find(msg => msg.id === messageId);
     const isCurrentlyExpanded = expandedThinking[messageId];
     
