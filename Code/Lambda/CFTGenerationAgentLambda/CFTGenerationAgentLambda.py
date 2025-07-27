@@ -9,7 +9,8 @@ cf = boto3.client('cloudformation')
 sc = boto3.client('servicecatalog')
 sfn_client = boto3.client('stepfunctions')
 DYNAMO_DB = boto3.resource('dynamodb')
-SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table("Workbench-wb-abhishek-SolutionsTable")
+SOLUTIONS_TABLE_NAME=os.environ.get("SOLUTIONS_TABLE")
+SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 
 KNOWLEDGE_BASE_ID = "1IRBPZU9KF"
 MODEL_ARN = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -325,7 +326,7 @@ def execute_finalize_phase(record_id, provisioned_product_name):
         ]
         if workspace_id and solution_id:
             try:
-                SOLUTION_EXECUTIONS_TABLE.update_item(
+                SOLUTIONS_TABLE.update_item(
                     Key={
                         'WorkspaceId': workspace_id,
                         'SolutionId': solution_id
@@ -556,7 +557,7 @@ def lambda_handler(event, context):
                 #upadte the solution table status field to "READY"
                 global workspace_id, solution_id
                 if workspace_id and solution_id:
-                    response = SOLUTION_EXECUTIONS_TABLE.update_item(
+                    response = SOLUTIONS_TABLE.update_item(
                         Key={
                             'WorkspaceId': workspace_id,
                             'SolutionId': solution_id

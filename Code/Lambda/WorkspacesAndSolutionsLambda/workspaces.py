@@ -68,7 +68,33 @@ def create_workspace(event,context):
         workspace_response=workspace_table.put_item(Item=item)
         resp=log_activity(activity_logs_table, 'Workspace', body.get('WorkspaceName'),workspace_id, user_id, 'WORKSPACE_CREATED')
         
+        # Grant owner permissions to the creator
         create_workspace_fgac(resource_access_table,user_id,"owner",workspace_id)
+        
+        # Grant owner permissions to all ITAdmin users
+        try:
+            # Query all users and check if their role list contains ITAdmin
+            all_users_response = users_table.scan(
+                ProjectionExpression='UserId, #rls',
+                ExpressionAttributeNames={
+                    "#rls": "Role"
+                }
+            )
+            
+            for user_item in all_users_response.get('Items', []):
+                admin_user_id = user_item.get('UserId')
+                user_roles = user_item.get('Role', [])
+                
+                # Handle role as a list and check if it contains ITAdmin
+                if not isinstance(user_roles, list):
+                    user_roles = [user_roles] if user_roles else []
+                
+                if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
+                    create_workspace_fgac(resource_access_table, admin_user_id, "owner", workspace_id)
+                    logger.info(f"Granted owner permissions to ITAdmin user: {admin_user_id} for workspace: {workspace_id}")
+        except Exception as e:
+            logger.error(f"Error granting ITAdmin permissions for workspace {workspace_id}: {e}")
+            # Continue with workspace creation even if ITAdmin permission granting fails
 
         logger.info("Activity log response: %s", resp)
         return return_response(201, {"Message": "Workspace created successfully", "WorkspaceId": workspace_id})

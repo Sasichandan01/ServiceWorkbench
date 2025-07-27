@@ -8,6 +8,11 @@ from Utils.utils import log_activity, paginate_list,return_response
 from FGAC.fgac import create_solution_fgac, check_solution_access
 from boto3.dynamodb.conditions import Key, Attr
 
+import logging
+
+LOGGER=logging.getLogger()
+LOGGER.setLevel(logging.INFO)
+
 DYNAMO_DB = boto3.resource('dynamodb')
 
 
@@ -18,6 +23,7 @@ ACTIVITY_LOGS_TABLE_NAME = os.environ.get('ACTIVITY_LOGS_TABLE')
 DATASOURCES_TABLE_NAME = os.environ.get('DATASOURCES_TABLE')
 SOLUTION_EXECUTIONS_TABLE_NAME = os.environ.get('EXECUTIONS_TABLE')
 RESOURCE_ACCESS_TABLE_NAME = os.environ.get('RESOURCE_ACCESS_TABLE')
+USERS_TABLE_NAME = os.environ.get('USERS_TABLE')
 
 SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 WORKSPACES_TABLE = DYNAMO_DB.Table(WORKSPACES_TABLE_NAME)
@@ -26,6 +32,7 @@ ACTIVITY_LOGS_TABLE = DYNAMO_DB.Table(ACTIVITY_LOGS_TABLE_NAME)
 DATASOURCES_TABLE = DYNAMO_DB.Table(DATASOURCES_TABLE_NAME)
 SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table(SOLUTION_EXECUTIONS_TABLE_NAME)
 RESOURCE_ACCESS_TABLE = DYNAMO_DB.Table(RESOURCE_ACCESS_TABLE_NAME)
+USERS_TABLE = DYNAMO_DB.Table(USERS_TABLE_NAME)
 
 def list_solutions(workspace_id, params,user_id):
     filter_by = params.get('filterBy')
@@ -178,10 +185,36 @@ def create_solution(workspace_id, body, user_id):
         resource_name=solution_name,
         resource_id=solution_id,
         user_id=user_id,
-        action="CREATE_SOLUTION"
+        action="SOLUTION CREATED"
     )
 
+    # Grant owner permissions to the creator
     create_solution_fgac(RESOURCE_ACCESS_TABLE, user_id, "owner", workspace_id, solution_id)
+    
+    # Grant owner permissions to all ITAdmin users
+    try:
+        # Query all users and check if their role list contains ITAdmin
+        all_users_response = USERS_TABLE.scan(
+            ProjectionExpression='UserId, #rls',
+            ExpressionAttributeNames={
+                "#rls": "Role"
+            }
+        )
+        
+        for user_item in all_users_response.get('Items', []):
+            admin_user_id = user_item.get('UserId')
+            user_roles = user_item.get('Role', [])
+            
+            # Handle role as a list and check if it contains ITAdmin
+            if not isinstance(user_roles, list):
+                user_roles = [user_roles] if user_roles else []
+            
+            if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
+                create_solution_fgac(RESOURCE_ACCESS_TABLE, admin_user_id, "owner", workspace_id, solution_id)
+                print(f"Granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
+    except Exception as e:
+        print(f"Error granting ITAdmin permissions for solution {solution_id}: {e}")
+        # Continue with solution creation even if ITAdmin permission granting fails
 
     body = {
         "Message": "Solution created successfully",
@@ -217,6 +250,44 @@ def get_solution(workspace_id, solution_id, params,user_id):
             "body": json.dumps({"Message": "Solution not found"})
         }
     
+    # Fetch users with access to this solution
+    access_key = f"SOLUTION#{workspace_id}#{solution_id}"
+    users = []
+    try:
+        permission_items = RESOURCE_ACCESS_TABLE.query(
+            IndexName='AccessKey-Index',
+            KeyConditionExpression=Key('AccessKey').eq(access_key)
+        ).get('Items', [])
+        for perm in permission_items:
+            user_id_access = perm.get('Id', '')
+            if '#' in user_id_access:
+                user_id_part, access_type_part = user_id_access.split('#', 1)
+                # Fetch user details
+                user_resp = USERS_TABLE.get_item(
+                    Key={'UserId': user_id_part},
+                    ProjectionExpression="UserId, Username, Email, #rls",
+                    ExpressionAttributeNames={
+                        "#rls": "Role"
+                    }
+                )
+                user_item = user_resp.get('Item')
+                if user_item:
+                    # Handle role as a list
+                    user_roles = user_item.get("Role", [])
+                    if not isinstance(user_roles, list):
+                        user_roles = [user_roles] if user_roles else []
+                    
+                    users.append({
+                        "UserId": user_item.get("UserId"),
+                        "Username": user_item.get("Username", ""),
+                        "Email": user_item.get("Email", ""),
+                        "Role": user_roles,
+                        "Access": access_type_part,
+                        "CreationTime": perm.get("CreationTime", "")
+                    })
+    except Exception as e:
+        print(f"Error fetching users for solution {solution_id}: {e}")
+    item["Users"] = users
     return return_response(200,item)
 
 def update_solution(workspace_id, solution_id, body, user_id, params=None):
@@ -292,7 +363,7 @@ def update_solution(workspace_id, solution_id, body, user_id, params=None):
             resource_name=solution_name,
             resource_id=solution_id,
             user_id=user_id,
-            action="UPDATE_SOLUTION_DATASOURCES"
+            action="DATASOURCE UPDATED"
         )
         return return_response(200, {"Message": "Solution datasources updated"})
     else:
@@ -321,7 +392,7 @@ def update_solution(workspace_id, solution_id, body, user_id, params=None):
             resource_name=body.get("SolutionName"),
             resource_id=solution_id,
             user_id=user_id,
-            action="UPDATE_SOLUTION"
+            action="SOLUTION UPDATED"
         )
         return return_response(200, {"Message": "Solution updated"})
 
@@ -385,7 +456,7 @@ def delete_solution(workspace_id, solution_id,user_id):
         resource_name=solution_name,
         resource_id=solution_id,
         user_id=user_id,
-        action="DELETE_SOLUTION"
+        action="SOLUTION DELETED"
     )
 
     return return_response(200,{"Message": "Solution deleted"})

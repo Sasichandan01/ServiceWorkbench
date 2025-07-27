@@ -205,6 +205,26 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
     return `${hours}h ${minutes}m ${seconds}s`;
   };
 
+  const formatLogsWithColors = (logContent: string) => {
+    if (!logContent) return "";
+    
+    const lines = logContent.split('\n');
+    return lines.map((line, index) => {
+      const isError = line.toLowerCase().includes('error') || 
+                     line.toLowerCase().includes('failed') || 
+                     line.toLowerCase().includes('exception') ||
+                     line.toLowerCase().includes('traceback') ||
+                     line.toLowerCase().includes('fatal');
+      
+      return (
+        <span key={index} className={isError ? 'text-red-400' : 'text-white'}>
+          {line}
+          {index < lines.length - 1 && '\n'}
+        </span>
+      );
+    });
+  };
+
   if (selectedExecution) {
     return (
       <Card>
@@ -217,9 +237,6 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
               </Button>
               <CardTitle>Execution Details</CardTitle>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefreshLogsAndDetails} disabled={detailLoading || logsLoading}>
-              <RefreshCw className={`w-4 h-4 ${(detailLoading || logsLoading) ? 'animate-spin' : ''}`} />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -301,13 +318,16 @@ const ExecutionHistory = ({ workspaceId, solutionId, onRunSolution, isReadySolut
                         Generate Logs
                       </Button>
                     )}
+                    <Button variant="outline" size="sm" onClick={handleRefreshLogsAndDetails} disabled={detailLoading || logsLoading}>
+                      <RefreshCw className={`w-4 h-4 ${(detailLoading || logsLoading) ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                 </div>
                 
                 {logs && (
                   <div className="mt-4">
-                    <pre className="bg-black text-green-400 p-4 rounded-lg text-xs overflow-auto max-h-96 whitespace-pre-wrap">
-                      {logs}
+                    <pre className="bg-black p-4 rounded-lg text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                      {formatLogsWithColors(logs)}
                     </pre>
                   </div>
                 )}

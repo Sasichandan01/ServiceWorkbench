@@ -137,32 +137,50 @@ def share_resource(event):
         workspace_id, solution_id = resource_id.split('#', 1)
         access_key = f'SOLUTION#{workspace_id}#{solution_id}'
     elif resource_type == 'WORKSPACE':
+        # Check if this is a default workspace - don't allow sharing default workspaces
+        try:
+            workspace_response = WORKSPACES_TABLE.get_item(Key={'WorkspaceId': resource_id})
+            if 'Item' in workspace_response:
+                workspace_item = workspace_response['Item']
+                if workspace_item.get('WorkspaceType') == 'DEFAULT':
+                    return return_response(400, {'Message': 'Cannot share default workspaces'})
+        except Exception as e:
+            print(f"Error checking workspace type for {resource_id}: {e}")
+            # Continue with sharing if we can't verify the workspace type
+        
         access_key = f'WORKSPACE#{resource_id}'
     elif resource_type == 'DATASOURCE':
         access_key = f'DATASOURCE#{resource_id}'
     else:
         return return_response(400, {'Message': f'Unsupported resource type: {resource_type}'})
 
-    # Revoke any existing access entry for the same user and resource
-    existing_items = RESOURCE_ACCESS_TABLE.scan(
-        FilterExpression=Attr('Id').begins_with(f"{user_id}#") & Attr('AccessKey').eq(access_key),
-        ProjectionExpression='Id, AccessKey'
-    ).get('Items', [])
+    # For solutions, we'll handle the access differently to avoid duplicate entries
+    if resource_type == 'SOLUTION':
+        # Skip creating the original workspace entry - we'll only create the default workspace entry
+        pass
+    else:
+        # For non-solution resources, proceed with normal access granting
+        # Revoke any existing access entry for the same user and resource
+        existing_items = RESOURCE_ACCESS_TABLE.scan(
+            FilterExpression=Attr('Id').begins_with(f"{user_id}#") & Attr('AccessKey').eq(access_key),
+            ProjectionExpression='Id, AccessKey'
+        ).get('Items', [])
 
-    for item in existing_items:
-        RESOURCE_ACCESS_TABLE.delete_item(Key={
-            'Id': item['Id'],
-            'AccessKey': item['AccessKey']
+        for item in existing_items:
+            RESOURCE_ACCESS_TABLE.delete_item(Key={
+                'Id': item['Id'],
+                'AccessKey': item['AccessKey']
+            })
+
+        # Grant new access
+        RESOURCE_ACCESS_TABLE.put_item(Item={
+            'Id': f"{user_id}#{access_type}",
+            'AccessKey': access_key,
+            'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         })
 
-    # Grant new access
-    RESOURCE_ACCESS_TABLE.put_item(Item={
-        'Id': f"{user_id}#{access_type}",
-        'AccessKey': access_key,
-        'CreationTime': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    })
-
-    if ACTIVITY_LOGS_TABLE:
+    # Only log activity for non-solution resources or when we're not handling solutions specially
+    if resource_type != 'SOLUTION' and ACTIVITY_LOGS_TABLE:
         log_activity(
             ACTIVITY_LOGS_TABLE,
             resource_type=body['ResourceType'],
@@ -266,7 +284,7 @@ def share_resource(event):
         msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated, {solutions_skipped} skipped (higher permissions already exist)."
         return return_response(200, {'Message': msg})
 
-    # If only a solution is shared (not a workspace), add it to the user's default workspace
+    # If only a solution is shared (not a workspace), add it to the user's default workspace only
     if resource_type == 'SOLUTION':
         # Look up the user's default workspace by type
         default_workspace_id = None
@@ -281,7 +299,16 @@ def share_resource(event):
                     break
         except Exception as e:
             print(f"Error looking up default workspace for user {user_id}: {e}")
+            
         if default_workspace_id and workspace_id != default_workspace_id:
+            # Remove access from the original workspace and grant access only to default workspace
+            original_access_key = f'SOLUTION#{workspace_id}#{solution_id}'
+            RESOURCE_ACCESS_TABLE.delete_item(Key={
+                'Id': f"{user_id}#{access_type}",
+                'AccessKey': original_access_key
+            })
+            
+            # Grant access to the default workspace
             default_access_key = f'SOLUTION#{default_workspace_id}#{solution_id}'
             # Revoke any existing access entry for the same user and this default workspace/solution
             existing_default_items = RESOURCE_ACCESS_TABLE.scan(

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import SolutionBreadcrumb from "@/components/SolutionBreadcrumb";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
+import { ChatService, ChatMessage } from "../services/chatService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +18,8 @@ import {
   ChevronRight,
   Copy,
   FileCode,
+  Pause,
+  Trash2,
 } from "lucide-react";
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -32,8 +35,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { createWebSocketClient } from "@/lib/websocketClient";
 import Mermaid from "@/components/ui/Mermaid";
+import { useToast } from "@/hooks/use-toast";
 
 interface ThinkingStep {
   id: string;
@@ -48,6 +63,8 @@ interface Message {
   timestamp: string;
   thinking?: ThinkingStep[];
   isCompleted?: boolean;
+  chatId?: string; // Store the original chat ID for API calls
+  tracesLoaded?: boolean; // Track if traces have been loaded
 }
 
 // Utility to check if a string is the structured solution JSON
@@ -166,6 +183,103 @@ const AIGenerator = () => {
   );
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isClearingChat, setIsClearingChat] = useState(false);
+  const [loadingTraces, setLoadingTraces] = useState<Record<number, boolean>>({});
+  const { toast } = useToast();
+
+  // Function to load chat history
+  const loadChatHistory = async () => {
+    if (!workspaceId || !solutionId) return;
+    
+    try {
+      setIsLoadingHistory(true);
+      const response = await ChatService.getChatHistory(workspaceId, solutionId, {
+        limit: 50 // Load last 50 messages
+      });
+      
+      // Convert API response to component message format
+      const historyMessages: Message[] = response.ChatHistory.map((chatMsg: ChatMessage, index: number) => ({
+        id: index + 1,
+        content: chatMsg.Message,
+        sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
+        timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
+        chatId: chatMsg.ChatId, // Store the original chat ID
+        tracesLoaded: false, // Mark traces as not loaded initially
+        thinking: undefined // Don't load traces initially
+      }));
+      
+      setMessages(historyMessages);
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+      // Don't show error to user for now, just log it
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Function to load traces for a specific message
+  const loadMessageTraces = async (messageId: number, chatId: string) => {
+    if (!workspaceId || !solutionId || !chatId) return;
+    
+    try {
+      setLoadingTraces(prev => ({ ...prev, [messageId]: true }));
+      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, chatId);
+      
+      // Update the message with traces
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          return {
+            ...msg,
+            thinking: chatMessage.Trace && chatMessage.Trace.length > 0 
+              ? chatMessage.Trace.map((trace, traceIndex) => ({
+                  id: `${chatMessage.MessageId}-trace-${traceIndex}`,
+                  content: trace,
+                  timestamp: new Date(chatMessage.TimeStamp)
+                }))
+              : undefined,
+            tracesLoaded: true
+          };
+        }
+        return msg;
+      }));
+    } catch (error) {
+      console.error('Failed to load message traces:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load thinking steps. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTraces(prev => ({ ...prev, [messageId]: false }));
+    }
+  };
+
+  // Function to clear chat history
+  const handleClearChat = async () => {
+    if (!workspaceId || !solutionId) return;
+    
+    try {
+      setIsClearingChat(true);
+      await ChatService.clearChatHistory(workspaceId, solutionId);
+      setMessages([]);
+      setCurrentThinking([]);
+      currentThinkingRef.current = [];
+      toast({
+        title: "Chat cleared",
+        description: "All chat history has been cleared successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to clear chat history:', error);
+      toast({
+        title: "Error",
+        description: "Failed to clear chat history. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClearingChat(false);
+    }
+  };
 
   useEffect(() => {
     if (workspaceId) {
@@ -177,6 +291,8 @@ const AIGenerator = () => {
       SolutionService.getSolution(workspaceId, solutionId).then((sol) =>
         setSolutionName(sol.SolutionName)
       );
+      // Load chat history when workspace and solution are available
+      loadChatHistory();
     }
   }, [workspaceId, solutionId]);
 
@@ -252,6 +368,19 @@ const AIGenerator = () => {
           setCurrentThinking([]);
           currentThinkingRef.current = [];
           setIsGenerating(false);
+        } else if (data && data.Metadata && data.Metadata.IsCode === true) {
+          // Handle code messages as part of thinking process
+          const thinkingStep: ThinkingStep = {
+            id: Date.now().toString() + Math.random(),
+            content: data, // Keep the entire code object as content
+            timestamp: new Date(),
+          };
+          setCurrentThinking((prev) => {
+            const newThinking = [...prev, thinkingStep];
+            currentThinkingRef.current = newThinking;
+            return newThinking;
+          });
+          setIsGenerating(true);
         } else {
           // Fallback for other message formats
           let content: any = "";
@@ -265,9 +394,6 @@ const AIGenerator = () => {
             content = data.message;
           } else if (data && typeof data.text === "string") {
             content = data.text;
-          } else if (data && data.Metadata && data.Metadata.IsCode === true) {
-            // If it's a code response, keep as object
-            content = data;
           } else {
             content = JSON.stringify(data);
           }
@@ -370,6 +496,13 @@ const AIGenerator = () => {
     wsClientRef.current.send(payload);
   };
 
+  const handlePauseGeneration = () => {
+    if (wsClientRef.current) {
+      wsClientRef.current.close();
+      setIsGenerating(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -377,7 +510,15 @@ const AIGenerator = () => {
     }
   };
 
-  const toggleThinking = (messageId: number) => {
+  const toggleThinking = async (messageId: number) => {
+    const message = messages.find(msg => msg.id === messageId);
+    const isCurrentlyExpanded = expandedThinking[messageId];
+    
+    // If we're expanding and traces haven't been loaded yet, load them
+    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded && message.chatId) {
+      await loadMessageTraces(messageId, message.chatId);
+    }
+    
     setExpandedThinking((prev) => ({
       ...prev,
       [messageId]: !prev[messageId],
@@ -407,8 +548,28 @@ const AIGenerator = () => {
               WebSocket error: {wsError}
             </div>
           )}
+          
+          {/* Loading Chat History State */}
+          {isLoadingHistory && (
+            <div className="flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
+              <div className="text-center space-y-8 max-w-2xl">
+                <div className="space-y-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center mx-auto">
+                    <Loader2 className="w-8 h-8 text-primary-foreground animate-spin" />
+                  </div>
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                    Loading chat history...
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Retrieving your previous conversations
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Initial Centered State */}
-          {messages.length === 0 && (
+          {messages.length === 0 && !isLoadingHistory && (
             <div className="flex flex-col items-center justify-center p-8 animate-fade-in min-h-full">
               <div className="text-center space-y-8 max-w-2xl">
                 <div className="space-y-4">
@@ -426,22 +587,32 @@ const AIGenerator = () => {
 
                 {/* Centered Input */}
                 <div className="w-full max-w-2xl space-y-4">
-                  <div className="relative">
+                  <div className="flex items-center space-x-4">
                     <Textarea
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyPress}
                       placeholder="Ask anything..."
-                      className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10"
+                      className="resize-none min-h-[80px] rounded-2xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-lg focus:shadow-primary/10 flex-1"
                       disabled={isGenerating}
                     />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isGenerating}
-                      className="absolute right-3 bottom-3 h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    {isGenerating ? (
+                      <Button
+                        onClick={handlePauseGeneration}
+                        className="h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                        variant="default"
+                      >
+                        <Pause className="w-5 h-5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputValue.trim() || isGenerating}
+                        className="h-12 w-12 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
+                    )}
                   </div>
 
                   {isGenerating && (
@@ -466,8 +637,46 @@ const AIGenerator = () => {
           )}
 
           {/* Chat Messages View */}
-          {messages.length > 0 && (
+          {messages.length > 0 && !isLoadingHistory && (
             <div className="bg-gradient-to-b from-muted/10 to-background rounded-t-xl border-t overflow-hidden animate-fade-in flex flex-col h-[80vh] max-h-[80vh]">
+              {/* Chat Header with Clear Button */}
+              <div className="flex items-center justify-between p-4 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+                <h3 className="text-lg font-semibold text-foreground">Chat History</h3>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      disabled={isClearingChat}
+                    >
+                      {isClearingChat ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      <span>Clear Chat</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Chat History</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to clear all chat history? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearChat}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Clear Chat
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
               <div className="flex-1 flex flex-col min-h-0">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
@@ -500,36 +709,44 @@ const AIGenerator = () => {
                             message.sender === "user" ? "max-w-md" : "max-w-3xl"
                           }`}
                         >
-                          {/* Thinking Section - Only for AI messages with thinking */}
-                          {message.sender === "ai" &&
-                            message.thinking &&
-                            message.thinking.length > 0 && (
-                              <div>
-                                <Collapsible
-                                  open={expandedThinking[message.id] || false}
-                                  onOpenChange={() =>
-                                    toggleThinking(message.id)
-                                  }
-                                >
-                                  <CollapsibleTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <span>Show thinking</span>
+                          {/* Thinking Section - Only for AI messages */}
+                          {message.sender === "ai" && (
+                            <div>
+                              <Collapsible
+                                open={expandedThinking[message.id] || false}
+                                onOpenChange={() =>
+                                  toggleThinking(message.id)
+                                }
+                              >
+                                <CollapsibleTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground mb-2 p-2 h-auto"
+                                    disabled={loadingTraces[message.id]}
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      {loadingTraces[message.id] ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : null}
+                                      <span>Show thinking</span>
+                                    </div>
+                                    {expandedThinking[message.id] ? (
+                                      <ChevronDown className="w-4 h-4" />
+                                    ) : (
+                                      <ChevronRight className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-2">
+                                  <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
+                                    {loadingTraces[message.id] ? (
+                                      <div className="flex items-center justify-center py-4">
+                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                        <span className="text-sm text-muted-foreground">Loading thinking steps...</span>
                                       </div>
-                                      {expandedThinking[message.id] ? (
-                                        <ChevronDown className="w-4 h-4" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4" />
-                                      )}
-                                    </Button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="space-y-2">
-                                    <div className="border border-border/50 rounded-lg bg-muted/30 p-4 space-y-3">
-                                      {message.thinking.map((step, index) => (
+                                    ) : message.thinking && message.thinking.length > 0 ? (
+                                      message.thinking.map((step, index) => (
                                         <div
                                           key={step.id}
                                           className="space-y-1"
@@ -538,12 +755,17 @@ const AIGenerator = () => {
                                             {step.content}
                                           </p>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              </div>
-                            )}
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-muted-foreground py-2">
+                                        No thinking steps available for this message.
+                                      </div>
+                                    )}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          )}
 
                           {/* Main Message */}
                           <div
@@ -740,26 +962,34 @@ const AIGenerator = () => {
                 </ScrollArea>
 
                 {/* Bottom Input Area - Only show after any message */}
-                {messages.length > 0 && (
+                {messages.length > 0 && !isLoadingHistory && (
                   <div className="border-t border-border/50 bg-background/80 backdrop-blur-sm p-6">
-                    <div className="flex items-end space-x-4 max-w-4xl mx-auto">
-                      <div className="flex-1 relative">
-                        <Textarea
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          onKeyDown={handleKeyPress}
-                          placeholder="Continue the conversation..."
-                          className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10"
-                          disabled={isGenerating}
-                        />
-                      </div>
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim() || isGenerating}
-                        className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
-                      >
-                        <Send className="w-5 h-5" />
-                      </Button>
+                    <div className="flex items-center space-x-4 max-w-4xl mx-auto">
+                      <Textarea
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        placeholder="Continue the conversation..."
+                        className="resize-none min-h-[60px] rounded-xl border-2 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:border-primary/50 focus:shadow-md focus:shadow-primary/10 flex-1"
+                        disabled={isGenerating}
+                      />
+                      {isGenerating ? (
+                        <Button
+                          onClick={handlePauseGeneration}
+                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                          variant="default"
+                        >
+                          <Pause className="w-5 h-5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSendMessage}
+                          disabled={!inputValue.trim() || isGenerating}
+                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                        >
+                          <Send className="w-5 h-5" />
+                        </Button>
+                      )}
                     </div>
                     <p className="text-center text-xs text-muted-foreground mt-3 opacity-70">
                       Press Enter to send

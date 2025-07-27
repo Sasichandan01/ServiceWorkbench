@@ -210,10 +210,34 @@ def create_datasource(body,user_id):
     }
 
     datasource_table.put_item(Item=item)
-    # log_activity(ACTIVITY_LOGS_TABLE, "Datasource", body.get("DatasourceName"), datasource_id, user_id, "CREATE DATASOURCE")
     
-    # Create FGAC access for the creator
+    # Grant owner permissions to the creator
     create_datasource_fgac(resource_access_table, user_id, "owner", datasource_id)
+    
+    # Grant owner permissions to all ITAdmin users
+    try:
+        # Query all users and check if their role list contains ITAdmin
+        all_users_response = table.scan(
+            ProjectionExpression='UserId, #rls',
+            ExpressionAttributeNames={
+                "#rls": "Role"
+            }
+        )
+        
+        for user_item in all_users_response.get('Items', []):
+            admin_user_id = user_item.get('UserId')
+            user_roles = user_item.get('Role', [])
+            
+            # Handle role as a list and check if it contains ITAdmin
+            if not isinstance(user_roles, list):
+                user_roles = [user_roles] if user_roles else []
+            
+            if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
+                create_datasource_fgac(resource_access_table, admin_user_id, "owner", datasource_id)
+                LOGGER.info(f"Granted owner permissions to ITAdmin user: {admin_user_id} for datasource: {datasource_id}")
+    except Exception as e:
+        LOGGER.error(f"Error granting ITAdmin permissions for datasource {datasource_id}: {e}")
+        # Continue with datasource creation even if ITAdmin permission granting fails
 
     # Log the activity
     log_activity(
@@ -224,9 +248,6 @@ def create_datasource(body,user_id):
         user_id=user_id,
         action="CREATE_DATASOURCE"
     )
-
-    # Create FGAC access for the creator
-    create_datasource_fgac(resource_access_table, user_id, "owner", datasource_id)
 
     return return_response(201, {
         "Message": "Datasource created successfully",

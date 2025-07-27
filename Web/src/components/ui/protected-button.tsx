@@ -13,7 +13,7 @@ interface ProtectedButtonProps extends ButtonProps {
   hideIfNoAccess?: boolean;
 }
 
-export const ProtectedButton: React.FC<ProtectedButtonProps> = ({
+export const ProtectedButton = React.forwardRef<HTMLButtonElement, ProtectedButtonProps>(({
   permission,
   resource,
   action,
@@ -23,7 +23,7 @@ export const ProtectedButton: React.FC<ProtectedButtonProps> = ({
   hideIfNoAccess = false,
   children,
   ...buttonProps
-}) => {
+}, ref) => {
   const protectedButton = (
     <PermissionGuard
       permission={permission}
@@ -35,7 +35,7 @@ export const ProtectedButton: React.FC<ProtectedButtonProps> = ({
         hideIfNoAccess ? null : (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button {...buttonProps} disabled>
+              <Button {...buttonProps} disabled ref={ref}>
                 {children}
               </Button>
             </TooltipTrigger>
@@ -46,11 +46,13 @@ export const ProtectedButton: React.FC<ProtectedButtonProps> = ({
         )
       }
     >
-      <Button {...buttonProps}>
+      <Button {...buttonProps} ref={ref}>
         {children}
       </Button>
     </PermissionGuard>
   );
 
   return protectedButton;
-};
+});
+
+ProtectedButton.displayName = "ProtectedButton";
