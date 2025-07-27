@@ -308,11 +308,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     url_generated="false"
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        
-        
         if trace:
-            LOGGER.info(f"{code_generated}")
-            LOGGER.info(f"Trace: {trace}")
+
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
@@ -386,12 +383,14 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     
                     if url_generated != "false":
                         LOGGER.info("url generated  is true")
-                        # code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft")
-                        code_payload['Metadata']=url_generated
+                        
                         if 'Metadata' not in code_payload:
                             code_payload['Metadata'] = {}
+                        code_payload['Metadata']['PresignedURL']=url_generated
                         code_payload['Metadata']['IsPresignedURL']=True
                         code_payload['Metadata']['IsComplete']=True
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        url_generated = "false"
                     else:
                         print(code_generated)
                         LOGGER.info("url generated is not true")
@@ -409,12 +408,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 # Store assistant response
                 add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
                 LOGGER.info(f"code_generated:{code_generated}")
-                if code_generated=="true" :
-                    send_message_to_websocket(apigw_client, connection_id, code_payload)
-                    code_generated="false"
-                if url_generated != "false":
-                    send_message_to_websocket(apigw_client, connection_id, code_payload)
-                    url_generated = "false"
+
+    if code_generated=="true" :
+        send_message_to_websocket(apigw_client, connection_id, code_payload)
+        code_generated="false"
+
 
 
 
