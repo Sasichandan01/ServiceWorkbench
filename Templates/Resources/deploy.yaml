@@ -448,7 +448,7 @@ Resources:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          USERS_TABLE: !Ref UserTable
+
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
