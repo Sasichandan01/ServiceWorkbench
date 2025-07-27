@@ -8,6 +8,11 @@ from Utils.utils import log_activity, paginate_list,return_response
 from FGAC.fgac import create_solution_fgac, check_solution_access
 from boto3.dynamodb.conditions import Key, Attr
 
+import logging
+
+LOGGER=logging.getLogger()
+LOGGER.setLevel(logging.INFO)
+
 DYNAMO_DB = boto3.resource('dynamodb')
 
 
@@ -183,7 +188,33 @@ def create_solution(workspace_id, body, user_id):
         action="SOLUTION CREATED"
     )
 
+    # Grant owner permissions to the creator
     create_solution_fgac(RESOURCE_ACCESS_TABLE, user_id, "owner", workspace_id, solution_id)
+    
+    # Grant owner permissions to all ITAdmin users
+    try:
+        # Query all users and check if their role list contains ITAdmin
+        all_users_response = USERS_TABLE.scan(
+            ProjectionExpression='UserId, #rls',
+            ExpressionAttributeNames={
+                "#rls": "Role"
+            }
+        )
+        
+        for user_item in all_users_response.get('Items', []):
+            admin_user_id = user_item.get('UserId')
+            user_roles = user_item.get('Role', [])
+            
+            # Handle role as a list and check if it contains ITAdmin
+            if not isinstance(user_roles, list):
+                user_roles = [user_roles] if user_roles else []
+            
+            if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
+                create_solution_fgac(RESOURCE_ACCESS_TABLE, admin_user_id, "owner", workspace_id, solution_id)
+                print(f"Granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
+    except Exception as e:
+        print(f"Error granting ITAdmin permissions for solution {solution_id}: {e}")
+        # Continue with solution creation even if ITAdmin permission granting fails
 
     body = {
         "Message": "Solution created successfully",
@@ -234,14 +265,23 @@ def get_solution(workspace_id, solution_id, params,user_id):
                 # Fetch user details
                 user_resp = USERS_TABLE.get_item(
                     Key={'UserId': user_id_part},
-                    ProjectionExpression="UserId, Username, Email"
+                    ProjectionExpression="UserId, Username, Email, #rls",
+                    ExpressionAttributeNames={
+                        "#rls": "Role"
+                    }
                 )
                 user_item = user_resp.get('Item')
                 if user_item:
+                    # Handle role as a list
+                    user_roles = user_item.get("Role", [])
+                    if not isinstance(user_roles, list):
+                        user_roles = [user_roles] if user_roles else []
+                    
                     users.append({
                         "UserId": user_item.get("UserId"),
                         "Username": user_item.get("Username", ""),
                         "Email": user_item.get("Email", ""),
+                        "Role": user_roles,
                         "Access": access_type_part,
                         "CreationTime": perm.get("CreationTime", "")
                     })

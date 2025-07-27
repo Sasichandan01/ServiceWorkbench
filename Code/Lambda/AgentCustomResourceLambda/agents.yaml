@@ -846,7 +846,22 @@
         Ensure the runtime is always `python3.12`, not Node.js or any default.
         Every Lambda function must include a default Lambda Layer using the `Layers` property.
         Ensure the s3 key for the code for the lambda is provided by the user, if not ask the user for it.
-      If it is there attach that s3 key as the code for the lambda, that s3 key will contain the lambda codes.
+        If it is there attach that s3 key as the code for the lambda, that s3 key will contain the lambda codes.
+        Also add resource based policy for the lambda with "*" permissions, like 
+        "
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                    "Sid": "AllowAllInvoke",
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": "lambda:InvokeFunction",
+                    "Resource": "arn:aws:lambda:us-east-1:123456789012:function:MyFunction"
+                    }
+                ]
+            }
+        "
         Use the following default layer ARN unless otherwise specified:
             arn:aws:lambda:us-east-1:043309350924:layer:default-layer:1
         Example:
@@ -855,6 +870,7 @@
 
       5. Step Function Fixes:
           Ensure state machine definition is valid JSON string.
+          Also ensure logs are enabled for the state machine. This is really important. Do not skip it.
           Escape variables correctly:
               "Resource": "${Function.Arn}"
           Do not include leading backslashes(important).
@@ -1038,31 +1054,37 @@
 
                   MyStateMachine:
                       Type: AWS::StepFunctions::StateMachine
+                      LoggingConfiguration:
+                        Destinations:
+                            - CloudWatchLogsLogGroup:
+                                LogGroupArn: !GetAtt StepFunctionLogGroup.Arn
+                        IncludeExecutionData: true
+                        Level: ALL
                       Properties:
-                      StateMachineName: ThreeStepWorkflow
-                      RoleArn: !GetAtt StepFunctionRole.Arn
-                      DefinitionString: !Sub |
-                          {
-                          "Comment": "A state machine with three Lambda steps",
-                          "StartAt": "ValidateInput",
-                          "States": {
-                              "ValidateInput": {
-                              "Type": "Task",
-                              "Resource": "${ValidateInputFunction.Arn}",
-                              "Next": "ProcessData"
-                              },
-                              "ProcessData": {
-                              "Type": "Task",
-                              "Resource": "${ProcessDataFunction.Arn}",
-                              "Next": "SendNotification"
-                              },
-                              "SendNotification": {
-                              "Type": "Task",
-                              "Resource": "${SendNotificationFunction.Arn}",
-                              "End": true
-                              }
-                          }
-                          }
+                        StateMachineName: ThreeStepWorkflow
+                        RoleArn: !GetAtt StepFunctionRole.Arn
+                        DefinitionString: !Sub |
+                            {
+                                "Comment": "A state machine with three Lambda steps",
+                                "StartAt": "ValidateInput",
+                                "States": {
+                                    "ValidateInput": {
+                                        "Type": "Task",
+                                        "Resource": "${ValidateInputFunction.Arn}",
+                                        "Next": "ProcessData"
+                                    },
+                                    "ProcessData": {
+                                        "Type": "Task",
+                                        "Resource": "${ProcessDataFunction.Arn}",
+                                        "Next": "SendNotification"
+                                    },
+                                    "SendNotification": {
+                                        "Type": "Task",
+                                        "Resource": "${SendNotificationFunction.Arn}",
+                                        "End": true
+                                    }
+                                }
+                            }
                       Tags:
                           - Key: SWB-User
                           Value: xyz
@@ -1179,9 +1201,6 @@
 
     14. If the cft deployment is successful, return the message "The cft deployment is successful" and return the names of the resources deployed (which will be send by the agent) to the user.
         This is really important step (returning the resource names), do not skip it.
-        
-
-
           
   ModelId: anthropic.claude-3-5-sonnet-20240620-v1:0
   Lambda: CFTGenerationAgentLambda

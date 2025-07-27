@@ -33,21 +33,21 @@ def get_chat_history(workspace_id, solution_id, user_id):
     LOGGER.info(f"Chat history for {solution_id} by {user_id}: {items}")
     chat_list = []
     for item in items:
-        trace = item.get("Trace", [])
+        # trace = item.get("Trace", [])
         # Ensure trace is always a list
-        if not isinstance(trace, list):
-            try:
-                import json
-                trace = json.loads(trace) if trace else []
-            except Exception:
-                trace = [trace] if trace else []
+        # if not isinstance(trace, list):
+        #     try:
+        #         import json
+        #         trace = json.loads(trace) if trace else []
+        #     except Exception:
+        #         trace = [trace] if trace else []
         chat_list.append({
             "ChatId": item.get("ChatId"),
             "TimeStamp": item.get("Timestamp"),
             "Message": item.get("Message", ""),
             "MessageId": item.get("MessageId"),
-            "Sender": item.get("Sender"),
-            "Trace": trace
+            "Sender": item.get("Sender")
+            # "Trace": trace
         })
     return return_response(200, chat_list)
 
