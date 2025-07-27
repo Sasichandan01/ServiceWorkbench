@@ -2515,6 +2515,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "${UserPoolDomain}"
+    Value: !Sub "${pPrefix}-${AWS::AccountId}-auth"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
