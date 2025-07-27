@@ -293,8 +293,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Prompt: {combined_prompt}")
 
     invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
-        agentId=agent_info['cftgeneration'].get('AgentId'),
-        agentAliasId=agent_info['cftgeneration'].get('AgentAliasId'),
+        agentId=agent_info['supervisor'].get('AgentId'),
+        agentAliasId=agent_info['supervisor'].get('AgentAliasId'),
         sessionId=connection_id[:-1],
         inputText=combined_prompt,
         bedrockModelConfigurations={'performanceConfig': {'latency': 'standard'}},
@@ -308,6 +308,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     url_generated="false"
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
+        print(code_generated)
         if trace:
 
             response_obj = {"Metadata": {"IsComplete": False}}
@@ -378,9 +379,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
                 elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['architecture'].get('AgentId'):
                     text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    print(text)
                     outer_json = json.loads(text)
-                    url_generated = outer_json.get("PresignedURL", "false")
-                    
+                    print(outer_json)
+                    url_generated = outer_json.get('<PreSignedURL>', "false")
+                    print(url_generated)
                     if url_generated != "false":
                         LOGGER.info("url generated  is true")
                         
@@ -389,6 +392,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         code_payload['PresignedURL']=url_generated
                         code_payload['Metadata']['IsPresignedURL']=True
                         code_payload['Metadata']['IsComplete']=True
+                        print(code_payload)
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
                         url_generated = "false"
                     else:
