@@ -29,61 +29,61 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Login isSignupDefault={true} />} />
-          <Route path="/verification" element={<Verification />} />
-          <Route path="/docs" element={<Docs />} />
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/welcome" element={<Welcome />} />
-            <Route path="/workspaces" element={
-              <ProtectedContent resource="workspaces" action="view">
-                <Workspaces />
-              </ProtectedContent>
-            } />
-            <Route path="/workspaces/:id" element={
-              <ProtectedContent resource="workspaces" action="view">
-                <WorkspaceDetails />
-              </ProtectedContent>
-            } />
-            <Route path="/workspaces/:workspaceId/solutions/:solutionId" element={
-              <ProtectedContent resource="solutions" action="view">
-                <SolutionDetails />
-              </ProtectedContent>
-            } />
-            <Route path="/workspaces/:workspaceId/solutions/:solutionId/ai-generator" element={
-              <ProtectedContent resource="solutions" action="view">
-                <AIGenerator />
-              </ProtectedContent>
-            } />
-            <Route path="/data-sources" element={
-              <ProtectedContent resource="datasources" action="view">
-                <DataSources />
-              </ProtectedContent>
-            } />
-            <Route path="/data-sources/:id" element={
-              <ProtectedContent resource="datasources" action="view">
-                <DataSourceDetails />
-              </ProtectedContent>
-            } />
-            <Route path="/cost-analytics" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={
-              <ProtectedContent resource="users" action="manage">
-                <AdminDashboard />
-              </ProtectedContent>
-            } />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Login isSignupDefault={true} />} />
+            <Route path="/verification" element={<Verification />} />
+            <Route path="/docs" element={<Docs />} />
+            <Route element={<Layout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/welcome" element={<Welcome />} />
+              <Route path="/workspaces" element={
+                <ProtectedContent resource="workspaces" action="view">
+                  <Workspaces />
+                </ProtectedContent>
+              } />
+              <Route path="/workspaces/:id" element={
+                <ProtectedContent resource="workspaces" action="view">
+                  <WorkspaceDetails />
+                </ProtectedContent>
+              } />
+              <Route path="/workspaces/:workspaceId/solutions/:solutionId" element={
+                <ProtectedContent resource="solutions" action="view">
+                  <SolutionDetails />
+                </ProtectedContent>
+              } />
+              <Route path="/workspaces/:workspaceId/solutions/:solutionId/ai-generator" element={
+                <ProtectedContent resource="solutions" action="view">
+                  <AIGenerator />
+                </ProtectedContent>
+              } />
+              <Route path="/data-sources" element={
+                <ProtectedContent resource="datasources" action="view">
+                  <DataSources />
+                </ProtectedContent>
+              } />
+              <Route path="/data-sources/:id" element={
+                <ProtectedContent resource="datasources" action="view">
+                  <DataSourceDetails />
+                </ProtectedContent>
+              } />
+              <Route path="/cost-analytics" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/admin" element={
+                <ProtectedContent resource="users" action="manage">
+                  <AdminDashboard />
+                </ProtectedContent>
+              } />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
-      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

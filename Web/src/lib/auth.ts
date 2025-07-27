@@ -210,6 +210,8 @@ export const refreshAccessToken = async () => {
 
 export const signInWithGoogle = async () => {
   try {
+    // Proceed directly with Google sign-in
+    // The authentication check will be handled by the AuthProvider after redirect
     await signInWithRedirect({
       provider: 'Google'
     });

@@ -470,18 +470,32 @@ const AIGenerator = () => {
   useEffect(() => {
     const wsClient = createWebSocketClient();
     wsClientRef.current = wsClient;
-    wsClient.connect();
+    
+    // Check if WebSocket URL is configured
+    if (!import.meta.env.VITE_WEBSOCKET_URL) {
+      console.error("[Chat] VITE_WEBSOCKET_URL environment variable is not set");
+      setWsError("WebSocket URL not configured. Please check your environment settings.");
+      return;
+    }
+    
+    // Set up event listeners
     wsClient.on("open", () => {
+      console.log("[Chat] WebSocket connected successfully");
       setWsConnected(true);
       setWsError(null);
     });
+    
     wsClient.on("close", () => {
+      console.log("[Chat] WebSocket connection closed");
       setWsConnected(false);
     });
+    
     wsClient.on("error", (e) => {
-      setWsError("WebSocket error");
+      console.error("[Chat] WebSocket error:", e);
+      setWsError("WebSocket connection error");
       setWsConnected(false);
     });
+    
     wsClient.on("message", (event) => {
       console.log("[Chat] WebSocket message received:", event);
       console.log("[Chat] Raw event data:", event.data);
@@ -522,9 +536,10 @@ const AIGenerator = () => {
           setIsGenerating(true);
         } else if (aiMessage) {
           // This is the final AIMessage - create the complete message
+          const tempId = `temp-ai-${Date.now()}`;
           setMessages((prev) => {
             const aiMsg: Message = {
-              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
+              id: tempId, // Temporary ID that will be updated when chat history is refreshed
               content: aiMessage,
               sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
@@ -539,11 +554,17 @@ const AIGenerator = () => {
           setCurrentThinking([]);
           currentThinkingRef.current = [];
           setIsGenerating(false);
+          
+          // Refresh chat history to get the actual MessageId for the new message
+          setTimeout(() => {
+            loadChatHistory();
+          }, 1000); // Wait 1 second for the backend to process and store the message
         } else if (data && data.Metadata && data.Metadata.IsCode === true) {
           // Handle code messages as the final message content
+          const tempId = `temp-ai-${Date.now()}`;
           setMessages((prev) => {
             const aiMsg: Message = {
-              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
+              id: tempId, // Temporary ID that will be updated when chat history is refreshed
               content: data, // Use the code object as the main content
               sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
@@ -551,67 +572,38 @@ const AIGenerator = () => {
                 currentThinkingRef.current.length > 0
                   ? [...currentThinkingRef.current]
                   : undefined,
-              isCompleted: data.Metadata.IsComplete,
+              isCompleted: metadata.IsComplete,
             };
             return [...prev, aiMsg];
           });
           setCurrentThinking([]);
           currentThinkingRef.current = [];
           setIsGenerating(false);
-        } else {
-          // Fallback for other message formats
-          let content: any = "";
-          if (typeof data === "string") {
-            content = data;
-          } else if (data && typeof data.response === "string") {
-            content = data.response;
-          } else if (data && typeof data.content === "string") {
-            content = data.content;
-          } else if (data && typeof data.message === "string") {
-            content = data.message;
-          } else if (data && typeof data.text === "string") {
-            content = data.text;
-          } else {
-            content = JSON.stringify(data);
-          }
-
-          if ((typeof content === "string" && content.trim()) || typeof content === "object") {
-            setMessages((prev) => {
-              const msg: Message = {
-                id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
-                content: content,
-                sender: "ai" as const,
-                timestamp: new Date().toLocaleTimeString(),
-              };
-              console.log("[Chat] Adding AI message:", msg);
-              return [...prev, msg];
-            });
-            setIsGenerating(false);
-          }
+          
+          // Refresh chat history to get the actual MessageId for the new message
+          setTimeout(() => {
+            loadChatHistory();
+          }, 1000); // Wait 1 second for the backend to process and store the message
         }
-      } catch (err) {
-        console.error("[Chat] Error parsing message:", err);
-        // Fallback: treat the raw data as string content
-        const content =
-          typeof event.data === "string" ? event.data : String(event.data);
-        if (content.trim()) {
-          setMessages((prev) => {
-            const msg: Message = {
-              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
-              content: content,
-              sender: "ai" as const,
-              timestamp: new Date().toLocaleTimeString(),
-            };
-            return [...prev, msg];
-          });
-          setIsGenerating(false);
-        }
+      } catch (error) {
+        console.error("[Chat] Error parsing WebSocket message:", error);
       }
     });
+
+    // Attempt to connect
+    try {
+      wsClient.connect();
+    } catch (error) {
+      console.error("[Chat] Failed to initialize WebSocket connection:", error);
+      setWsError("Failed to initialize WebSocket connection");
+    }
+
+    // Cleanup function
     return () => {
+      console.log("[Chat] Cleaning up WebSocket connection");
       wsClient.close();
     };
-  }, []);
+  }, [workspaceId, solutionId]);
 
   useEffect(() => {
     // Auto-expand current thinking when first trace arrives
@@ -639,21 +631,67 @@ const AIGenerator = () => {
 
   const handleSendMessage = async () => {
     console.log("[Chat] handleSendMessage called");
-    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) {
-      console.log(
-        "[Chat] Cannot send: input empty, wsClientRef",
-        wsClientRef.current,
-        "wsConnected",
-        wsConnected
-      );
+    
+    // Enhanced input validation
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput) {
+      console.log("[Chat] Cannot send: input is empty or only whitespace");
+      toast({
+        title: "Cannot send message",
+        description: "Please enter a message before sending.",
+        variant: "destructive",
+      });
       return;
     }
+
+    // Check WebSocket client existence
+    if (!wsClientRef.current) {
+      console.log("[Chat] Cannot send: WebSocket client not initialized");
+      toast({
+        title: "Connection Error",
+        description: "WebSocket client not initialized. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check WebSocket connection and attempt to reconnect if needed
+    if (!wsConnected) {
+      console.log("[Chat] WebSocket not connected, attempting to reconnect...");
+      try {
+        wsClientRef.current.connect();
+        // Wait a bit for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check if connection was established
+        if (!wsConnected) {
+          console.log("[Chat] Reconnection failed");
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to chat server. Please check your internet connection and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("[Chat] Reconnection error:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to chat server. Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // All validations passed, proceed with sending message
     const userMessage: Message = {
       id: `temp-${Date.now()}`, // Temporary ID for new messages
-      content: inputValue,
+      content: trimmedInput,
       sender: "user" as const,
       timestamp: new Date().toLocaleTimeString(),
     };
+    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
@@ -670,7 +708,21 @@ const AIGenerator = () => {
       solutionid: solutionId,
     });
     console.log("[Chat] Sending over websocket:", payload);
-    wsClientRef.current.send(payload);
+    
+    try {
+      wsClientRef.current.send(payload);
+    } catch (error) {
+      console.error("[Chat] Failed to send message:", error);
+      toast({
+        title: "Send Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+      // Revert the message addition and input clearing
+      setMessages((prev) => prev.slice(0, -1));
+      setInputValue(trimmedInput);
+      setIsGenerating(false);
+    }
   };
 
   const handlePauseGeneration = () => {
@@ -720,8 +772,23 @@ const AIGenerator = () => {
       {/* Chat Window */}
       <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
         <CardContent className="p-0 h-screen">
+          {/* Connection Status Indicator */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-sm text-muted-foreground">
+                {wsConnected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            {wsError && (
+              <div className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded">
+                {wsError}
+              </div>
+            )}
+          </div>
+          
           {wsError && (
-            <div className="text-red-500 text-center">
+            <div className="text-red-500 text-center p-4 bg-red-50 border-b border-red-200">
               WebSocket error: {wsError}
             </div>
           )}
@@ -1262,8 +1329,13 @@ const AIGenerator = () => {
                       ) : (
                         <Button
                           onClick={handleSendMessage}
-                          disabled={!inputValue.trim() || isGenerating}
-                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                          disabled={!inputValue.trim() || isGenerating || !wsConnected}
+                          className={`h-[60px] px-6 rounded-xl transition-all duration-300 ${
+                            !wsConnected 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25'
+                          }`}
+                          title={!wsConnected ? 'WebSocket not connected' : 'Send message'}
                         >
                           <Send className="w-5 h-5" />
                         </Button>
