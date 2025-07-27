@@ -2486,7 +2486,7 @@ Resources:
       Name: !Sub 'Workbench-${pPrefix}-AuroraEB'
       Description: Triggers Lambda function daily at 12:00 AM UTC (Monday-Saturday)
       ScheduleExpression: 'cron(0 0 ? * MON-SAT *)'
-      State: ENABLED
+      State: DISABLED
       Targets:
         - Arn: !GetAtt UsersLambda.Arn
           Id: DailyMidnightLambdaTarget
@@ -2501,7 +2501,7 @@ Resources:
       Name: !Sub 'Workbench-${pPrefix}-EB'
       Description: Triggers Lambda function every Sunday at 12:00 AM UTC with special parameters
       ScheduleExpression: 'cron(0 0 ? * SUN *)'
-      State: ENABLED
+      State: DISABLED
       Targets:
         - Arn: !GetAtt UsersLambda.Arn
           Id: SundayMidnightLambdaTarget
