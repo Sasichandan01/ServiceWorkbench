@@ -30,7 +30,7 @@ interface ThinkingStep {
 interface Message {
   id: string;
   type: 'user' | 'ai';
-  content: string;
+  content: string | object;
   timestamp: Date;
   thinking?: ThinkingStep[];
   isCompleted?: boolean;
@@ -256,8 +256,9 @@ Would you like me to provide more detailed code examples for any specific compon
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
-  const handleCopyMessage = (content: string) => {
-    navigator.clipboard.writeText(content);
+  const handleCopyMessage = (content: string | object) => {
+    const textToCopy = typeof content === 'object' ? JSON.stringify(content, null, 2) : String(content);
+    navigator.clipboard.writeText(textToCopy);
     toast({
       title: "Copied",
       description: "Message copied to clipboard",
@@ -265,9 +266,10 @@ Would you like me to provide more detailed code examples for any specific compon
   };
 
   const handleDownloadChat = () => {
-    const chatContent = messages.map(msg => 
-      `${msg.type.toUpperCase()}: ${msg.content}\n\n`
-    ).join('');
+    const chatContent = messages.map(msg => {
+      const contentText = typeof msg.content === 'object' ? JSON.stringify(msg.content, null, 2) : String(msg.content);
+      return `${msg.type.toUpperCase()}: ${contentText}\n\n`;
+    }).join('');
     
     const blob = new Blob([chatContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -314,7 +316,12 @@ Would you like me to provide more detailed code examples for any specific compon
           {/* Messages Area */}
           <ScrollArea className="flex-1 p-6">
             <div className="space-y-4">
-              {messages.map((message) => (
+              {messages
+                .filter((message) => {
+                  // Filter out messages with empty content
+                  return message.content && (typeof message.content !== 'string' || message.content.trim().length > 0);
+                })
+                .map((message) => (
                 <div key={message.id} className="space-y-3">
                   <div className={`flex items-start space-x-3 ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
@@ -374,7 +381,13 @@ Would you like me to provide more detailed code examples for any specific compon
                           : 'bg-gray-50 text-gray-900 border'
                       }`}>
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {message.content}
+                          {(() => {
+                            // Handle empty or whitespace-only content
+                            if (!message.content || (typeof message.content === 'string' && message.content.trim().length === 0)) {
+                              return <span className="text-gray-500 italic">No content available</span>;
+                            }
+                            return typeof message.content === 'object' ? JSON.stringify(message.content, null, 2) : String(message.content);
+                          })()}
                         </div>
                       </div>
                       

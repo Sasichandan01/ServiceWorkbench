@@ -2449,6 +2449,35 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Workbench-${pPrefix}-ChatHistory'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ChatId
+          AttributeType: S
+        - AttributeName: Timestamp
+          AttributeType: S
+        - AttributeName: MessageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ChatId
+          KeyType: HASH
+        - AttributeName: Timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: MessageIdIndex
+          KeySchema:
+            - AttributeName: MessageId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Name
+          Value: "WorkbenchV2"
+        - Key: SWB-User
+          Value: "ServiceWorkbench"
   # ChatHistoryTable:
   #   Type: AWS::DynamoDB::Table
   #   Properties:

@@ -52,12 +52,12 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ThinkingStep {
   id: string;
-  content: string;
+  content: string | object;
   timestamp: Date;
 }
 
 interface Message {
-  id: number;
+  id: string; // This should be the actual MessageId from the API
   content: string | object;
   sender: "user" | "ai";
   timestamp: string;
@@ -185,7 +185,7 @@ const AIGenerator = () => {
   const [wsError, setWsError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
-  const [loadingTraces, setLoadingTraces] = useState<Record<number, boolean>>({});
+  const [loadingTraces, setLoadingTraces] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Function to load chat history
@@ -194,37 +194,76 @@ const AIGenerator = () => {
     
     try {
       setIsLoadingHistory(true);
-      const response = await ChatService.getChatHistory(workspaceId, solutionId, {
-        limit: 50 // Load last 50 messages
-      });
+      const response = await ChatService.getChatHistory(workspaceId, solutionId);
+      
+      // Debug: Log the response structure (only in development)
+      if (import.meta.env.DEV) {
+        console.log('Chat history response:', response);
+        console.log('Response type:', typeof response);
+        console.log('Response keys:', response ? Object.keys(response) : 'null/undefined');
+      }
+      
+      // Check if response and ChatHistory exist
+      let chatHistory: ChatMessage[] = [];
+      
+      if (response && response.ChatHistory && Array.isArray(response.ChatHistory)) {
+        // Standard response format
+        chatHistory = response.ChatHistory;
+      } else if (Array.isArray(response)) {
+        // Direct array response
+        chatHistory = response;
+      } else {
+        console.warn('Chat history response is invalid or empty:', response);
+        setMessages([]);
+        return;
+      }
       
       // Convert API response to component message format
-      const historyMessages: Message[] = response.ChatHistory.map((chatMsg: ChatMessage, index: number) => ({
-        id: index + 1,
-        content: chatMsg.Message,
-        sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
-        timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
-        chatId: chatMsg.ChatId, // Store the original chat ID
-        tracesLoaded: false, // Mark traces as not loaded initially
-        thinking: undefined // Don't load traces initially
-      }));
+      const historyMessages: Message[] = chatHistory
+        .filter((chatMsg: ChatMessage) => {
+          // Filter out messages with empty content or only whitespace
+          return chatMsg && chatMsg.Message && chatMsg.Message.trim().length > 0;
+        })
+        .map((chatMsg: ChatMessage, index: number) => {
+          // Validate required fields
+          if (!chatMsg.Message || !chatMsg.Sender || !chatMsg.TimeStamp || !chatMsg.ChatId) {
+            console.warn('Invalid chat message:', chatMsg);
+            return null;
+          }
+          
+          return {
+            id: chatMsg.MessageId, // Use the actual MessageId string from API
+            content: chatMsg.Message,
+            sender: (chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai') as "user" | "ai",
+            timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
+            chatId: chatMsg.ChatId, // Store the original chat ID
+            tracesLoaded: false, // Mark traces as not loaded initially
+            thinking: undefined // Don't load traces initially
+          };
+        })
+        .filter((msg) => msg !== null) as Message[]; // Remove null messages
       
       setMessages(historyMessages);
     } catch (error) {
       console.error('Failed to load chat history:', error);
-      // Don't show error to user for now, just log it
+      setMessages([]); // Set empty messages on error
+      toast({
+        title: "Warning",
+        description: "Failed to load chat history. Starting with empty chat.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
   // Function to load traces for a specific message
-  const loadMessageTraces = async (messageId: number, chatId: string) => {
-    if (!workspaceId || !solutionId || !chatId) return;
+  const loadMessageTraces = async (messageId: string) => {
+    if (!workspaceId || !solutionId) return;
     
     try {
       setLoadingTraces(prev => ({ ...prev, [messageId]: true }));
-      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, chatId);
+      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, messageId);
       
       // Update the message with traces
       setMessages(prev => prev.map(msg => {
@@ -353,7 +392,7 @@ const AIGenerator = () => {
           // This is the final AIMessage - create the complete message
           setMessages((prev) => {
             const aiMsg: Message = {
-              id: prev.length + 1,
+              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
               content: aiMessage,
               sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
@@ -401,7 +440,7 @@ const AIGenerator = () => {
           if ((typeof content === "string" && content.trim()) || typeof content === "object") {
             setMessages((prev) => {
               const msg: Message = {
-                id: prev.length + 1,
+                id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
                 content: content,
                 sender: "ai" as const,
                 timestamp: new Date().toLocaleTimeString(),
@@ -420,7 +459,7 @@ const AIGenerator = () => {
         if (content.trim()) {
           setMessages((prev) => {
             const msg: Message = {
-              id: prev.length + 1,
+              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
               content: content,
               sender: "ai" as const,
               timestamp: new Date().toLocaleTimeString(),
@@ -472,7 +511,7 @@ const AIGenerator = () => {
       return;
     }
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: `temp-${Date.now()}`, // Temporary ID for new messages
       content: inputValue,
       sender: "user" as const,
       timestamp: new Date().toLocaleTimeString(),
@@ -510,13 +549,13 @@ const AIGenerator = () => {
     }
   };
 
-  const toggleThinking = async (messageId: number) => {
+  const toggleThinking = async (messageId: string) => {
     const message = messages.find(msg => msg.id === messageId);
     const isCurrentlyExpanded = expandedThinking[messageId];
     
     // If we're expanding and traces haven't been loaded yet, load them
-    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded && message.chatId) {
-      await loadMessageTraces(messageId, message.chatId);
+    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded) {
+      await loadMessageTraces(messageId);
     }
     
     setExpandedThinking((prev) => ({
@@ -680,7 +719,12 @@ const AIGenerator = () => {
               <div className="flex-1 flex flex-col min-h-0">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
-                    {messages.map((message) => (
+                    {messages
+                      .filter((message) => {
+                        // Filter out messages with empty content
+                        return message.content && (typeof message.content !== 'string' || message.content.trim().length > 0);
+                      })
+                      .map((message) => (
                       <div
                         key={message.id}
                         className={`flex items-start space-x-4 animate-fade-in ${
@@ -751,9 +795,9 @@ const AIGenerator = () => {
                                           key={step.id}
                                           className="space-y-1"
                                         >
-                                          <p className="text-sm text-muted-foreground leading-relaxed">
-                                            {step.content}
-                                          </p>
+                                           <p className="text-sm text-muted-foreground leading-relaxed">
+                                             {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                           </p>
                                         </div>
                                       ))
                                     ) : (
@@ -871,14 +915,25 @@ const AIGenerator = () => {
                                 return <AIChatSolutionMessage solutionJson={JSON.parse(message.content)} />;
                               }
                               if (typeof message.content === "string") {
+                                // Handle empty or whitespace-only content
+                                if (!message.content || message.content.trim().length === 0) {
+                                  return <p className="text-muted-foreground italic">No content available</p>;
+                                }
+                                
                                 const parsed = parsePlainTextSolution(message.content);
                                 if (parsed && (parsed.Summary || parsed.Diagram)) {
                                   return <AIChatSolutionMessage solutionJson={parsed} />;
                                 }
-                                return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
+                                // Ensure content is always a string before rendering in p tag
+                                const contentString = typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2);
+                                return <p className="leading-relaxed whitespace-pre-wrap">{contentString}</p>;
                               }
                               // Fallback for unknown types - ensure objects are stringified
-                              return <pre className="whitespace-pre-wrap">{typeof message.content === 'object' ? JSON.stringify(message.content, null, 2) : String(message.content)}</pre>;
+                              if (typeof message.content === 'object' && message.content !== null) {
+                                return <pre className="whitespace-pre-wrap">{JSON.stringify(message.content, null, 2)}</pre>;
+                              }
+                              // Final fallback for any other type
+                              return <pre className="whitespace-pre-wrap">{String(message.content)}</pre>;
                             })()}
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">
@@ -927,9 +982,9 @@ const AIGenerator = () => {
                                         key={step.id}
                                         className="space-y-1 animate-fade-in"
                                       >
-                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                          {step.content}
-                                        </p>
+                                         <p className="text-sm text-muted-foreground leading-relaxed">
+                                           {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                         </p>
                                       </div>
                                     ))}
                                   </div>
@@ -1011,7 +1066,7 @@ export default AIGenerator;
 function isValidMessage(data: any): data is Message {
   return (
     typeof data === "object" &&
-    typeof data.content === "string" &&
+    (typeof data.content === "string" || typeof data.content === "object") &&
     (data.sender === "user" || data.sender === "ai")
   );
 }
