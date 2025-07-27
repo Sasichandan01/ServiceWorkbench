@@ -178,8 +178,9 @@ def start_execution(event, context):
                 }
 
             elif resource_name == invocation and 'stepfunction' in resource_type:
+                resource_arn="arn:aws:states:us-east-1:043309350924:stateMachine:"+resource_name
                 response = sfn_client.start_execution(
-                    stateMachineArn=resource_name,
+                    stateMachineArn=resource_arn,
                     input=json.dumps({'execution_id': execution_id})
                 )
                 resource_statuses[resource_name] = {
@@ -218,9 +219,12 @@ def start_execution(event, context):
             'ExecutionId': execution_id
         })
 
-    except ClientError as e:
-        return return_response(500, {"Error": f"AWS error: {str(e)}"})
     except Exception as e:
+        executions_table.update_item(
+            Key={'SolutionId': solution_id, 'ExecutionId': execution_id},
+            UpdateExpression="SET ExecutionStatus = :status",
+            ExpressionAttributeValues={':status': 'FAILED'}
+        )
         return return_response(500, {"Error": str(e)})
 
 def process_execution(event, context):
@@ -251,14 +255,14 @@ def process_execution(event, context):
                     continue
                 
                 try:
-                    if status_info['type'] == 'lambda':
+                    if 'lambda' in status_info['type'] :
                         # Implement your Lambda status check here
                         # Example: Query DynamoDB where worker Lambda reports status
                         any_failed= True
                         time.sleep(4)
                         continue
                         
-                    elif status_info['type'] == 'stepfunction':
+                    elif 'stepfunction' in status_info['type']:
                         response = sfn_client.describe_execution(
                             executionArn=status_info['executionArn']
                         )
@@ -266,7 +270,7 @@ def process_execution(event, context):
                         if response['status'] != 'RUNNING':
                             status_info['status'] = 'COMPLETED' if response['status'] == 'SUCCEEDED' else 'FAILED'
                     
-                    elif status_info['type'] == 'glue':
+                    elif 'glue' in status_info['type']:
                         response = glue_client.get_job_run(
                             JobName=resource_name,
                             RunId=status_info['runId']
