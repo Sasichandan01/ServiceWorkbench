@@ -194,20 +194,23 @@ const AIGenerator = () => {
     
     try {
       setIsLoadingHistory(true);
-      const response = await ChatService.getChatHistory(workspaceId, solutionId, {
-        limit: 50 // Load last 50 messages
-      });
+      const response = await ChatService.getChatHistory(workspaceId, solutionId);
       
       // Convert API response to component message format
-      const historyMessages: Message[] = response.ChatHistory.map((chatMsg: ChatMessage, index: number) => ({
-        id: index + 1,
-        content: chatMsg.Message,
-        sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
-        timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
-        chatId: chatMsg.ChatId, // Store the original chat ID
-        tracesLoaded: false, // Mark traces as not loaded initially
-        thinking: undefined // Don't load traces initially
-      }));
+      const historyMessages: Message[] = response.ChatHistory
+        .filter((chatMsg: ChatMessage) => {
+          // Filter out messages with empty content or only whitespace
+          return chatMsg.Message && chatMsg.Message.trim().length > 0;
+        })
+        .map((chatMsg: ChatMessage, index: number) => ({
+          id: index + 1,
+          content: chatMsg.Message,
+          sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
+          timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
+          chatId: chatMsg.ChatId, // Store the original chat ID
+          tracesLoaded: false, // Mark traces as not loaded initially
+          thinking: undefined // Don't load traces initially
+        }));
       
       setMessages(historyMessages);
     } catch (error) {
@@ -680,7 +683,12 @@ const AIGenerator = () => {
               <div className="flex-1 flex flex-col min-h-0">
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-6 max-w-4xl mx-auto">
-                    {messages.map((message) => (
+                    {messages
+                      .filter((message) => {
+                        // Filter out messages with empty content
+                        return message.content && (typeof message.content !== 'string' || message.content.trim().length > 0);
+                      })
+                      .map((message) => (
                       <div
                         key={message.id}
                         className={`flex items-start space-x-4 animate-fade-in ${
@@ -871,6 +879,11 @@ const AIGenerator = () => {
                                 return <AIChatSolutionMessage solutionJson={JSON.parse(message.content)} />;
                               }
                               if (typeof message.content === "string") {
+                                // Handle empty or whitespace-only content
+                                if (!message.content || message.content.trim().length === 0) {
+                                  return <p className="text-muted-foreground italic">No content available</p>;
+                                }
+                                
                                 const parsed = parsePlainTextSolution(message.content);
                                 if (parsed && (parsed.Summary || parsed.Diagram)) {
                                   return <AIChatSolutionMessage solutionJson={parsed} />;
@@ -878,7 +891,11 @@ const AIGenerator = () => {
                                 return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
                               }
                               // Fallback for unknown types - ensure objects are stringified
-                              return <pre className="whitespace-pre-wrap">{typeof message.content === 'object' ? JSON.stringify(message.content, null, 2) : String(message.content)}</pre>;
+                              if (typeof message.content === 'object' && message.content !== null) {
+                                return <pre className="whitespace-pre-wrap">{JSON.stringify(message.content, null, 2)}</pre>;
+                              }
+                              // Final fallback for any other type
+                              return <pre className="whitespace-pre-wrap">{String(message.content)}</pre>;
                             })()}
                           </div>
                           <span className="text-xs text-muted-foreground mt-2 block opacity-70">
@@ -1011,7 +1028,7 @@ export default AIGenerator;
 function isValidMessage(data: any): data is Message {
   return (
     typeof data === "object" &&
-    typeof data.content === "string" &&
+    (typeof data.content === "string" || typeof data.content === "object") &&
     (data.sender === "user" || data.sender === "ai")
   );
 }

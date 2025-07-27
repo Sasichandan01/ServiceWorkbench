@@ -34,6 +34,12 @@ interface FolderTree {
   [folder: string]: ScriptFile[];
 }
 
+interface ChatMessage {
+  id: number;
+  role: string;
+  content: string | object;
+}
+
 interface CodeEditorProps {
   workspaceId: string;
   solutionId: string;
@@ -290,7 +296,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   const [showNewFileInput, setShowNewFileInput] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [chatMessages, setChatMessages] = useState([
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: 1, role: "assistant", content: "Hello! I'm here to help you with your code. Ask me anything!" }
   ]);
   const [chatInput, setChatInput] = useState("");
@@ -1247,17 +1253,24 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
               {wsError && (
                 <div className="text-xs text-red-600 mb-2">{wsError}</div>
               )}
-              {chatMessages.map((message) => (
-                <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
-                    message.role === 'user'
-                      ? isDarkMode ? 'bg-[#0e639c] text-white' : 'bg-blue-500 text-white'
-                      : isDarkMode ? 'bg-[#2d2d30] text-[#cccccc] border border-[#3c3c3c]' : 'bg-white text-gray-900 border border-gray-300'
-                  }`}>
-                    {message.content}
+              {chatMessages.map((message) => {
+                // Skip messages with empty content
+                if (!message.content || (typeof message.content === 'string' && message.content.trim().length === 0)) {
+                  return null;
+                }
+                
+                return (
+                  <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
+                      message.role === 'user'
+                        ? isDarkMode ? 'bg-[#0e639c] text-white' : 'bg-blue-500 text-white'
+                        : isDarkMode ? 'bg-[#2d2d30] text-[#cccccc] border border-[#3c3c3c]' : 'bg-white text-gray-900 border border-gray-300'
+                    }`}>
+                      {typeof message.content === 'object' ? JSON.stringify(message.content, null, 2) : String(message.content)}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             <div className={`p-4 ${isDarkMode ? 'border-t border-[#3c3c3c]' : 'border-t border-gray-300'}`}>
