@@ -2479,33 +2479,54 @@ Resources:
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
-  # ChatHistoryTable:
-  #   Type: AWS::DynamoDB::Table
-  #   Properties:
-  #     TableName: !Sub 'Workbench-${pPrefix}-ChatHistoryTable'
-  #     BillingMode: PAY_PER_REQUEST
-  #     AttributeDefinitions:
-  #       - AttributeName: ChatId
-  #         AttributeType: S
-  #       - AttributeName: Timestamp
-  #         AttributeType: S
-  #       - AttributeName: MessageId
-  #         AttributeType: S
-  #     KeySchema:
-  #       - AttributeName: ChatId
-  #         KeyType: HASH
-  #       - AttributeName: Timestamp
-  #         KeyType: RANGE
-  #     GlobalSecondaryIndexes:
-  #       - IndexName: MessageIdIndex
-  #         KeySchema:
-  #           - AttributeName: MessageId
-  #             KeyType: HASH
-  #         Projection:
-  #           ProjectionType: ALL
-  #     Tags:
-  #       - Key: Name
-  #         Value: "WorkbenchV2"
+
+  DailyMidnightScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'Workbench-${pPrefix}-AuroraEB'
+      Description: Triggers Lambda function daily at 12:00 AM UTC (Monday-Saturday)
+      ScheduleExpression: 'cron(0 0 ? * MON-SAT *)'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt UsersLambda.Arn
+          Id: DailyMidnightLambdaTarget
+          Input: !Sub |
+            {
+              "action": "app"
+            }
+
+  SundayMidnightScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'Workbench-${pPrefix}-EB'
+      Description: Triggers Lambda function every Sunday at 12:00 AM UTC with special parameters
+      ScheduleExpression: 'cron(0 0 ? * SUN *)'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt UsersLambda.Arn
+          Id: SundayMidnightLambdaTarget
+          Input: !Sub |
+            {
+              "action": "docsapp"
+            }
+
+  DailyLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UsersLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyMidnightScheduleRule.Arn
+
+  SundayLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UsersLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt SundayMidnightScheduleRule.Arn
+
+
 
 Outputs:
 
