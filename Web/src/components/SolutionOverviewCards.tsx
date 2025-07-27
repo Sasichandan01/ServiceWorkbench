@@ -18,7 +18,36 @@ interface SolutionOverviewCardsProps {
 }
 
 const SolutionOverviewCards = ({ solutionData, solutionId }: SolutionOverviewCardsProps) => {
+  // Add safety check for solutionData
+  if (!solutionData) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-8 h-8 text-blue-600" />
+              <div>
+                <p className="text-2xl font-bold text-gray-900">Loading...</p>
+                <p className="text-sm text-gray-600">Cost</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div>
+              <p className="text-sm text-gray-600 mb-2">Tags</p>
+              <span className="text-gray-400 text-xs">Loading...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const [solutionCost, setSolutionCost] = useState<number>(0);
+  
+  // Ensure solutionCost is always a valid number
+  const safeSolutionCost = typeof solutionCost === 'number' && !isNaN(solutionCost) ? solutionCost : 0;
   const [costLoading, setCostLoading] = useState(true);
   const [costError, setCostError] = useState<string | null>(null);
 
@@ -33,7 +62,9 @@ const SolutionOverviewCards = ({ solutionData, solutionId }: SolutionOverviewCar
       setCostLoading(true);
       setCostError(null);
       const response = await CostService.getCostBySolutionId(solutionId);
-      setSolutionCost(response.cost);
+      // Ensure cost is a valid number
+      const cost = typeof response?.cost === 'number' ? response.cost : 0;
+      setSolutionCost(cost);
     } catch (err: any) {
       console.error('Error fetching solution cost:', err);
       setCostError(err.message || 'Failed to fetch cost data');
@@ -63,7 +94,7 @@ const SolutionOverviewCards = ({ solutionData, solutionId }: SolutionOverviewCar
                 ) : costError ? (
                   <span className="text-red-600">Error</span>
                 ) : (
-                  `$${solutionCost.toLocaleString()}`
+                  `$${safeSolutionCost.toLocaleString()}`
                 )}
               </p>
               <p className="text-sm text-gray-600">Cost</p>
@@ -76,7 +107,7 @@ const SolutionOverviewCards = ({ solutionData, solutionId }: SolutionOverviewCar
           <div>
             <p className="text-sm text-gray-600 mb-2">Tags</p>
             <div className="flex flex-wrap gap-1">
-              {Array.isArray(solutionData.Tags) && solutionData.Tags.length > 0 ? (
+              {Array.isArray(solutionData?.Tags) && solutionData.Tags.length > 0 ? (
                 solutionData.Tags.map((tag: any, idx: number) => (
                   <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
                     {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
