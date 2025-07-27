@@ -319,7 +319,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   const [currentThinkingExpanded, setCurrentThinkingExpanded] = useState(true);
   const currentThinkingRef = useRef<ThinkingStep[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(320); // Default 320px (w-80)
+  const [sidebarWidth, setSidebarWidth] = useState(400); // Increased default width to accommodate longer file names
   const [chatWidth, setChatWidth] = useState(320); // Default 320px (w-80)
   const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
   const [isDraggingChat, setIsDraggingChat] = useState(false);
@@ -492,9 +492,9 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingSidebar) {
         const containerWidth = window.innerWidth;
-        const maxSidebarWidth = Math.min(600, containerWidth * 0.4);
+        const maxSidebarWidth = Math.min(800, containerWidth * 0.7); // Increased max width
         const deltaX = e.clientX - dragStartX;
-        const newWidth = Math.max(200, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX));
+        const newWidth = Math.max(250, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX)); // Increased min width
         setSidebarWidth(newWidth);
       }
     };
@@ -1084,7 +1084,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                     {folderTree[folder].map(file => (
                       <div
                         key={file.id}
-                        className={`flex items-center space-x-2 px-4 py-1 rounded cursor-pointer text-sm group transition-colors ${
+                        className={`flex items-center px-4 py-1 rounded cursor-pointer text-sm group transition-colors ${
                           activeFileId === file.id
                             ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
                             : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
@@ -1096,18 +1096,22 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                           setActiveFileId(file.id);
                         }}
                       >
-                        {getFileIcon(file.name)}
-                        <span className="flex-1 text-xs">{file.name}</span>
-                        {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFile(file.id);
-                          }}
-                          className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        <div className="flex-shrink-0 mr-2">
+                          {getFileIcon(file.name)}
+                        </div>
+                        <span className="flex-1 text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{file.name}</span>
+                        <div className="flex-shrink-0 flex items-center space-x-1">
+                          {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFile(file.id);
+                            }}
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
