@@ -386,7 +386,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         if 'Metadata' not in code_payload:
                             code_payload['Metadata'] = {}
-                        code_payload['Metadata']['PresignedURL']=url_generated
+                        code_payload['PresignedURL']=url_generated
                         code_payload['Metadata']['IsPresignedURL']=True
                         code_payload['Metadata']['IsComplete']=True
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
