@@ -91,7 +91,7 @@ def handle_presigned_url(event: Event) -> Response:
         Params={'Bucket': S3_BUCKET, 'Key': filename, 'ContentType': 'image/png'},
         ExpiresIn=PRESIGN_EXPIRES_IN
     )
-    return create_success_response(action_group, function, version, {'body': url})
+    return create_success_response(action_group, function, version, {'PresignedURL': url})
 
 def handle_update_invoke_point(event: Event) -> Response:
     """
