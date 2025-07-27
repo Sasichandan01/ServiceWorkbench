@@ -119,8 +119,7 @@ def start_execution(event, context):
         workspace_id = path_parameters['workspace_id']
         solution_id = path_parameters['solution_id']
         execution_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        
+        timestamp = f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
         # Get solution details
         solution = solutions_table.get_item(
             Key={'WorkspaceId': workspace_id, 'SolutionId': solution_id}
@@ -147,11 +146,15 @@ def start_execution(event, context):
         executions_table.put_item(Item=execution)
         # Start all resources
         resource_statuses = {}
+        invocation = solution.get('Invocation')
+        if invocation is None:
+            return return_response(400, {"Error": "Invocation not found"})
+
         for resource in solution.get('Resources', []):
             resource_name = resource['Name']
             resource_type = resource['Type']
             
-            if resource_type == 'lambda':
+            if resource_name == invocation and resource_type=='lambda':
                 lambda_client.invoke(
                     FunctionName=resource_name,
                     InvocationType='Event',
@@ -165,7 +168,7 @@ def start_execution(event, context):
                     'status': 'GENERATING'
                 }
 
-            elif resource_type == 'stepfunction':
+            elif resource_name == invocation and resource_type == 'stepfunction':
                 response = sfn_client.start_execution(
                     stateMachineArn=resource_name,
                     input=json.dumps({'execution_id': execution_id})
@@ -176,20 +179,22 @@ def start_execution(event, context):
                     'executionArn': response['executionArn']
                 }
 
-            elif resource_type == 'glue':
+            elif resource_name == invocation and resource_type == 'glue':
                 response = glue_client.start_job_run(JobName=resource_name)
                 resource_statuses[resource_name] = {
                     'type': 'glue',
                     'status': 'GENERATING',
                     'runId': response['JobRunId']
                 }
+            else:
+                return return_response(400, {"Error": "Invalid invocation, resource not found"})
 
         payload = {
             "execution_id": execution_id,
             "solution_id": solution_id,
             "workspace_id": workspace_id,
             "resource_statuses": resource_statuses,
-            "start_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "start_time": timestamp,
             "action": "execution-poll"
         }
         lambda_client.invoke(
@@ -197,8 +202,6 @@ def start_execution(event, context):
             InvocationType='Event', 
             Payload=json.dumps(payload)
         )       
-        
-
 
         return return_response(201, {
             'Message': 'Execution started successfully',
@@ -237,7 +240,8 @@ def process_execution(event, context):
                     if status_info['type'] == 'lambda':
                         # Implement your Lambda status check here
                         # Example: Query DynamoDB where worker Lambda reports status
-                        pass
+                        any_failed= True
+                        continue
                         
                     elif status_info['type'] == 'stepfunction':
                         response = sfn_client.describe_execution(
@@ -274,7 +278,7 @@ def process_execution(event, context):
                     UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
                     ExpressionAttributeValues={
                         ':status': final_status,
-                        ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                        ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
                     }
                 )
                 print(f"Execution completed with status: {final_status}")
@@ -292,7 +296,7 @@ def process_execution(event, context):
             UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
             ExpressionAttributeValues={
                 ':status': 'FAILED',
-                ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
             }
         )
         return return_response(200, {
@@ -306,8 +310,7 @@ def process_execution(event, context):
             UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
             ExpressionAttributeValues={
                 ':status': 'FAILED',
-                ':end_time': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
             }
         )
         return return_response(500, {"Error": str(e)})
-

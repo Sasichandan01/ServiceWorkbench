@@ -24,6 +24,29 @@ executions_table = dynamodb.Table(os.environ.get('EXECUTIONS_TABLE'))
 solutions_table = dynamodb.Table(os.environ.get('SOLUTIONS_TABLE'))
 workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
 
+def convert_utc_to_ist_iso_format(time_str):
+    # Parse input string: "2025-07-26 17:53:26.818 +0000"
+    dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f %z")
+    print(dt)
+    # Convert to IST timezone
+    ist_offset = timedelta(hours=5, minutes=30)
+    ist_time = dt.astimezone(timezone(ist_offset))
+    
+    # Format in ISO 8601 with milliseconds and timezone
+    return ist_time
+    
+def format_to_ist(dt_utc: datetime) -> str:
+    # Define IST timezone
+    ist = timezone(timedelta(hours=5, minutes=30))
+    
+    # Convert to IST
+    dt_ist = dt_utc.astimezone(ist)
+
+    formatted = dt_ist.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + dt_ist.strftime('%z')
+
+    return formatted[:-2] + ':' + formatted[-2:]
+
+
 def update_execution_status(solution_id, execution_id, status):
     """Update the log status for a given execution in the executions table."""
     try:
@@ -155,39 +178,146 @@ def fetch_glue_logs_by_time(job_name, start_time, end_time):
         return f"Error fetching Glue logs: {str(e)}"
 
 def fetch_lambda_logs_by_time(function_name, start_time, end_time):
-    """Fetch Lambda function logs from CloudWatch."""
+    """Fetch Lambda function logs from CloudWatch within specified time range."""
     try:
         log_group_name = f"/aws/lambda/{function_name}"
-        response = logs_client.describe_log_streams(
-            logGroupName=log_group_name,
-            orderBy='LastEventTime',
-            descending=True,
-            limit=20
-        )
+        
+        # Handle log group existence
+        try:
+            logs_client.describe_log_groups(logGroupNamePrefix=log_group_name, limit=1)
+        except logs_client.exceptions.ResourceNotFoundException:
+            return f"Log group {log_group_name} not found for function {function_name}"
         
         logs_content = f"=== LAMBDA LOGS: {function_name} ===\nTime Range: {start_time} to {end_time}\n\n"
-        if start_time.tzinfo is None:
-            start_time = start_time.replace(tzinfo=timezone.utc)
-        if end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
         
-        for stream in response.get('logStreams', []):
-            stream_name = stream['logStreamName']
-            stream_start = datetime.fromtimestamp(stream.get('creationTime', 0) / 1000, tz=timezone.utc)
-            print(stream_start)
+        if isinstance(start_time, str):
+            start_time = convert_utc_to_ist_iso_format(start_time)
             print(start_time)
+        if isinstance(end_time, str):
+            end_time = convert_utc_to_ist_iso_format(end_time)
             print(end_time)
-            if (stream_start <= end_time and stream_start >= start_time):
-                logs_content += f"\n--- Log Stream: {stream_name} ---\n"
-                logs_content += f"Stream Time: {stream_start}\n"
-                log_events = fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time)
-                logs_content += log_events
+        if not hasattr(start_time, 'timestamp'):
+            raise ValueError(f"start_time is not a datetime object: {type(start_time)}, value: {start_time}")
+        if not hasattr(end_time, 'timestamp'):
+            raise ValueError(f"end_time is not a datetime object: {type(end_time)}, value: {end_time}")
         
-        logger.info(f"Lambda logs fetched for {function_name}")
+        start_time = int(start_time.timestamp() * 1000)
+        end_time = int(end_time.timestamp() * 1000)       
+        
+        found_logs = False
+        next_token = None
+        
+        try:
+            while True:
+                params = {
+                    'logGroupName': log_group_name,
+                    'startTime': start_time,
+                    'endTime': end_time
+                }
+                
+                if next_token:
+                    params['nextToken'] = next_token
+                
+                response = logs_client.filter_log_events(**params)
+                events = response.get('events', [])
+                
+                if events:
+                    found_logs = True
+                    logs_content += f"\n--- Found {len(events)} log events ---\n"
+                    
+                    for event in events:
+                        # Convert timestamp back to readable format
+                        event_time = datetime.fromtimestamp(
+                            event['timestamp'] / 1000, 
+                            tz=timezone.utc
+                        )
+                        event_time_ist = format_to_ist(event_time)
+                        
+                        # Add log stream info and timestamp
+                        logs_content += f"[{event_time_ist}] [{event.get('logStreamName', 'unknown')}]\n"
+                        logs_content += f"{event['message']}\n"
+                        
+                        if not event['message'].endswith('\n'):
+                            logs_content += "\n"
+                
+                # Check for more pages
+                next_token = response.get('nextToken')
+                if not next_token:
+                    break
+                    
+        except logs_client.exceptions.ResourceNotFoundException:
+            logs_content += f"Log group {log_group_name} not found.\n"
+            logger.error(f"Log group {log_group_name} not found.")
+        except Exception as e:
+            logs_content += f"Error fetching log events: {str(e)}\n"
+            logger.error(f"Error fetching log events: {str(e)}")
+
+        if not found_logs:
+            logs_content += "\nNo logs found in the specified time range.\n"
+        
+        logger.info(f"Lambda logs fetched for {function_name} in range {start_time} to {end_time}")
+        print(logs_content)
         return logs_content
+        
+    except logs_client.exceptions.ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f"AWS ClientError fetching Lambda logs for {function_name}: {error_code} - {error_message}")
+        return f"AWS Error fetching Lambda logs: {error_code} - {error_message}"
     except Exception as e:
         logger.error(f"Error fetching Lambda logs for {function_name}: {str(e)}")
         return f"Error fetching Lambda logs: {str(e)}"
+
+
+def fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time):
+    """Fetch log events from a specific log stream within time range."""
+    try:
+
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
+        
+        print(f"Querying CloudWatch with UTC times: {start_time} to {end_time}")
+        print(f"Timestamp range (ms): {start_time_ms} to {end_time_ms}")
+        
+        response = logs_client.get_log_events(
+            logGroupName=log_group_name,
+            logStreamName=stream_name,
+            startTime=start_time_ms,
+            endTime=end_time_ms,
+            startFromHead=True
+        )
+        print(response)
+        log_content = ""
+        events = response.get('events', [])
+        
+        if not events:
+            return "No events found in this time range.\n"
+        
+        print(f"Found {len(events)} events in time range")
+        
+        # IST timezone for display (if needed)
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        
+        for event in events:
+            # CloudWatch event timestamp is always in UTC
+            utc_timestamp = datetime.fromtimestamp(
+                event['timestamp'] / 1000, 
+                tz=timezone.utc
+            )
+            
+            # Convert to IST for display (optional)
+            ist_timestamp = utc_timestamp.astimezone(ist_tz)
+            
+            message = event.get('message', '')  # Use .get() to avoid KeyError
+            
+            # Display both UTC and IST timestamps for clarity
+            log_content += f"[UTC: {utc_timestamp}] [IST: {ist_timestamp}] {message}\n"
+        
+        return log_content if log_content else "No log content available.\n"
+        
+    except Exception as e:
+        logger.error(f"Error fetching log events: {str(e)}")
+        return f"Error fetching log events: {str(e)}\n"  # Always return a string
 
 def fetch_stepfunction_logs_by_time(state_machine_name, start_time, end_time):
     """Fetch Step Function logs from CloudWatch."""
@@ -214,9 +344,10 @@ def fetch_stepfunction_logs_by_time(state_machine_name, start_time, end_time):
             
             for stream in response.get('logStreams', []):
                 stream_name = stream['logStreamName']
-                stream_start = datetime.fromtimestamp(stream.get('creationTime', 0) / 1000, tz=timezone.utc)
+                stream_start = datetime.fromtimestamp(stream.get('firstEventTimestamp', 0) / 1000, tz=timezone.utc)
+                stream_end = datetime.fromtimestamp(stream.get('lastEventTimestamp', 0) / 1000, tz=timezone.utc)
                 
-                if (stream_start <= end_time and stream_start >= start_time):
+                if (stream_end >= end_time and stream_start <= start_time):
                     logs_content += f"\n--- Log Stream: {stream_name} ---\n"
                     logs_content += f"Stream Time: {stream_start} \n"
                     log_events = fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time)
@@ -261,7 +392,7 @@ def process_log_collection(event, context):
         if not solution_id or not execution_id or not workspace_id:
             return return_response(400, "Missing required parameters")
         
-        logger.info("Started generating log collection")
+        logger.info("Logs generation started successfully")
         update_execution_status(solution_id, execution_id, "RUNNING")
 
         resources = fetch_resources_for_solution(workspace_id,solution_id)
@@ -271,11 +402,6 @@ def process_log_collection(event, context):
         
         start_time = execution_details.get('StartTime')
         end_time = execution_details.get('EndTime')
-
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-        if isinstance(end_time, str):
-            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
 
         logs_contents = []
         for resource in resources:
@@ -292,7 +418,7 @@ def process_log_collection(event, context):
             tmp_file.write(merged_logs)
             merged_log_file = tmp_file.name
 
-        s3_key = f"workspaces/{workspace_id}/solutions/{solution_id}/{execution_id}/logs.txt"
+        s3_key = f"workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs.txt"
         
         try:
             s3_client.upload_file(merged_log_file, workspaces_bucket, s3_key)
@@ -332,7 +458,7 @@ def get_execution_logs(event, context):
                 ClientMethod='get_object',
                 Params={
                     'Bucket': workspaces_bucket,
-                    'Key': f"{workspace_id}/{solution_id}/{execution_id}/logs.txt"
+                    'Key': f"workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs.txt"
                 },
                 ExpiresIn=3600
             )

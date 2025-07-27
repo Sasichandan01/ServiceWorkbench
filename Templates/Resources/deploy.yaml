@@ -925,8 +925,7 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: 
-                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
+                Resource: '*'
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -937,7 +936,8 @@ Resources:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:GetLogEvents
-                  - glue:GetJobRuns
+                  - glue:*
+                  - logs:FilterLogEvents
                 Resource: '*'
         - PolicyName: S3Access
           PolicyDocument:
@@ -1250,6 +1250,7 @@ Resources:
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
+      Timeout: 900
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
