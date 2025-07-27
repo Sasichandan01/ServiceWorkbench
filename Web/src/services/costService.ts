@@ -55,7 +55,7 @@ export class CostService {
     const searchParams = new URLSearchParams();
     searchParams.append('workspaceid', workspaceId);
     
-    const endpoint = `/cost?${searchParams.toString()}`;
+    const endpoint = `/costs?${searchParams.toString()}`;
     const response = await ApiClient.get(endpoint);
     return this.handleResponse<WorkspaceCostResponse>(response);
   }
