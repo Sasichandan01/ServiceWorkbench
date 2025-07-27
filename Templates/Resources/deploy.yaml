@@ -93,6 +93,7 @@ Resources:
             Action: "s3:GetObject"
             Resource: !Sub "${MiscBucket.Arn}/*"
 
+
   # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
