@@ -2495,7 +2495,6 @@ Resources:
               "action": "app"
             }
 
-  # EventBridge Rule for Sunday 12 AM schedule with special parameters
   SundayMidnightScheduleRule:
     Type: AWS::Events::Rule
     Properties:
@@ -2511,7 +2510,6 @@ Resources:
               "action": "docsapp"
             }
 
-  # Permission for EventBridge to invoke Lambda (Daily Rule)
   DailyLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -2520,7 +2518,6 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt DailyMidnightScheduleRule.Arn
 
-  # Permission for EventBridge to invoke Lambda (Sunday Rule)
   SundayLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
