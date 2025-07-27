@@ -441,13 +441,14 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+          USERS_TABLE: !Ref UserTable
           ROLE_TABLE_NAME: !Ref RolesTable
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          USERS_TABLE: !Ref UserTable
+
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
@@ -757,8 +758,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-        - Key: SWB-User
-          Value: "ServiceWorkbench"
 
 
   BedrockAgentManager:
@@ -914,8 +913,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-        - Key: SWB-User
-          Value: "ServiceWorkbench"
   
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -963,8 +960,7 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: 
-                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
+                Resource: '*'
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -975,7 +971,8 @@ Resources:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:GetLogEvents
-                  - glue:GetJobRuns
+                  - glue:*
+                  - logs:FilterLogEvents
                 Resource: '*'
         - PolicyName: S3Access
           PolicyDocument:
@@ -1018,7 +1015,7 @@ Resources:
               - Sid: AllowLogsAndGlueAccess
                 Effect: Allow
                 Action:
-                  - bedrock:Invoke
+                  - bedrock:InvokeAgent
                 Resource: '*'     
         - PolicyName: WebSocketAccess
           PolicyDocument:
@@ -1295,6 +1292,7 @@ Resources:
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
+      Timeout: 900
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -2062,6 +2060,7 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
+          SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"

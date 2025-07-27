@@ -336,8 +336,10 @@ def get_workspaces(event, context):
                 ProjectionExpression='WorkspaceId, WorkspaceName, WorkspaceType, WorkspaceStatus, CreatedBy, LastUpdationTime,Tags'
             )
             workspace_items = response.get('Items', [])
-            workspace_items = [item for item in workspace_items if item.get('WorkspaceType') != 'DEFAULT']
+            default= [item for item in workspace_items if item.get('WorkspaceType') == 'DEFAULT' and item.get('CreatedBy') == user_id ]
+            workspace_items = [item for item in workspace_items if item.get('WorkspaceType') != 'DEFAULT' ]
             
+            workspace_items.extend(default)
             if filter_by:
                 workspace_items = [item for item in workspace_items
                                  if filter_by.lower() in item.get('WorkspaceName', '').lower()]
