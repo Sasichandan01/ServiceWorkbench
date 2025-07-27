@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { WorkspaceService } from "../services/workspaceService";
 import { SolutionService } from "../services/solutionService";
+import { CostService } from "../services/costService";
 import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation, useShareResourceMutation, useDeleteShareResourceMutation } from '../services/apiSlice';
 import { useAppSelector } from "@/hooks/useAppSelector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -66,6 +67,8 @@ interface WorkspaceData {
   solutions: number;
   dataSources: number;
   monthlyCost: number;
+  type: string;
+  tags: string[];
 }
 
 const WorkspaceDetails = () => {
@@ -93,6 +96,11 @@ const WorkspaceDetails = () => {
   const [solutionsPage, setSolutionsPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Monthly cost state
+  const [monthlyCost, setMonthlyCost] = useState<number>(0);
+  const [costLoading, setCostLoading] = useState(true);
+  const [costError, setCostError] = useState<string | null>(null);
 
   // Replace manual workspace state with RTK Query
   const {
@@ -155,6 +163,30 @@ const WorkspaceDetails = () => {
   useEffect(() => {
     fetchSolutions(solutionsSearch, solutionsPage);
   }, [id, solutionsSearch, solutionsPage]);
+
+  // Fetch monthly cost for the workspace
+  const fetchMonthlyCost = async () => {
+    if (!id) return;
+    
+    try {
+      setCostLoading(true);
+      setCostError(null);
+      const response = await CostService.getCostByWorkspaceId(id);
+      setMonthlyCost(response.cost);
+    } catch (err: any) {
+      console.error('Error fetching monthly cost:', err);
+      setCostError(err.message || 'Failed to fetch cost data');
+      setMonthlyCost(0);
+    } finally {
+      setCostLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) {
+      fetchMonthlyCost();
+    }
+  }, [id]);
 
   // Filter and paginate users
   const apiUsers = Array.isArray(data?.Users) ? data.Users : [];
@@ -419,7 +451,18 @@ const WorkspaceDetails = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="w-8 h-8 text-yellow-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">${workspace?.monthlyCost || "0"}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {costLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  ) : costError ? (
+                    <span className="text-red-600">Error</span>
+                  ) : (
+                    `$${monthlyCost.toLocaleString()}`
+                  )}
+                </p>
                 <p className="text-sm text-gray-600">Monthly Cost</p>
               </div>
             </div>
@@ -432,8 +475,10 @@ const WorkspaceDetails = () => {
               <div>
                 <div className="flex flex-wrap gap-1">
                   {Array.isArray(workspace?.tags) && workspace.tags.length > 0 ? (
-                    workspace.tags.map((tag: string, idx: number) => (
-                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                    workspace.tags.map((tag: any, idx: number) => (
+                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
+                        {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
+                      </span>
                     ))
                   ) : (
                     <span className="text-gray-400 text-xs">No tags</span>
@@ -656,8 +701,10 @@ const WorkspaceDetails = () => {
                               <TableCell>
                                 <div className="flex flex-wrap gap-1">
                                   {Array.isArray(solution.Tags) && solution.Tags.length > 0 ? (
-                                    solution.Tags.map((tag: string, idx: number) => (
-                                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">{tag}</span>
+                                    solution.Tags.map((tag: any, idx: number) => (
+                                      <span key={idx} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
+                                        {typeof tag === 'string' ? tag : tag?.Value || tag?.Key || 'Unknown'}
+                                      </span>
                                     ))
                                   ) : (
                                     <span className="text-gray-400 text-xs">No tags</span>

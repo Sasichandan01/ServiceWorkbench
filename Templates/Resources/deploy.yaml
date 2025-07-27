@@ -767,7 +767,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      changesetflag: '954'
+      changesetflag: '19-19-19'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -943,6 +943,8 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Workbench-*
+                  - !Sub arn:aws:dynamodb:us-east-1:043309350924:table/Wokbench-chathistory
+                  - !Sub arn:aws:dynamodb:us-east-1:043309350924:table/Wokbench-chathistory/index/MessageIdIndex
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -2417,6 +2419,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/AdministratorAccess
     
       Tags:
         - Key: Name
@@ -2436,6 +2439,7 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Sub "${pPrefix}"
+          SOLUTIONS_TABLE: !Ref SolutionsTable
           AWS_ACCOUNT_ID: !Ref AWS::AccountId
       Code:
         S3Bucket: !Ref pArtifactsBucketName
@@ -2515,6 +2519,6 @@ Outputs:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
   CognitoUserPoolDomainURL:
-    Value: !Sub "{UserPoolDomain}"
+    Value: !Sub "${pPrefix}-${AWS::AccountId}-auth"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
