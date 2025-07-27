@@ -76,9 +76,9 @@ export class ChatService {
   static async getChatMessageDetails(
     workspaceId: string,
     solutionId: string,
-    chatId: string
+    messageId: string
   ): Promise<ChatMessage> {
-    const endpoint = `/workspaces/${workspaceId}/solutions/${solutionId}/chat/${chatId}`;
+    const endpoint = `/workspaces/${workspaceId}/solutions/${solutionId}/chat/${messageId}`;
     const response = await ApiClient.get(endpoint);
     return this.handleResponse<ChatMessage>(response);
   }

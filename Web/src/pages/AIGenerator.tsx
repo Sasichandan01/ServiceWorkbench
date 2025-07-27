@@ -57,7 +57,7 @@ interface ThinkingStep {
 }
 
 interface Message {
-  id: number;
+  id: number; // This should be the actual MessageId from the API
   content: string | object;
   sender: "user" | "ai";
   timestamp: string;
@@ -196,38 +196,74 @@ const AIGenerator = () => {
       setIsLoadingHistory(true);
       const response = await ChatService.getChatHistory(workspaceId, solutionId);
       
+      // Debug: Log the response structure (only in development)
+      if (import.meta.env.DEV) {
+        console.log('Chat history response:', response);
+        console.log('Response type:', typeof response);
+        console.log('Response keys:', response ? Object.keys(response) : 'null/undefined');
+      }
+      
+      // Check if response and ChatHistory exist
+      let chatHistory: ChatMessage[] = [];
+      
+      if (response && response.ChatHistory && Array.isArray(response.ChatHistory)) {
+        // Standard response format
+        chatHistory = response.ChatHistory;
+      } else if (Array.isArray(response)) {
+        // Direct array response
+        chatHistory = response;
+      } else {
+        console.warn('Chat history response is invalid or empty:', response);
+        setMessages([]);
+        return;
+      }
+      
       // Convert API response to component message format
-      const historyMessages: Message[] = response.ChatHistory
+      const historyMessages: Message[] = chatHistory
         .filter((chatMsg: ChatMessage) => {
           // Filter out messages with empty content or only whitespace
-          return chatMsg.Message && chatMsg.Message.trim().length > 0;
+          return chatMsg && chatMsg.Message && chatMsg.Message.trim().length > 0;
         })
-        .map((chatMsg: ChatMessage, index: number) => ({
-          id: index + 1,
-          content: chatMsg.Message,
-          sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
-          timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
-          chatId: chatMsg.ChatId, // Store the original chat ID
-          tracesLoaded: false, // Mark traces as not loaded initially
-          thinking: undefined // Don't load traces initially
-        }));
+        .map((chatMsg: ChatMessage, index: number) => {
+          // Validate required fields
+          if (!chatMsg.Message || !chatMsg.Sender || !chatMsg.TimeStamp || !chatMsg.ChatId) {
+            console.warn('Invalid chat message:', chatMsg);
+            return null;
+          }
+          
+          return {
+            id: parseInt(chatMsg.MessageId) || index + 1, // Use actual MessageId from API, fallback to index
+            content: chatMsg.Message,
+            sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
+            timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
+            chatId: chatMsg.ChatId, // Store the original chat ID
+            tracesLoaded: false, // Mark traces as not loaded initially
+            thinking: undefined // Don't load traces initially
+          };
+        })
+        .filter((msg): msg is Message => msg !== null); // Remove null messages
       
       setMessages(historyMessages);
     } catch (error) {
       console.error('Failed to load chat history:', error);
-      // Don't show error to user for now, just log it
+      setMessages([]); // Set empty messages on error
+      toast({
+        title: "Warning",
+        description: "Failed to load chat history. Starting with empty chat.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
   // Function to load traces for a specific message
-  const loadMessageTraces = async (messageId: number, chatId: string) => {
-    if (!workspaceId || !solutionId || !chatId) return;
+  const loadMessageTraces = async (messageId: number) => {
+    if (!workspaceId || !solutionId) return;
     
     try {
       setLoadingTraces(prev => ({ ...prev, [messageId]: true }));
-      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, chatId);
+      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, messageId.toString());
       
       // Update the message with traces
       setMessages(prev => prev.map(msg => {
@@ -518,8 +554,8 @@ const AIGenerator = () => {
     const isCurrentlyExpanded = expandedThinking[messageId];
     
     // If we're expanding and traces haven't been loaded yet, load them
-    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded && message.chatId) {
-      await loadMessageTraces(messageId, message.chatId);
+    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded) {
+      await loadMessageTraces(messageId);
     }
     
     setExpandedThinking((prev) => ({
@@ -888,7 +924,9 @@ const AIGenerator = () => {
                                 if (parsed && (parsed.Summary || parsed.Diagram)) {
                                   return <AIChatSolutionMessage solutionJson={parsed} />;
                                 }
-                                return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
+                                // Ensure content is always a string before rendering in p tag
+                                const contentString = typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2);
+                                return <p className="leading-relaxed whitespace-pre-wrap">{contentString}</p>;
                               }
                               // Fallback for unknown types - ensure objects are stringified
                               if (typeof message.content === 'object' && message.content !== null) {
