@@ -22,7 +22,6 @@ import {
   Trash2,
 } from "lucide-react";
 import Prism from 'prismjs';
-import 'prismjs/themes/prism-tomorrow.css';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-typescript';
@@ -187,6 +186,139 @@ const AIGenerator = () => {
   const [isClearingChat, setIsClearingChat] = useState(false);
   const [loadingTraces, setLoadingTraces] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+
+  // Add custom CSS for syntax highlighting
+  useEffect(() => {
+    const styleId = 'syntax-highlighting-styles';
+    let existingStyle = document.getElementById(styleId);
+    
+    if (!existingStyle) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        /* Dark theme syntax highlighting - VSCode like */
+        .syntax-dark .token.comment,
+        .syntax-dark .token.prolog,
+        .syntax-dark .token.doctype,
+        .syntax-dark .token.cdata {
+          color: #6A9955;
+          font-style: italic;
+        }
+        
+        .syntax-dark .token.punctuation {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.property,
+        .syntax-dark .token.tag,
+        .syntax-dark .token.boolean,
+        .syntax-dark .token.number,
+        .syntax-dark .token.constant,
+        .syntax-dark .token.symbol,
+        .syntax-dark .token.deleted {
+          color: #B5CEA8;
+        }
+        
+        .syntax-dark .token.selector,
+        .syntax-dark .token.attr-name,
+        .syntax-dark .token.string,
+        .syntax-dark .token.char,
+        .syntax-dark .token.builtin,
+        .syntax-dark .token.inserted {
+          color: #CE9178;
+        }
+        
+        .syntax-dark .token.operator,
+        .syntax-dark .token.entity,
+        .syntax-dark .token.url,
+        .syntax-dark .language-css .token.string,
+        .syntax-dark .style .token.string {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.atrule,
+        .syntax-dark .token.attr-value,
+        .syntax-dark .token.keyword {
+          color: #569CD6;
+        }
+        
+        .syntax-dark .token.function,
+        .syntax-dark .token.class-name {
+          color: #DCDCAA;
+        }
+        
+        .syntax-dark .token.regex,
+        .syntax-dark .token.important,
+        .syntax-dark .token.variable {
+          color: #9CDCFE;
+        }
+        
+        /* Light theme syntax highlighting */
+        .syntax-light .token.comment,
+        .syntax-light .token.prolog,
+        .syntax-light .token.doctype,
+        .syntax-light .token.cdata {
+          color: #008000;
+        }
+        
+        .syntax-light .token.punctuation {
+          color: #000000;
+        }
+        
+        .syntax-light .token.property,
+        .syntax-light .token.tag,
+        .syntax-light .token.boolean,
+        .syntax-light .token.number,
+        .syntax-light .token.constant,
+        .syntax-light .token.symbol,
+        .syntax-light .token.deleted {
+          color: #0070f3;
+        }
+        
+        .syntax-light .token.selector,
+        .syntax-light .token.attr-name,
+        .syntax-light .token.string,
+        .syntax-light .token.char,
+        .syntax-light .token.builtin,
+        .syntax-light .token.inserted {
+          color: #a31515;
+        }
+        
+        .syntax-light .token.operator,
+        .syntax-light .token.entity,
+        .syntax-light .token.url,
+        .syntax-light .language-css .token.string,
+        .syntax-light .style .token.string {
+          color: #000000;
+        }
+        
+        .syntax-light .token.atrule,
+        .syntax-light .token.attr-value,
+        .syntax-light .token.keyword {
+          color: #0000ff;
+        }
+        
+        .syntax-light .token.function,
+        .syntax-light .token.class-name {
+          color: #795e26;
+        }
+        
+        .syntax-light .token.regex,
+        .syntax-light .token.important,
+        .syntax-light .token.variable {
+          color: #d73a49;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    return () => {
+      const style = document.getElementById(styleId);
+      if (style) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
 
   // Function to load chat history
   const loadChatHistory = async () => {
@@ -408,18 +540,24 @@ const AIGenerator = () => {
           currentThinkingRef.current = [];
           setIsGenerating(false);
         } else if (data && data.Metadata && data.Metadata.IsCode === true) {
-          // Handle code messages as part of thinking process
-          const thinkingStep: ThinkingStep = {
-            id: Date.now().toString() + Math.random(),
-            content: data, // Keep the entire code object as content
-            timestamp: new Date(),
-          };
-          setCurrentThinking((prev) => {
-            const newThinking = [...prev, thinkingStep];
-            currentThinkingRef.current = newThinking;
-            return newThinking;
+          // Handle code messages as the final message content
+          setMessages((prev) => {
+            const aiMsg: Message = {
+              id: `temp-ai-${Date.now()}`, // Temporary ID for new AI messages
+              content: data, // Use the code object as the main content
+              sender: "ai",
+              timestamp: new Date().toLocaleTimeString(),
+              thinking:
+                currentThinkingRef.current.length > 0
+                  ? [...currentThinkingRef.current]
+                  : undefined,
+              isCompleted: data.Metadata.IsComplete,
+            };
+            return [...prev, aiMsg];
           });
-          setIsGenerating(true);
+          setCurrentThinking([]);
+          currentThinkingRef.current = [];
+          setIsGenerating(false);
         } else {
           // Fallback for other message formats
           let content: any = "";
@@ -795,9 +933,94 @@ const AIGenerator = () => {
                                           key={step.id}
                                           className="space-y-1"
                                         >
-                                           <p className="text-sm text-muted-foreground leading-relaxed">
-                                             {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
-                                           </p>
+                                          {(() => {
+                                            // Handle code objects in thinking steps
+                                            if (typeof step.content === 'object' && step.content !== null) {
+                                              const contentObj: any = step.content;
+                                              if (contentObj.Metadata && contentObj.Metadata.IsCode === true) {
+                                                const keys = Object.keys(contentObj).filter((k) => k !== "Metadata");
+                                                if (keys.length > 0) {
+                                                  return (
+                                                    <div className="space-y-2">
+                                                      {keys.map((filename: string) => {
+                                                        const codeContent = contentObj[filename];
+                                                        
+                                                        // Detect language from filename
+                                                        const getLanguageFromFilename = (filename: string): string => {
+                                                          const ext = filename.split('.').pop()?.toLowerCase();
+                                                          switch (ext) {
+                                                            case 'py': return 'python';
+                                                            case 'js': return 'javascript';
+                                                            case 'ts': return 'typescript';
+                                                            case 'json': return 'json';
+                                                            case 'sh': return 'bash';
+                                                            case 'yml':
+                                                            case 'yaml': return 'yaml';
+                                                            case 'sql': return 'sql';
+                                                            default: return 'text';
+                                                          }
+                                                        };
+
+                                                        const language = getLanguageFromFilename(filename);
+                                                        
+                                                        // Apply syntax highlighting
+                                                        let highlightedCode = codeContent;
+                                                        try {
+                                                          if (Prism.languages[language]) {
+                                                            highlightedCode = Prism.highlight(codeContent, Prism.languages[language], language);
+                                                          }
+                                                        } catch (error) {
+                                                          console.warn(`Failed to highlight ${language} code:`, error);
+                                                        }
+
+                                                        return (
+                                                          <div key={filename} className="group">
+                                                            <div className="bg-[#2d2d2d] border border-[#404040] rounded-lg overflow-hidden shadow-sm">
+                                                              {/* Header - ChatGPT style */}
+                                                              <div className="flex items-center justify-between bg-[#343434] px-4 py-3 border-b border-[#404040]">
+                                                                <div className="flex items-center">
+                                                                  <span className="text-sm font-medium text-[#e5e5e5]">{filename}</span>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                  <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-auto px-3 py-1.5 text-[#e5e5e5] hover:bg-[#404040] transition-colors text-sm"
+                                                                    onClick={() => {
+                                                                      navigator.clipboard.writeText(codeContent);
+                                                                    }}
+                                                                  >
+                                                                    <Copy className="w-4 h-4 mr-1" />
+                                                                    Copy
+                                                                  </Button>
+                                                                </div>
+                                                              </div>
+                                                              
+                                                              {/* Code content */}
+                                                              <div className="relative bg-[#1e1e1e]">
+                                                                <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
+                                                                  <code 
+                                                                    className={`language-${language} block whitespace-pre syntax-dark`}
+                                                                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                                                                  />
+                                                                </pre>
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  );
+                                                }
+                                              }
+                                            }
+                                            // Default rendering for non-code content
+                                            return (
+                                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                                {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                              </p>
+                                            );
+                                          })()}
                                         </div>
                                       ))
                                     ) : (
@@ -895,7 +1118,7 @@ const AIGenerator = () => {
                                                 <div className="relative bg-[#1e1e1e]">
                                                   <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
                                                     <code 
-                                                      className={`language-${language} block whitespace-pre`}
+                                                      className={`language-${language} block whitespace-pre syntax-dark`}
                                                       dangerouslySetInnerHTML={{ __html: highlightedCode }}
                                                     />
                                                   </pre>
