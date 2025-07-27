@@ -1309,6 +1309,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                   onChange={(e) => handleContentChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
+                  spellCheck={false}
                   className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar ${
                     isDarkMode ? 'text-[#d4d4d4] placeholder:text-[#6a6a6a]' : 'text-gray-900 placeholder:text-gray-500'
                   }`}
