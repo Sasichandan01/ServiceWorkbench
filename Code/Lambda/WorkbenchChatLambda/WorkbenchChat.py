@@ -434,6 +434,6 @@ def lambda_handler(event, context):
 
     if rc['routeKey'] == 'sendMessage':
         handle_send_message(event, client, cid, rc['authorizer']['user_id'])
-        # send_message_to_websocket(client, cid, {'status': 'Success', 'message': 'Completed'})
+
 
     return {'statusCode': 400}
