@@ -18,6 +18,14 @@ workspaces_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
 activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
 solutions_table = dynamodb.Table(os.environ['SOLUTIONS_TABLE'])
 
+
+def current_time():
+    return f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
+
+def timestamp_str_to_ms(ts_str):
+    dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S.%f %z")
+    return int(dt.timestamp() * 1000)
+
 def validate_path_parameters(params, required_keys):
     """Validate that required path parameters exist and are not empty."""
     if not params:
@@ -119,7 +127,7 @@ def start_execution(event, context):
         workspace_id = path_parameters['workspace_id']
         solution_id = path_parameters['solution_id']
         execution_id = str(uuid.uuid4())
-        timestamp = f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
+        timestamp = current_time()
         # Get solution details
         solution = solutions_table.get_item(
             Key={'WorkspaceId': workspace_id, 'SolutionId': solution_id}
@@ -145,6 +153,7 @@ def start_execution(event, context):
         }
         executions_table.put_item(Item=execution)
         # Start all resources
+        time.sleep(2)
         resource_statuses = {}
         invocation = solution.get('Invocation')
         if invocation is None:
@@ -154,8 +163,8 @@ def start_execution(event, context):
             resource_name = resource['Name']
             resource_type = resource['Type']
             
-            if resource_name == invocation and resource_type=='lambda':
-                lambda_client.invoke(
+            if resource_name == invocation and 'lambda' in resource_type:
+                response=lambda_client.invoke(
                     FunctionName=resource_name,
                     InvocationType='Event',
                     Payload=json.dumps({
@@ -168,7 +177,7 @@ def start_execution(event, context):
                     'status': 'GENERATING'
                 }
 
-            elif resource_name == invocation and resource_type == 'stepfunction':
+            elif resource_name == invocation and 'stepfunction' in resource_type:
                 response = sfn_client.start_execution(
                     stateMachineArn=resource_name,
                     input=json.dumps({'execution_id': execution_id})
@@ -179,7 +188,8 @@ def start_execution(event, context):
                     'executionArn': response['executionArn']
                 }
 
-            elif resource_name == invocation and resource_type == 'glue':
+            elif resource_name == invocation and 'glue' in resource_type :
+                
                 response = glue_client.start_job_run(JobName=resource_name)
                 resource_statuses[resource_name] = {
                     'type': 'glue',
@@ -220,12 +230,16 @@ def process_execution(event, context):
     solution_id = event['solution_id']
     workspace_id = event['workspace_id']
     resource_statuses = event['resource_statuses']
-    start_time = event['start_time']
-    max_duration = 100  # 10 minutes
-    poll_interval = 5   # seconds
-    
+    start_time = timestamp_str_to_ms(event['start_time'])
+    max_duration = 10 * 60 * 1000  # 10 minutes
+    poll_interval = 5 
     try:
-        while (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") - start_time) < max_duration:
+        print(start_time)
+        print(timestamp_str_to_ms(current_time()))
+        print(timestamp_str_to_ms(current_time()) - start_time)
+        
+        while (timestamp_str_to_ms(current_time()) - start_time) < max_duration:
+            print("Polling resources")
             all_completed = True
             any_failed = False
             
@@ -241,6 +255,7 @@ def process_execution(event, context):
                         # Implement your Lambda status check here
                         # Example: Query DynamoDB where worker Lambda reports status
                         any_failed= True
+                        time.sleep(4)
                         continue
                         
                     elif status_info['type'] == 'stepfunction':
@@ -273,12 +288,13 @@ def process_execution(event, context):
             # Exit if all completed
             if all_completed:
                 final_status = 'FAILED' if any_failed else 'GENERATED'
+                time.sleep(1)
                 executions_table.update_item(
                     Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
                     UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
                     ExpressionAttributeValues={
                         ':status': final_status,
-                        ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
+                        ':end_time': current_time()
                     }
                 )
                 print(f"Execution completed with status: {final_status}")
@@ -296,7 +312,7 @@ def process_execution(event, context):
             UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
             ExpressionAttributeValues={
                 ':status': 'FAILED',
-                ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
+                ':end_time': current_time()
             }
         )
         return return_response(200, {
@@ -305,12 +321,14 @@ def process_execution(event, context):
         })
     
     except Exception as e:
+        print(f"Error during execution polling: {str(e)}")
         executions_table.update_item(
             Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
             UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
             ExpressionAttributeValues={
                 ':status': 'FAILED',
-                ':end_time': f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
+                ':end_time': current_time()
             }
         )
         return return_response(500, {"Error": str(e)})
+

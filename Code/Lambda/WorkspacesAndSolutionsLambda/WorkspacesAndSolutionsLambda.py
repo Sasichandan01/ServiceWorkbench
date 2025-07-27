@@ -93,7 +93,6 @@ def lambda_handler(event, context):
     try:
         print(event)
 
-        
         if event.get('action') == 'execution-poll':
             return process_execution(event, context)
         if event.get('action')=='logs-poll':

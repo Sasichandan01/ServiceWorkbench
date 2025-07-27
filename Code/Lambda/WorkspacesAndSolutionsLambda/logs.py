@@ -27,7 +27,6 @@ workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
 def convert_utc_to_ist_iso_format(time_str):
     # Parse input string: "2025-07-26 17:53:26.818 +0000"
     dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f %z")
-    print(dt)
     # Convert to IST timezone
     ist_offset = timedelta(hours=5, minutes=30)
     ist_time = dt.astimezone(timezone(ist_offset))
@@ -143,11 +142,16 @@ def fetch_glue_logs_by_time(job_name, start_time, end_time):
         log_groups = [f"/aws-glue/jobs/output"]
         
         for job_run in response.get('JobRuns', []):
+            print(job_run)
             run_id = job_run.get('Id')
             run_start = job_run.get('StartedOn')
+            print(run_start)
             run_end = job_run.get('CompletedOn')
+            print(run_end)
             status = job_run.get('JobRunState')
-            
+
+
+                
             if run_start and run_start >= start_time and run_end <= end_time:
                 logs_content += f"\n--- Job Run ID: {run_id} (Status: {status}) ---\n"
                 logs_content += f"Started: {run_start}, Completed: {run_end}\n"
@@ -171,7 +175,7 @@ def fetch_glue_logs_by_time(job_name, start_time, end_time):
                             logs_content += f"Error fetching logs for stream {stream_name} in {log_group_name}: {str(e)}\n"
                 if not found_stream:
                     logs_content += f"No log stream found for run ID: {run_id} in output/error log groups\n"
-        
+        print(logs_content)
         return logs_content
     except Exception as e:
         logger.error(f"Error fetching Glue logs for {job_name}: {str(e)}")
@@ -190,16 +194,7 @@ def fetch_lambda_logs_by_time(function_name, start_time, end_time):
         
         logs_content = f"=== LAMBDA LOGS: {function_name} ===\nTime Range: {start_time} to {end_time}\n\n"
         
-        if isinstance(start_time, str):
-            start_time = convert_utc_to_ist_iso_format(start_time)
-            print(start_time)
-        if isinstance(end_time, str):
-            end_time = convert_utc_to_ist_iso_format(end_time)
-            print(end_time)
-        if not hasattr(start_time, 'timestamp'):
-            raise ValueError(f"start_time is not a datetime object: {type(start_time)}, value: {start_time}")
-        if not hasattr(end_time, 'timestamp'):
-            raise ValueError(f"end_time is not a datetime object: {type(end_time)}, value: {end_time}")
+
         
         start_time = int(start_time.timestamp() * 1000)
         end_time = int(end_time.timestamp() * 1000)       
@@ -256,7 +251,6 @@ def fetch_lambda_logs_by_time(function_name, start_time, end_time):
             logs_content += "\nNo logs found in the specified time range.\n"
         
         logger.info(f"Lambda logs fetched for {function_name} in range {start_time} to {end_time}")
-        print(logs_content)
         return logs_content
         
     except logs_client.exceptions.ClientError as e:
@@ -402,6 +396,17 @@ def process_log_collection(event, context):
         
         start_time = execution_details.get('StartTime')
         end_time = execution_details.get('EndTime')
+
+        if isinstance(start_time, str):
+            start_time = convert_utc_to_ist_iso_format(start_time)
+
+        if isinstance(end_time, str):
+            end_time = convert_utc_to_ist_iso_format(end_time)
+
+        if not hasattr(start_time, 'timestamp'):
+            raise ValueError(f"start_time is not a datetime object: {type(start_time)}, value: {start_time}")
+        if not hasattr(end_time, 'timestamp'):
+            raise ValueError(f"end_time is not a datetime object: {type(end_time)}, value: {end_time}")
 
         logs_contents = []
         for resource in resources:
