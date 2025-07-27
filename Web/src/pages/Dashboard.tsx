@@ -26,7 +26,8 @@ const Dashboard = () => {
       // or from URL parameters, or from user preferences
       const workspaceId = 'default'; // This should be replaced with actual workspace ID
       const response = await CostService.getCostByWorkspaceId(workspaceId);
-      setMonthlyCost(response.cost);
+      const cost = response?.cost;
+      setMonthlyCost(typeof cost === 'number' && !isNaN(cost) ? cost : 0);
     } catch (err: any) {
       console.error('Error fetching monthly cost:', err);
       setCostError(err.message || 'Failed to fetch cost data');
@@ -57,7 +58,7 @@ const Dashboard = () => {
     },
     {
       title: "Monthly Cost",
-      value: costLoading ? "Loading..." : costError ? "Error" : `$${monthlyCost.toLocaleString()}`,
+      value: costLoading ? "Loading..." : costError ? "Error" : `$${(monthlyCost || 0).toLocaleString()}`,
       change: "-12% from last month",
       changeType: "positive",
       icon: DollarSign
@@ -93,7 +94,7 @@ const Dashboard = () => {
               ) : costError ? (
                 <span className="text-red-600">Error</span>
               ) : (
-                `$${monthlyCost.toLocaleString()}`
+                `$${(monthlyCost || 0).toLocaleString()}`
               )}
             </div>
           </CardContent>

@@ -67,9 +67,10 @@ const CostDashboard = () => {
         limit: 10,
         filterBy: workspaceSearch.trim() || undefined
       });
-      setWorkspaces(response.Workspaces || []);
+      setWorkspaces(response?.Workspaces || []);
     } catch (err) {
       console.error('Error fetching workspaces:', err);
+      setWorkspaces([]);
     }
   };
 
@@ -80,9 +81,10 @@ const CostDashboard = () => {
         limit: 10,
         filterBy: solutionSearch.trim() || undefined
       });
-      setSolutions(response.Solutions || []);
+      setSolutions(response?.Solutions || []);
     } catch (err) {
       console.error('Error fetching solutions:', err);
+      setSolutions([]);
     }
   };
 
@@ -100,7 +102,8 @@ const CostDashboard = () => {
       const response = await CostService.getCosts(groupBy, userInfo.sub);
       
       // Transform the API response to match our pie chart format
-      const transformedData = response.costs.map((item, index) => ({
+      const costs = response?.costs || [];
+      const transformedData = costs.map((item, index) => ({
         ...item,
         gradient: `url(#gradient${index})`,
       }));
@@ -233,7 +236,7 @@ const CostDashboard = () => {
                       />
                     </div>
                     <SelectItem value="all">All Workspaces</SelectItem>
-                    {workspaces.map((workspace) => (
+                    {(workspaces || []).map((workspace) => (
                       <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
                         {workspace.WorkspaceName}
                       </SelectItem>
@@ -258,7 +261,7 @@ const CostDashboard = () => {
                       />
                     </div>
                     <SelectItem value="all">All Workspaces</SelectItem>
-                    {workspaces.map((workspace) => (
+                    {(workspaces || []).map((workspace) => (
                       <SelectItem key={workspace.WorkspaceId} value={workspace.WorkspaceId}>
                         {workspace.WorkspaceName}
                       </SelectItem>
@@ -280,7 +283,7 @@ const CostDashboard = () => {
                       />
                     </div>
                     <SelectItem value="all">All Solutions</SelectItem>
-                    {solutions.map((solution) => (
+                    {(solutions || []).map((solution) => (
                       <SelectItem key={solution.SolutionId} value={solution.SolutionId}>
                         {solution.SolutionName}
                       </SelectItem>
@@ -323,7 +326,7 @@ const CostDashboard = () => {
                 <PieChart>
                   <defs>
                     {/* Dynamic gradient definitions */}
-                    {pieChartData.map((entry, index) => (
+                    {(pieChartData || []).map((entry, index) => (
                       <linearGradient key={index} id={`gradient${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor={colors[index % colors.length].color} />
                         <stop offset="100%" stopColor={colors[index % colors.length].hoverColor} />
@@ -351,7 +354,7 @@ const CostDashboard = () => {
                     strokeWidth={3}
                     filter="url(#dropshadow)"
                   >
-                    {pieChartData.map((entry, index) => (
+                    {(pieChartData || []).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={activeIndex === index ? colors[index % colors.length].hoverColor : entry.gradient}
@@ -400,9 +403,9 @@ const CostDashboard = () => {
           </div>
           
           {/* Enhanced Legend with Cards */}
-          {pieChartData.length > 0 && (
+          {(pieChartData || []).length > 0 && (
             <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {pieChartData.map((entry, index) => (
+              {(pieChartData || []).map((entry, index) => (
                 <div 
                   key={index} 
                   className={`relative overflow-hidden rounded-xl border-2 transition-all duration-300 cursor-pointer transform hover:scale-105 ${
