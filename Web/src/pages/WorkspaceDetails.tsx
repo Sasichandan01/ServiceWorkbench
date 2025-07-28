@@ -39,6 +39,7 @@ import { CostService } from "../services/costService";
 import { useGetWorkspaceQuery, useGetSolutionsQuery, useDeleteWorkspaceMutation, useCreateSolutionMutation, useShareResourceMutation, useDeleteShareResourceMutation } from '../services/apiSlice';
 import { useAppSelector } from "@/hooks/useAppSelector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Solution {
   id: number;
@@ -388,6 +389,8 @@ const WorkspaceDetails = () => {
   const loggedInUser = useAppSelector(state => state.auth.user);
 
   const [activeTab, setActiveTab] = useState("solutions");
+  const { canManage } = usePermissions();
+  const canManageUsers = canManage('users');
 
   return (
     <div className="space-y-6">
@@ -532,9 +535,9 @@ const WorkspaceDetails = () => {
         {/* Main Content */}
         <div className="xl:col-span-3 lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={`grid w-full ${isOwner ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <TabsList className={`grid w-full ${canManageUsers && workspace?.type !== 'DEFAULT' ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <TabsTrigger value="solutions">Solutions</TabsTrigger>
-              {isOwner && <TabsTrigger value="users">Users</TabsTrigger>}
+              {canManageUsers && workspace?.type !== 'DEFAULT' && <TabsTrigger value="users">Users</TabsTrigger>}
             </TabsList>
             {/* Solutions Tab */}
             <TabsContent value="solutions" className="space-y-6">
@@ -761,7 +764,7 @@ const WorkspaceDetails = () => {
               </Card>
             </TabsContent>
             {/* Users Tab (only if isOwner) */}
-            {isOwner && (
+            {canManageUsers && workspace?.type !== 'DEFAULT' && (
               <TabsContent value="users" className="space-y-6">
                 <Card>
                   <CardHeader>

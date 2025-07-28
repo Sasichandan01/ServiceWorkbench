@@ -1371,7 +1371,6 @@ const AIGenerator = () => {
                                   ))}
                                 </div>
                                 <span className="text-sm text-muted-foreground ml-2">
-                                  <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />
                                   AI is thinking...
                                 </span>
                               </div>
