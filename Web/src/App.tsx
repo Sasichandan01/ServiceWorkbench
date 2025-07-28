@@ -24,71 +24,94 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 import Docs from "./pages/Docs";
+import { useEffect } from "react";
+import { isTokenExpiringSoon, refreshAccessToken, clearAllAuthData } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Login isSignupDefault={true} />} />
-              <Route path="/verification" element={<Verification />} />
-              <Route path="/docs" element={<Docs />} />
-              <Route element={<Layout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/welcome" element={<Welcome />} />
-                <Route path="/workspaces" element={
-                  <ProtectedContent resource="workspaces" action="view">
-                    <Workspaces />
-                  </ProtectedContent>
-                } />
-                <Route path="/workspaces/:id" element={
-                  <ProtectedContent resource="workspaces" action="view">
-                    <WorkspaceDetails />
-                  </ProtectedContent>
-                } />
-                <Route path="/workspaces/:workspaceId/solutions/:solutionId" element={
-                  <ProtectedContent resource="solutions" action="view">
-                    <SolutionDetails />
-                  </ProtectedContent>
-                } />
-                <Route path="/workspaces/:workspaceId/solutions/:solutionId/ai-generator" element={
-                  <ProtectedContent resource="solutions" action="view">
-                    <AIGenerator />
-                  </ProtectedContent>
-                } />
-                <Route path="/data-sources" element={
-                  <ProtectedContent resource="datasources" action="view">
-                    <DataSources />
-                  </ProtectedContent>
-                } />
-                <Route path="/data-sources/:id" element={
-                  <ProtectedContent resource="datasources" action="view">
-                    <DataSourceDetails />
-                  </ProtectedContent>
-                } />
-                <Route path="/cost-analytics" element={<Dashboard />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/admin" element={
-                  <ProtectedContent resource="users" action="manage">
-                    <AdminDashboard />
-                  </ProtectedContent>
-                } />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+function useSilentTokenRefresh() {
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const accessToken = localStorage.getItem("accessToken");
+      if (accessToken && isTokenExpiringSoon(accessToken)) {
+        try {
+          await refreshAccessToken();
+        } catch (err) {
+          console.error("Silent token refresh failed", err);
+          clearAllAuthData();
+          window.location.replace("/login");
+        }
+      }
+    }, 5 * 60 * 1000); // every 5 minutes
+    return () => clearInterval(interval);
+  }, []);
+}
+
+const App = () => {
+  useSilentTokenRefresh();
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Login isSignupDefault={true} />} />
+                <Route path="/verification" element={<Verification />} />
+                <Route path="/docs" element={<Docs />} />
+                <Route element={<Layout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/welcome" element={<Welcome />} />
+                  <Route path="/workspaces" element={
+                    <ProtectedContent resource="workspaces" action="view">
+                      <Workspaces />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/workspaces/:id" element={
+                    <ProtectedContent resource="workspaces" action="view">
+                      <WorkspaceDetails />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/workspaces/:workspaceId/solutions/:solutionId" element={
+                    <ProtectedContent resource="solutions" action="view">
+                      <SolutionDetails />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/workspaces/:workspaceId/solutions/:solutionId/ai-generator" element={
+                    <ProtectedContent resource="solutions" action="view">
+                      <AIGenerator />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/data-sources" element={
+                    <ProtectedContent resource="datasources" action="view">
+                      <DataSources />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/data-sources/:id" element={
+                    <ProtectedContent resource="datasources" action="view">
+                      <DataSourceDetails />
+                    </ProtectedContent>
+                  } />
+                  <Route path="/cost-analytics" element={<Dashboard />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/admin" element={
+                    <ProtectedContent resource="users" action="manage">
+                      <AdminDashboard />
+                    </ProtectedContent>
+                  } />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
 
 export default App;

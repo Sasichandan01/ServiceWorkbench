@@ -316,3 +316,18 @@ export const getUserInfo = async (accessToken: string) => {
     throw error;
   }
 };
+
+function parseJwt(token: string): { exp: number } | null {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpiringSoon(token: string, bufferSeconds = 300): boolean {
+  const payload = parseJwt(token);
+  if (!payload || !payload.exp) return true;
+  const now = Math.floor(Date.now() / 1000);
+  return payload.exp - now < bufferSeconds;
+}

@@ -383,8 +383,8 @@ const Layout = () => {
               <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
                 <div className="w-full max-w-md">
                   <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Shield className="w-8 h-8 text-blue-600" />
+                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Shield className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome!</h1>
                     <p className="text-gray-600">Your account is being set up</p>
