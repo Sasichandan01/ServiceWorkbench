@@ -30,38 +30,7 @@ KEYWORD_MAP = {
 MAX_MESSAGES = 10
 chat_table = dynamodb.Table(os.environ['CHAT_TABLE'])
 
-# def build_chat_pk(workspace_id, solution_id):
-#     return f"ws#{workspace_id}#sol#{solution_id}"
 
-# def add_chat_message(workspace_id, solution_id, role, content=None,trace=None,message_id=None):
-#     pk = build_chat_pk(workspace_id, solution_id)
-
-#     response = chat_table.query(
-#         KeyConditionExpression=Key('ChatId').eq(pk),
-#         ScanIndexForward=True  # oldest first
-#     )
-#     items = response['Items']
-
-#     if items:
-#         last_sk = max(int(m['MessageNumber']) for m in items)
-#         new_sk = f"{last_sk + 1:04}"
-#     else:
-#         new_sk = "0001"
-
-#     item = {
-#         'ChatId': pk,
-#         'MessageNumber': new_sk,
-#         'Role': role,
-#         'Timestamp': datetime.utcnow().isoformat(),
-#         'MessageId': message_id
-#     }
-#     if content:
-#         item['Content'] = content
-
-#     if trace:
-#         item['Trace'] = trace
-
-#     chat_table.put_item(Item=item)
 
 
 def sanitize_for_dynamodb(obj):
@@ -81,7 +50,7 @@ def sanitize_for_dynamodb(obj):
 
 def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None,s3_key=None, chat_context="AIChat"):
     timestamp = datetime.utcnow().isoformat()
-    chat_id = f"{solution_id}#{user_id}"
+    chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Convert trace string to list
     trace_list = []
@@ -144,7 +113,7 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
 
 
 def get_latest_chat_messages(user_id, solution_id, limit=10):
-    chat_id = f"{solution_id}#{user_id}#SOLUTION"
+    chat_id = f"{solution_id}#{user_id}#AIChat"
 
     # Step 1: Fetch latest N messages (reverse scan)
     response = chat_table.query(
@@ -153,28 +122,6 @@ def get_latest_chat_messages(user_id, solution_id, limit=10):
         Limit=limit
     )
     latest_items = response['Items']
-    
-    # Step 2: Check each item for S3 key and read files if present
-    for item in latest_items:
-        s3_key = item.get('s3_key')  # Assuming the field name is 's3_key'
-        if s3_key:
-            try:
-                bucket="develop-service-workbench-workspaces"
-                
-                code_payload = read_multiple_s3_files(bucket, prefix)
-                if 'Metadata' not in code_payload:
-                    code_payload['Metadata'] = {}
-                code_payload['Metadata']['IsCode']=True
-                code_payload['Metadata']['IsComplete']=True
-                item['code'] = [code_payload]
-                LOGGER.info(f"Successfully read {len(code_payload)} files for message with s3_key: {s3_key}")
-                
-            except Exception as e:
-                LOGGER.error(f"Failed to read S3 files for key {s3_key}: {str(e)}")
-                item['code'] = []
-        else:
-           
-            item['code'] = []
     
     return list(reversed(latest_items))
 
@@ -292,8 +239,9 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     combined_prompt=""
     if chat_context == 'AIChat':
         file_context=body.get('FileContext')
-        s3_data=read_selected_s3_files("develop-service-workbench-workspaces", file_context, file_context)
-        combined_prompt = f"Here is the file context: {s3_data}."
+        if file_context:
+            s3_data=read_selected_s3_files("develop-service-workbench-workspaces",f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}", file_context)
+            combined_prompt = f"Here is the file context: {s3_data}."
     message_id = str(uuid.uuid4())
     user_message_id = str(uuid.uuid4())
 
@@ -346,8 +294,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     # Initialize state variables at the beginning of your function
     # Initialize state variables at the beginning of your function
     code_payload = {}
-    cft_payload = {}
-    url_payload = {}
     code_generated = "false"
     cft_generated = "false"
     url_generated = "false" 
@@ -379,13 +325,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 observation_type = trace["trace"]["orchestrationTrace"]["observation"]["type"]
                 
                 if observation_type == "KNOWLEDGE_BASE":
-                    # response_obj["AITrace"] = [
-                    #     {
-                    #         "Dataset": reference["location"]["s3Location"]["uri"].split("/")[-3],
-                    #         "Domain": reference["location"]["s3Location"]["uri"].split("/")[-4],
-                    #         "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
-                    #     } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
-                    # ]
                     LOGGER.info("Knowledge base observation")
             
                 elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['codegeneration'].get('AgentId'):
@@ -401,12 +340,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             LOGGER.info("<codegenerated> is true")
                             s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
                             
-                            # Don't send code immediately, wait for completion
+
                             code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
                             if 'Metadata' not in code_payload:
                                 code_payload['Metadata'] = {}
                             code_payload['Metadata']['IsCode'] = True
-                            # Don't set IsComplete here yet
+
                             
                         else:
                             LOGGER.info("<codegenerated> is not true")
