@@ -79,7 +79,7 @@ def sanitize_for_dynamodb(obj):
     else:
         return obj
 
-def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None):
+def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None,s3_key=None):
     timestamp = datetime.utcnow().isoformat()
     chat_id = f"{solution_id}#{user_id}"
 
@@ -113,7 +113,9 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
             if message:
                 update_expr.append("Message = :msg")
                 expr_attrs[":msg"] = message
-
+            if s3_key:
+                update_expr.append("S3Key = :s3_key")
+                expr_attrs[":s3_key"] = s3_key
             if update_expr:
                 chat_table.update_item(
                     Key={
@@ -151,8 +153,29 @@ def get_latest_chat_messages(workspace_id, solution_id, limit=10):
         Limit=limit
     )
     latest_items = response['Items']
-
-    # Step 2: Reverse again to show oldest first
+    
+    # Step 2: Check each item for S3 key and read files if present
+    for item in latest_items:
+        s3_key = item.get('s3_key')  # Assuming the field name is 's3_key'
+        if s3_key:
+            try:
+                bucket="develop-service-workbench-workspaces"
+                
+                code_payload = read_multiple_s3_files(bucket, prefix)
+                if 'Metadata' not in code_payload:
+                    code_payload['Metadata'] = {}
+                code_payload['Metadata']['IsCode']=True
+                code_payload['Metadata']['IsComplete']=True
+                item['code'] = [code_payload]
+                LOGGER.info(f"Successfully read {len(code_payload)} files for message with s3_key: {s3_key}")
+                
+            except Exception as e:
+                LOGGER.error(f"Failed to read S3 files for key {s3_key}: {str(e)}")
+                item['code'] = []
+        else:
+           
+            item['code'] = []
+    
     return list(reversed(latest_items))
 
 def extract_agent_info():
@@ -228,35 +251,6 @@ def send_message_to_websocket(client, conn_id, message):
         LOGGER.error(f"WebSocket send failed for {conn_id}: {e}")
 
 
-
-def read_all_files_from_prefix(bucket, prefix):
-    files_content = {}
-
-    try:
-        # List all objects under the given prefix
-        paginator = s3_client.get_paginator('list_objects_v2')
-        page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-
-        for page in page_iterator:
-            if 'Contents' not in page:
-                continue
-            for obj in page['Contents']:
-                key = obj['Key']
-                if key.endswith('/'):  # skip folders
-                    continue
-                try:
-                    response = s3_client.get_object(Bucket=bucket, Key=key)
-                    content = response['Body'].read().decode('utf-8')
-                    filename = key.split('/')[-1]
-                    files_content[filename] = content
-                except Exception as e:
-                    LOGGER.error(f"Failed to read {key}: {e}")
-                    files_content[key] = f"<< Error reading file: {e} >>"
-    except Exception as e:
-        LOGGER.error(f" Failed to list objects from prefix '{prefix}': {e}")
-    
-    return files_content
-
 def handle_send_message(event, apigw_client, connection_id, user_id):
 
     body = json.loads(event.get('body', '{}'))
@@ -279,11 +273,10 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": msg})
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
-    # Store user message in DynamoDB
     add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id)
 
-    s3_key = f"{body['workspaceid']}/{body['solutionid']}/memory.txt"
-    # memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
+    
+   
     current_lambda_requirements = generate_requirements()
     combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}"
 
@@ -303,28 +296,28 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         sessionState={'sessionAttributes': {'user_id': user_id}},
         streamingConfigurations={'streamFinalResponse': False}
     )
-    code_payload={}
-    code_generated="false"
-    url_generated="false"
+# Initialize state variables at the beginning of your function
+    code_payload = {}
+    code_generated = "false"
+    url_generated = "false" 
+    s3_key = None
+
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        print(code_generated)
         if trace:
-
+            LOGGER.info(f"Trace: {trace}")
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
                 failure_reason = trace["trace"]["failureTrace"].get("failureReason", "Unknown failure. Please try again after some time.")
                 
-
                 response_obj["AITrace"] = "It seems like the Lambda function code contains unhandled errors.."
-                send_message_to_websocket( apigw_client, connection_id,response_obj)
+                send_message_to_websocket(apigw_client, connection_id, response_obj)
 
                 response_obj.pop("AITrace")
                 response_obj["AIMessage"] = "ERROR : Your code contains unhandled errors. Check the agent logs for error details, then try again after fixing the error."
-
                 response_obj["Metadata"]["IsComplete"] = True
-                send_message_to_websocket( apigw_client, connection_id,response_obj)
+                send_message_to_websocket(apigw_client, connection_id, response_obj)
                 return
                 
             elif "rationale" in trace["trace"]["orchestrationTrace"]:
@@ -341,81 +334,154 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
                         } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
                     ]
-             
-                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['codegeneration'].get('AgentId'):
-                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
-                    outer_json = json.loads(text)
-                    code_generated = outer_json.get("<codegenerated>", "false")
-                    function = outer_json.get("<function>", None)
-                    if code_generated == "true" and function == "storeServiceArtifactsInS3":
-                        LOGGER.info("<codegenerated> is true")
-                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes")
-                        print(code_payload)
-                        if 'Metadata' not in code_payload:
-                            code_payload['Metadata'] = {}
-                        code_payload['Metadata']['IsCode']=True
-                        code_payload['Metadata']['IsComplete']=True
+            
+                elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['codegeneration'].get('AgentId'):
+                    try:
+                        text = trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                        LOGGER.info(f"Code generation agent response: {text}")
                         
+                        outer_json = json.loads(text)
+                        code_generated = outer_json.get("<codegenerated>", "false")
+                        function = outer_json.get("<function>", None)
+                        
+                        if code_generated == "true" and function == "storeServiceArtifactsInS3":
+                            LOGGER.info("<codegenerated> is true")
+                            s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
+                            
+                            # Don't send code immediately, wait for completion
+                            code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
+                            if 'Metadata' not in code_payload:
+                                code_payload['Metadata'] = {}
+                            code_payload['Metadata']['IsCode'] = True
+                            
+                            
+                        else:
+                            LOGGER.info("<codegenerated> is not true")
+                            
+                    except json.JSONDecodeError as e:
+                        LOGGER.error(f"Error parsing code generation response: {e}")
+                    except Exception as e:
+                        LOGGER.error(f"Error processing code generation: {e}")
 
-                    else:
-                        code_generated="false"
-                        LOGGER.info("<codegenerated> is not true")
+                elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['cftgeneration'].get('AgentId'):
+                    try:
+                        text = trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                        LOGGER.info(f"CFT generation agent response: {text}")
+                        
+                        outer_json = json.loads(text)
+                        code_generated = outer_json.get("<codegenerated>", "false")
+                        
+                        if code_generated == "true":
+                            LOGGER.info("<codegenerated> is true for CFT")
+                            s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft"
+                            
+                            # Don't send code immediately, wait for completion
+                            code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
+                            if 'Metadata' not in code_payload:
+                                code_payload['Metadata'] = {}
+                            code_payload['Metadata']['IsCode'] = True
+                            # Don't set IsComplete here yet
+                            
+                        else:
+                            LOGGER.info("<codegenerated> is not true for CFT")
+                            
+                    except json.JSONDecodeError as e:
+                        LOGGER.error(f"Error parsing CFT generation response: {e}")
+                    except Exception as e:
+                        LOGGER.error(f"Error processing CFT generation: {e}")
 
-                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['cftgeneration'].get('AgentId'):
-                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
-                    outer_json = json.loads(text)
-                    code_generated = outer_json.get("<codegenerated>", "false")
+                elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['architecture'].get('AgentId'):
+                    try:
+                        text = trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                        LOGGER.info(f"Architecture agent response: {text}")
+                        
+                        # Fix: Parse JSON to extract URL
+                        outer_json = json.loads(text)
+                        url_generated = outer_json.get('<PresignedURL>', "false")
                     
-                    if code_generated == "true":
-                        LOGGER.info("<codegenerated> is true")
-                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft")
-                        if 'Metadata' not in code_payload:
-                            code_payload['Metadata'] = {}
-                        code_payload['Metadata']['IsCode']=True
-                        code_payload['Metadata']['IsComplete']=True
-                    else:
-                        print(code_generated)
-                        LOGGER.info("<codegenerated> is not true")
+                        if url_generated != "false":
+                            LOGGER.info("URL generated is true")
+                            
+                            # Don't send immediately, wait for completion
+                            if 'Metadata' not in code_payload:
+                                code_payload['Metadata'] = {}
+                            code_payload['PresignedURL'] = url_generated
+                            code_payload['Metadata']['IsPresignedURL'] = True
+                            # Don't set IsComplete here yet
+                            
+                        else:
+                            LOGGER.info("URL generated is not true")
+                            
+                    except json.JSONDecodeError as e:
+                        LOGGER.error(f"Error parsing architecture response: {e}")
+                    except Exception as e:
+                        LOGGER.error(f"Error processing architecture response: {e}")
 
-                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['architecture'].get('AgentId'):
-                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
-                    print(text)
-                    outer_json = json.loads(text)
-                    print(outer_json)
-                    url_generated = outer_json.get('<PreSignedURL>', "false")
-                    print(url_generated)
-                    if url_generated != "false":
-                        LOGGER.info("url generated  is true")
-                        
-                        if 'Metadata' not in code_payload:
-                            code_payload['Metadata'] = {}
-                        code_payload['PresignedURL']=url_generated
-                        code_payload['Metadata']['IsPresignedURL']=True
-                        code_payload['Metadata']['IsComplete']=True
-                        print(code_payload)
-                        send_message_to_websocket(apigw_client, connection_id, code_payload)
-                        url_generated = "false"
-                    else:
-                        print(code_generated)
-                        LOGGER.info("url generated is not true")
-
-                
-                elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId')==trace['agentId']:
+                elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId') == trace['agentId']:
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
-                    # Store assistant response
-                    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant', message= response_obj["AIMessage"], message_id= message_id)
+                    
+                    # Send the final AI message first
+                    send_message_to_websocket(apigw_client, connection_id, response_obj)
+                    
+                    # Now send code/artifacts if they were generated
+                    if code_generated == "true" and code_payload:
+                        code_payload['Metadata']['IsComplete'] = True
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        LOGGER.info("Code payload sent after completion")
+                    
+                    # Handle URL separately if generated
+                    if url_generated != "false" and 'PresignedURL' in code_payload:
+                        # URL payload was already prepared above
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['Metadata']['IsComplete'] = True
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        LOGGER.info("URL payload sent after completion")
+                    
+                    # Store chat message with s3_key if available
+                    if s3_key:
+                        add_chat_message(
+                            body['workspaceid'], 
+                            body['solutionid'], 
+                            user_id, 
+                            'assistant', 
+                            message=response_obj["AIMessage"], 
+                            message_id=message_id,
+                            s3_key=s3_key
+                        )
+                    else:
+                        add_chat_message(
+                            body['workspaceid'], 
+                            body['solutionid'], 
+                            user_id, 
+                            'assistant', 
+                            message=response_obj["AIMessage"], 
+                            message_id=message_id
+                        )
+                    
+                    # Reset state after completion
+                    code_payload = {}
+                    code_generated = "false"
+                    url_generated = "false"
+                    s3_key = None
+                    
+                    return  # Exit after handling completion
 
-                
-            if "AITrace" in response_obj or "AIMessage" in response_obj:
-                send_message_to_websocket(apigw_client, connection_id,response_obj)
-                # Store assistant response
-                add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
-                LOGGER.info(f"code_generated:{code_generated}")
-
-    if code_generated=="true" :
-        send_message_to_websocket(apigw_client, connection_id, code_payload)
-        code_generated="false"
+            # Send intermediate traces (rationale, knowledge base results, etc.)
+            if "AITrace" in response_obj:
+                send_message_to_websocket(apigw_client, connection_id, response_obj)
+                # Store assistant trace
+                add_chat_message(
+                    body['workspaceid'], 
+                    body['solutionid'], 
+                    user_id, 
+                    'assistant',
+                    trace=response_obj.get('AITrace'), 
+                    message_id=message_id
+                )
+                    
+                LOGGER.info(f"Current state - code_generated: {code_generated}, url_generated: {url_generated}")
 
 
 
