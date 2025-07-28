@@ -987,6 +987,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
       userMessage: chatInput,
       workspaceid: workspaceId,
       solutionid: solutionId,
+      Context: "Editor",
     });
     console.log("[CodeEditor] Sending over websocket:", payload);
     wsClientRef.current.send(payload);

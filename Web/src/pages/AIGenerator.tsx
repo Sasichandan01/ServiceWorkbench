@@ -761,6 +761,7 @@ const AIGenerator = () => {
       userMessage: userMessage.content,
       workspaceid: workspaceId,
       solutionid: solutionId,
+      Context: "AIChat",
     });
     console.log("[Chat] Sending over websocket:", payload);
     
@@ -794,6 +795,7 @@ const AIGenerator = () => {
           action: "pauseGeneration",
           workspaceid: workspaceId,
           solutionid: solutionId,
+          Context: "AIChat",
         });
         wsClientRef.current.send(pausePayload);
       } catch (error) {
