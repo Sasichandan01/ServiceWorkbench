@@ -230,14 +230,16 @@ def send_message_to_websocket(client, conn_id, message):
 
 
 def handle_send_message(event, apigw_client, connection_id, user_id):
-
+    LOGGER.info("Handling send message")
     body = json.loads(event.get('body', '{}'))
+    LOGGER.info(f"Received body: {body}")
     user_prompt = body.get('userMessage')
     agent_info=extract_agent_info()
-    chat_context = body.get('Context', 'AIChat')
+    chatcontext =body.get('Context', 'AIChat')
+    LOGGER.info(f"Received chat context: {chatcontext}")
    
     combined_prompt=""
-    if chat_context == 'AIChat':
+    if chatcontext == 'AIChat':
         file_context=body.get('FileContext')
         if file_context:
             s3_data=read_selected_s3_files("develop-service-workbench-workspaces",f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}", file_context)
@@ -258,7 +260,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": msg})
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
-    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id, chat_context=chat_context)
+    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id, chat_context=chatcontext)
 
     current_lambda_requirements = generate_requirements()
     
@@ -440,7 +442,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             message=response_obj["AIMessage"], 
                             message_id=message_id,
                             s3_key=s3_key, 
-                            chat_context=chat_context
+                            chat_context=chatcontext
                         )
                     else:
                         add_chat_message(
@@ -450,7 +452,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             'assistant', 
                             message=response_obj["AIMessage"], 
                             message_id=message_id, 
-                            chat_context=chat_context
+                            chat_context=chatcontext
                         )
                     
                     # Reset state after completion
@@ -472,7 +474,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     'assistant',
                     trace=response_obj.get('AITrace'), 
                     message_id=message_id, 
-                    chat_context=chat_context
+                    chat_context=chatcontext
                 )
                 
             LOGGER.info(f"Current state - code_generated: {code_generated}, cft_generated: {cft_generated}, url_generated: {url_generated}")
