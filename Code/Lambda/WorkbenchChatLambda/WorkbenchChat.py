@@ -351,6 +351,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     #         "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
                     #     } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
                     # ]
+                    LOGGER.info("Knowledge base observation")
             
                 elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['codegeneration'].get('AgentId'):
                     try:
