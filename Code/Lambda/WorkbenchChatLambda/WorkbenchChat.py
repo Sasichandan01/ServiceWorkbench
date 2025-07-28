@@ -30,39 +30,6 @@ KEYWORD_MAP = {
 MAX_MESSAGES = 10
 chat_table = dynamodb.Table(os.environ['CHAT_TABLE'])
 
-# def build_chat_pk(workspace_id, solution_id):
-#     return f"ws#{workspace_id}#sol#{solution_id}"
-
-# def add_chat_message(workspace_id, solution_id, role, content=None,trace=None,message_id=None):
-#     pk = build_chat_pk(workspace_id, solution_id)
-
-#     response = chat_table.query(
-#         KeyConditionExpression=Key('ChatId').eq(pk),
-#         ScanIndexForward=True  # oldest first
-#     )
-#     items = response['Items']
-
-#     if items:
-#         last_sk = max(int(m['MessageNumber']) for m in items)
-#         new_sk = f"{last_sk + 1:04}"
-#     else:
-#         new_sk = "0001"
-
-#     item = {
-#         'ChatId': pk,
-#         'MessageNumber': new_sk,
-#         'Role': role,
-#         'Timestamp': datetime.utcnow().isoformat(),
-#         'MessageId': message_id
-#     }
-#     if content:
-#         item['Content'] = content
-
-#     if trace:
-#         item['Trace'] = trace
-
-#     chat_table.put_item(Item=item)
-
 
 def sanitize_for_dynamodb(obj):
     """Recursively convert data types to DynamoDB-safe types."""
@@ -79,11 +46,13 @@ def sanitize_for_dynamodb(obj):
     else:
         return obj
 
-def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None):
+def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None, chat_context="AIChat"):
+    LOGGER.info(f"Adding chat message for workspace_id={workspace_id}, solution_id={solution_id}, user_id={user_id}, role={role}, message_id={message_id}, chat_context={chat_context}")
     timestamp = datetime.utcnow().isoformat()
-    chat_id = f"{solution_id}#{user_id}"
+    chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Convert trace string to list
+    LOGGER.info(f"Converting trace to list: {trace}")
     trace_list = []
     if trace:
         try:
@@ -93,6 +62,7 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
             trace_list = [trace]
 
     # Check if message_id exists via GSI
+    LOGGER.info(f"Checking if message_id={message_id} exists in chat table")
     if message_id:
         response = chat_table.query(
             IndexName='MessageIdIndex',
@@ -132,12 +102,14 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
         'Sender': role,
         'MessageId': message_id,
     }
+    LOGGER.info(f"Inserting new chat message: {item}")
 
     if message:
         item['Message'] = message
     if trace_list:
         item['Trace'] = sanitize_for_dynamodb(trace_list)
 
+    LOGGER.info(f"Inserting chat message: {item}")
     chat_table.put_item(Item=item)
 
 
@@ -262,6 +234,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     body = json.loads(event.get('body', '{}'))
     user_prompt = body.get('userMessage')
     agent_info=extract_agent_info()
+    chat_context = body.get('Context', 'AIChat')
     
     message_id = str(uuid.uuid4())
     user_message_id = str(uuid.uuid4())
@@ -280,7 +253,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
     # Store user message in DynamoDB
-    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id)
+    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id, chat_context=chat_context)
 
     s3_key = f"{body['workspaceid']}/{body['solutionid']}/memory.txt"
     # memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
@@ -416,13 +389,13 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     response_obj["AIMessage"] = trace["trace"]["orchestrationTrace"]["observation"]["finalResponse"]["text"]
                     response_obj["Metadata"]["IsComplete"] = True
                     # Store assistant response
-                    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant', message= response_obj["AIMessage"], message_id= message_id)
+                    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant', message= response_obj["AIMessage"], message_id= message_id, chat_context=chat_context)
 
                 
             if "AITrace" in response_obj or "AIMessage" in response_obj:
                 send_message_to_websocket(apigw_client, connection_id,response_obj)
                 # Store assistant response
-                add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
+                add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id, chat_context=chat_context)  
                 LOGGER.info(f"code_generated:{code_generated}")
 
     if code_generated=="true" :
