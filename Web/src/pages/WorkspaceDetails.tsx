@@ -119,7 +119,7 @@ const WorkspaceDetails = () => {
     members: data.Users?.Pagination?.TotalCount || 0,
     solutions: 0, // update if needed
     dataSources: 0, // update if needed
-    monthlyCost: 0, // update if needed
+    monthlyCost: monthlyCost,
     type: data.WorkspaceType,
     tags: data.Tags || [],
   } : null;
@@ -173,8 +173,8 @@ const WorkspaceDetails = () => {
       setCostError(null);
       const response = await CostService.getCostByWorkspaceId(id);
       // Add safety check for response structure
-      if (response && typeof response.cost === 'number') {
-        setMonthlyCost(response.cost);
+      if (response && typeof response.Cost === 'number') {
+        setMonthlyCost(response.Cost);
       } else {
         console.warn('Invalid cost response structure:', response);
         setMonthlyCost(0);
@@ -466,7 +466,7 @@ const WorkspaceDetails = () => {
                   ) : costError ? (
                     <span className="text-red-600">Error</span>
                   ) : (
-                    `$${(monthlyCost || 0).toLocaleString()}`
+                    `${(monthlyCost || 0).toLocaleString()}`
                   )}
                 </p>
                 <p className="text-sm text-gray-600">Monthly Cost</p>
