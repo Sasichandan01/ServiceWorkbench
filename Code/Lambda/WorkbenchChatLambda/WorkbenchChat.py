@@ -1,6 +1,5 @@
 import json
 import os
-import os
 import re
 import logging
 import boto3
@@ -294,8 +293,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Prompt: {combined_prompt}")
 
     invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
-        agentId=agent_info['cftgeneration'].get('AgentId'),
-        agentAliasId=agent_info['cftgeneration'].get('AgentAliasId'),
+        agentId=agent_info['supervisor'].get('AgentId'),
+        agentAliasId=agent_info['supervisor'].get('AgentAliasId'),
         sessionId=connection_id[:-1],
         inputText=combined_prompt,
         bedrockModelConfigurations={'performanceConfig': {'latency': 'standard'}},
@@ -306,13 +305,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     )
     code_payload={}
     code_generated="false"
+    url_generated="false"
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        
-        
+        print(code_generated)
         if trace:
-            LOGGER.info(f"{code_generated}")
-            LOGGER.info(f"Trace: {trace}")
+
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
@@ -375,11 +373,31 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             code_payload['Metadata'] = {}
                         code_payload['Metadata']['IsCode']=True
                         code_payload['Metadata']['IsComplete']=True
-                        
-
                     else:
                         print(code_generated)
                         LOGGER.info("<codegenerated> is not true")
+
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['architecture'].get('AgentId'):
+                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    print(text)
+                    outer_json = json.loads(text)
+                    print(outer_json)
+                    url_generated = outer_json.get('<PreSignedURL>', "false")
+                    print(url_generated)
+                    if url_generated != "false":
+                        LOGGER.info("url generated  is true")
+                        
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['PresignedURL']=url_generated
+                        code_payload['Metadata']['IsPresignedURL']=True
+                        code_payload['Metadata']['IsComplete']=True
+                        print(code_payload)
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        url_generated = "false"
+                    else:
+                        print(code_generated)
+                        LOGGER.info("url generated is not true")
 
                 
                 elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId')==trace['agentId']:
@@ -394,10 +412,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 # Store assistant response
                 add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
                 LOGGER.info(f"code_generated:{code_generated}")
-                if code_generated=="true" :
 
-                    send_message_to_websocket(apigw_client, connection_id, code_payload)
-                    code_generated="false"
+    if code_generated=="true" :
+        send_message_to_websocket(apigw_client, connection_id, code_payload)
+        code_generated="false"
+
 
 
 
@@ -419,6 +438,6 @@ def lambda_handler(event, context):
 
     if rc['routeKey'] == 'sendMessage':
         handle_send_message(event, client, cid, rc['authorizer']['user_id'])
-        # send_message_to_websocket(client, cid, {'status': 'Success', 'message': 'Completed'})
+
 
     return {'statusCode': 400}

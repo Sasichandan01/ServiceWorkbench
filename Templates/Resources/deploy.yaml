@@ -93,6 +93,7 @@ Resources:
             Action: "s3:GetObject"
             Resource: !Sub "${MiscBucket.Arn}/*"
 
+
   # CloudFront Origin Access Control (OAC)
   WebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
@@ -441,13 +442,14 @@ Resources:
       Environment:
         Variables:
           USER_TABLE_NAME: !Ref UserTable
+          USERS_TABLE: !Ref UserTable
           ROLE_TABLE_NAME: !Ref RolesTable
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
           WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
           RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          USERS_TABLE: !Ref UserTable
+
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
@@ -757,8 +759,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-        - Key: SWB-User
-          Value: "ServiceWorkbench"
 
 
   BedrockAgentManager:
@@ -914,8 +914,6 @@ Resources:
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
-        - Key: SWB-User
-          Value: "ServiceWorkbench"
   
   WorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -963,8 +961,7 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: 
-                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
+                Resource: '*'
         - PolicyName: LogAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -975,7 +972,8 @@ Resources:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:GetLogEvents
-                  - glue:GetJobRuns
+                  - glue:*
+                  - logs:FilterLogEvents
                 Resource: '*'
         - PolicyName: S3Access
           PolicyDocument:
@@ -1018,7 +1016,7 @@ Resources:
               - Sid: AllowLogsAndGlueAccess
                 Effect: Allow
                 Action:
-                  - bedrock:Invoke
+                  - bedrock:InvokeAgent
                 Resource: '*'     
         - PolicyName: WebSocketAccess
           PolicyDocument:
@@ -1295,6 +1293,7 @@ Resources:
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
+      Timeout: 900
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -2062,6 +2061,7 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
+          SOLUTIONS_TABLE: !Ref "SolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
@@ -2479,33 +2479,54 @@ Resources:
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
-  # ChatHistoryTable:
-  #   Type: AWS::DynamoDB::Table
-  #   Properties:
-  #     TableName: !Sub 'Workbench-${pPrefix}-ChatHistoryTable'
-  #     BillingMode: PAY_PER_REQUEST
-  #     AttributeDefinitions:
-  #       - AttributeName: ChatId
-  #         AttributeType: S
-  #       - AttributeName: Timestamp
-  #         AttributeType: S
-  #       - AttributeName: MessageId
-  #         AttributeType: S
-  #     KeySchema:
-  #       - AttributeName: ChatId
-  #         KeyType: HASH
-  #       - AttributeName: Timestamp
-  #         KeyType: RANGE
-  #     GlobalSecondaryIndexes:
-  #       - IndexName: MessageIdIndex
-  #         KeySchema:
-  #           - AttributeName: MessageId
-  #             KeyType: HASH
-  #         Projection:
-  #           ProjectionType: ALL
-  #     Tags:
-  #       - Key: Name
-  #         Value: "WorkbenchV2"
+
+  DailyMidnightScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'Workbench-${pPrefix}-AuroraEB'
+      Description: Triggers Lambda function daily at 12:00 AM UTC (Monday-Saturday)
+      ScheduleExpression: 'cron(0 0 ? * MON-SAT *)'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt UsersLambda.Arn
+          Id: DailyMidnightLambdaTarget
+          Input: !Sub |
+            {
+              "action": "app"
+            }
+
+  SundayMidnightScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'Workbench-${pPrefix}-EB'
+      Description: Triggers Lambda function every Sunday at 12:00 AM UTC with special parameters
+      ScheduleExpression: 'cron(0 0 ? * SUN *)'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt UsersLambda.Arn
+          Id: SundayMidnightLambdaTarget
+          Input: !Sub |
+            {
+              "action": "docsapp"
+            }
+
+  DailyLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UsersLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyMidnightScheduleRule.Arn
+
+  SundayLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UsersLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt SundayMidnightScheduleRule.Arn
+
+
 
 Outputs:
 
