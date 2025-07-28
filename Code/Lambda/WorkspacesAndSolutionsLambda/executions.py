@@ -142,16 +142,19 @@ def start_execution(event, context):
         if execution_response.get('Count', 0) > 0:
             return return_response(400, {"Error": "Another execution is already in progress"})
         # Create execution record
+        user_id=event.get('requestContext', {}).get('authorizer', {}).get('user_id')
         execution = {
             'ExecutionId': execution_id,
             'SolutionId': solution_id,
             'WorkspaceId': workspace_id,
-            'ExecutionStatus': 'GENERATING',
+            'ExecutionStatus': 'RUNNING',
             'StartTime': timestamp,
-            'ExecutedBy': event.get('requestContext', {}).get('authorizer', {}).get('user_id'),
+            'ExecutedBy': user_id,
             'LogsStatus': 'INCOMPLETE'
         }
         executions_table.put_item(Item=execution)
+        log_activity(activity_logs_table, 'Solution', execution_id, solution_id, user_id, 'EXECUTION STARTED')
+
         # Start all resources
         time.sleep(2)
         resource_statuses = {}
@@ -198,6 +201,14 @@ def start_execution(event, context):
                     'runId': response['JobRunId']
                 }
             else:
+                executions_table.update_item(
+                    Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
+                    UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
+                    ExpressionAttributeValues={
+                        ':status': "FAILED",
+                        ':end_time': current_time()
+                    }
+                )
                 return return_response(400, {"Error": "Invalid invocation, resource not found"})
 
         payload = {
@@ -221,9 +232,12 @@ def start_execution(event, context):
 
     except Exception as e:
         executions_table.update_item(
-            Key={'SolutionId': solution_id, 'ExecutionId': execution_id},
-            UpdateExpression="SET ExecutionStatus = :status",
-            ExpressionAttributeValues={':status': 'FAILED'}
+            Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
+            UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
+            ExpressionAttributeValues={
+                ':status': "FAILED",
+                ':end_time': current_time()
+            }
         )
         return return_response(500, {"Error": str(e)})
 
@@ -330,7 +344,7 @@ def process_execution(event, context):
             Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
             UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
             ExpressionAttributeValues={
-                ':status': 'FAILED',
+                ':status': "FAILED",
                 ':end_time': current_time()
             }
         )

@@ -405,6 +405,7 @@ def fetch_cloudwatch_logs(log_group_name, log_stream_name, start_time, end_time)
             logs_content += f"{timestamp}: {message}\n"
         return logs_content
     except Exception as e:
+        update_execution_status(solution_id, execution_id, "COMPLETED")
         logger.error(f"Error fetching CloudWatch logs: {str(e)}")
         return f"Error fetching CloudWatch logs: {str(e)}"
 
@@ -414,12 +415,12 @@ def process_log_collection(event, context):
         solution_id = event.get('solution_id')
         execution_id = event.get('execution_id')
         workspace_id = event.get('workspace_id')
-        
+        user_id=event.get('user_id')
         if not solution_id or not execution_id or not workspace_id:
             return return_response(400, "Missing required parameters")
         
         logger.info("Logs generation started successfully")
-        update_execution_status(solution_id, execution_id, "RUNNING")
+        update_execution_status(solution_id, execution_id, "GENERATING")
 
         resources = fetch_resources_for_solution(workspace_id,solution_id)
         print(resources)
@@ -466,12 +467,13 @@ def process_log_collection(event, context):
         
         os.unlink(merged_log_file)
         update_execution_status(solution_id, execution_id, "COMPLETED")
-        
+        # log_activity(activity_logs_table,'Log',solution_id, execution_id, user_id, "LOGS GENERATED")
         return return_response(200, {
             's3_location': f's3://{workspaces_bucket}/{s3_key}',
             'processed_executions': len(resources)
         })
     except Exception as e:
+        update_execution_status(solution_id, execution_id, "FAILED")
         logger.error(str(e))
         return return_response(400, str(e))
 
@@ -513,7 +515,7 @@ def generate_execution_logs(event, context):
         workspace_id = path_parameters.get('workspace_id')
         solution_id = path_parameters.get('solution_id')
         execution_id = path_parameters.get('execution_id')
-
+        user_id=event.get('requestContext', {}).get('authorizer', {}).get('user_id')
         execution_response = executions_table.get_item(
             Key={'SolutionId': solution_id, 'ExecutionId': execution_id},
             ProjectionExpression='ExecutionStatus,LogsStatus'
@@ -530,7 +532,8 @@ def generate_execution_logs(event, context):
             'execution_id': execution_id,
             'background': True,
             'resource': f'/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs',
-            'action': 'logs-poll'
+            'action': 'logs-poll',
+            'user_id': user_id
         }
 
         lambda_client.invoke(
