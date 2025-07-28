@@ -25,7 +25,7 @@ import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 import Docs from "./pages/Docs";
 import { useEffect } from "react";
-import { isTokenExpiringSoon, refreshAccessToken } from "@/lib/auth";
+import { isTokenExpiringSoon, refreshAccessToken, clearAllAuthData } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -37,8 +37,9 @@ function useSilentTokenRefresh() {
         try {
           await refreshAccessToken();
         } catch (err) {
-          // Optionally handle refresh failure (logout, etc.)
           console.error("Silent token refresh failed", err);
+          clearAllAuthData();
+          window.location.replace("/login");
         }
       }
     }, 5 * 60 * 1000); // every 5 minutes

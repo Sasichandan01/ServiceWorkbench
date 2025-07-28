@@ -165,6 +165,7 @@ const AIChatSolutionMessage = ({ solutionJson }: { solutionJson: any }) => (
 );
 
 const AIGenerator = () => {
+  const lastMermaidDiagramRef = useRef<string | null>(null);
   const { workspaceId, solutionId } = useParams();
   const [workspaceName, setWorkspaceName] = useState("");
   const [solutionName, setSolutionName] = useState("");
@@ -572,6 +573,13 @@ const AIGenerator = () => {
           
           // Don't reload chat history - keep the current message with temporary ID
           // The actual MessageId will be available when user views chat history later
+          const mermaidMatch = typeof aiMessage === "string"
+            ? aiMessage.match(/```mermaid\n([\s\S]+?)```/)
+            : null;
+          if (mermaidMatch) {
+            lastMermaidDiagramRef.current = mermaidMatch[1];
+            console.log("[Mermaid] Stored mermaid diagram:", lastMermaidDiagramRef.current);
+          }
         } else if (data && data.Metadata && data.Metadata.IsCode === true) {
           // Handle code messages as the final message content
           const tempId = `temp-ai-${Date.now()}`;
@@ -595,6 +603,42 @@ const AIGenerator = () => {
           
           // Don't reload chat history - keep the current message with temporary ID
           // The actual MessageId will be available when user views chat history later
+        }
+
+        if (metadata.IsPresignedURL && data.PresignedURL) {
+          const mermaidCode = lastMermaidDiagramRef.current;
+          console.log("[PresignedURL] Received presigned URL:", data.PresignedURL);
+          if (mermaidCode) {
+            console.log("[PresignedURL] Rendering and uploading mermaid diagram...");
+            import('mermaid').then((mermaid) => {
+              try {
+                mermaid.mermaidAPI.render('mermaidSvg', mermaidCode, (svgCode) => {
+                  try {
+                    const blob = new Blob([svgCode], { type: 'image/svg+xml' });
+                    fetch(data.PresignedURL, {
+                      method: 'PUT',
+                      body: blob,
+                      headers: { 'Content-Type': 'image/svg+xml' }
+                    })
+                      .then(() => {
+                        console.log('[PresignedURL] Diagram uploaded to S3!');
+                      })
+                      .catch((err) => {
+                        console.error('[PresignedURL] Failed to upload diagram:', err);
+                      });
+                  } catch (err) {
+                    console.error('[PresignedURL] Error creating/uploading SVG blob:', err);
+                  }
+                });
+              } catch (err) {
+                console.error('[PresignedURL] Error rendering mermaid diagram:', err);
+              }
+            }).catch((err) => {
+              console.error('[PresignedURL] Failed to import mermaid:', err);
+            });
+          } else {
+            console.warn('[PresignedURL] No mermaid diagram found to upload.');
+          }
         }
       } catch (error) {
         console.error("[Chat] Error parsing WebSocket message:", error);
