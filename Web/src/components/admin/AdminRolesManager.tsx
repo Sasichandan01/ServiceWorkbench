@@ -75,15 +75,16 @@ interface CreateRolePayload {
   name: string;
   description: string;
   permissions: {
-    workspaces: 'Fullaccess' | 'Manage' | 'View';
-    datasources: 'Fullaccess' | 'Manage' | 'View';
-    users: 'Fullaccess' | 'Manage' | 'View';
-    roles: 'Fullaccess' | 'Manage' | 'View';
-    glue: 'Fullaccess' | 'Manage' | 'View';
-    stepfunction: 'Fullaccess' | 'Manage' | 'View';
-    s3: 'Fullaccess' | 'Manage' | 'View';
-    lambda: 'Fullaccess' | 'Manage' | 'View';
-    dynamodb: 'Fullaccess' | 'Manage' | 'View';
+    workspaces: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    datasources: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    users: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    roles: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    executions: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    glue: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    stepfunction: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    s3: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    lambda: 'Fullaccess' | 'Manage' | 'View' | undefined;
+    dynamodb: 'Fullaccess' | 'Manage' | 'View' | undefined;
   };
 }
 
@@ -106,15 +107,16 @@ const AdminRolesManager = () => {
     name: "",
     description: "",
     permissions: {
-      workspaces: 'View',
-      datasources: 'View',
-      users: 'View',
-      roles: 'View',
-      glue: 'View',
-      stepfunction: 'View',
-      lambda: 'View',
-      s3: 'View',
-      dynamodb: 'View',
+      workspaces: undefined,
+      datasources: undefined,
+      users: undefined,
+      roles: undefined,
+      executions: undefined,
+      glue: undefined,
+      stepfunction: undefined,
+      lambda: undefined,
+      s3: undefined,
+      dynamodb: undefined,
     }
   });
 
@@ -179,8 +181,10 @@ const AdminRolesManager = () => {
     const apiPermissions: string[] = [];
     
     Object.entries(permissions).forEach(([service, level]) => {
-      const formattedLevel = level.toLowerCase() === 'fullaccess' ? 'fullaccess' : level.toLowerCase();
-      apiPermissions.push(`${service}.${formattedLevel}`);
+      if (level) { // Only add permissions that are defined
+        const formattedLevel = level.toLowerCase() === 'fullaccess' ? 'fullaccess' : level.toLowerCase();
+        apiPermissions.push(`${service}.${formattedLevel}`);
+      }
     });
     
     return apiPermissions;
@@ -351,21 +355,25 @@ const AdminRolesManager = () => {
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Platform Permissions</h3>
                     <div className="grid grid-cols-2 gap-6">
-                      {(['workspaces', 'datasources', 'users', 'roles'] as const).map((permission) => (
+                      {(['workspaces', 'datasources', 'users', 'roles', 'executions'] as const).map((permission) => (
                         <div key={permission} className="space-y-3">
                           <Label className="text-sm font-medium capitalize">{permission}</Label>
                           <RadioGroup
-                            value={newRole.permissions[permission]}
+                            value={newRole.permissions[permission] || ''}
                             onValueChange={(value) => 
                               setNewRole({
                                 ...newRole,
                                 permissions: {
                                   ...newRole.permissions,
-                                  [permission]: value as 'Fullaccess' | 'Manage' | 'View'
+                                  [permission]: value === '' ? undefined : value as 'Fullaccess' | 'Manage' | 'View'
                                 }
                               })
                             }
                           >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="" id={`${permission}-none`} />
+                              <Label htmlFor={`${permission}-none`}>None</Label>
+                            </div>
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="Fullaccess" id={`${permission}-full`} />
                               <Label htmlFor={`${permission}-full`}>Full Access</Label>
@@ -387,23 +395,32 @@ const AdminRolesManager = () => {
                   <div>
                     <h3 className="text-lg font-semibold mb-4">AWS Services</h3>
                     <div className="grid grid-cols-2 gap-6">
-                      {(['glue', 'stepfunction', 'lambda'] as const).map((service) => (
+                      {(['glue', 'stepfunction', 'lambda', 's3', 'dynamodb'] as const).map((service) => (
                         <div key={service} className="space-y-3">
                           <Label className="text-sm font-medium capitalize">
-                            {service === 'stepfunction' ? 'Step Functions' : service.toUpperCase()}
+                            {service === 'stepfunction' ? 'Step Functions' : 
+                             service === 'lambda' ? 'Lambda' :
+                             service === 'glue' ? 'Glue' :
+                             service === 's3' ? 'S3' :
+                             service === 'dynamodb' ? 'DynamoDB' :
+                             service.toUpperCase()}
                           </Label>
                           <RadioGroup
-                            value={newRole.permissions[service]}
+                            value={newRole.permissions[service] || ''}
                             onValueChange={(value) => 
                               setNewRole({
                                 ...newRole,
                                 permissions: {
                                   ...newRole.permissions,
-                                  [service]: value as 'Fullaccess' | 'Manage' | 'View'
+                                  [service]: value === '' ? undefined : value as 'Fullaccess' | 'Manage' | 'View'
                                 }
                               })
                             }
                           >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="" id={`${service}-none`} />
+                              <Label htmlFor={`${service}-none`}>None</Label>
+                            </div>
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="Fullaccess" id={`${service}-full`} />
                               <Label htmlFor={`${service}-full`}>Full Access</Label>
