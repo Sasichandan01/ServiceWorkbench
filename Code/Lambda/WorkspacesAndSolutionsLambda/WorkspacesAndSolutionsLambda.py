@@ -21,7 +21,7 @@ roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 chat_table = dynamodb.Table(os.environ.get('CHAT_TABLE'))
 
 def build_chat_pk(solution_id, user_id):
-    return f"{solution_id}#{user_id}"
+    return f"{solution_id}#{user_id}#AIChat"
 
 def get_chat_history(workspace_id, solution_id, user_id):
     pk = build_chat_pk(solution_id, user_id)
