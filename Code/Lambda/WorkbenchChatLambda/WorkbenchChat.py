@@ -30,8 +30,8 @@ KEYWORD_MAP = {
 MAX_MESSAGES = 10
 chat_table = dynamodb.Table(os.environ['CHAT_TABLE'])
 
-def build_chat_pk(workspace_id, solution_id):
-    return f"ws#{workspace_id}#sol#{solution_id}"
+# def build_chat_pk(workspace_id, solution_id):
+#     return f"ws#{workspace_id}#sol#{solution_id}"
 
 # def add_chat_message(workspace_id, solution_id, role, content=None,trace=None,message_id=None):
 #     pk = build_chat_pk(workspace_id, solution_id)
@@ -143,12 +143,12 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
     chat_table.put_item(Item=item)
 
 
-def get_latest_chat_messages(workspace_id, solution_id, limit=10):
-    pk = build_pk(workspace_id, solution_id)
+def get_latest_chat_messages(user_id, solution_id, limit=10):
+    chat_id = f"{solution_id}#{user_id}#SOLUTION"
 
     # Step 1: Fetch latest N messages (reverse scan)
     response = chat_table.query(
-        KeyConditionExpression=Key('ChatId').eq(pk),
+        KeyConditionExpression=Key('ChatId').eq(chat_id),
         ScanIndexForward=False,  # Newest first
         Limit=limit
     )
@@ -278,7 +278,19 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     
    
     current_lambda_requirements = generate_requirements()
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}"
+    
+    # Get the last 10 chat messages
+    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10)
+    chat_context = ""
+    if chat_history:
+        chat_context = "\n\nChat History:\n"
+        for msg in chat_history:
+            role = msg.get('Sender', 'unknown')
+            message = msg.get('Message', '')
+            if message:
+                chat_context += f"{role.capitalize()}: {message}\n"
+    
+    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}{chat_context}"
 
     # if memory_content:
     #     combined_prompt += f" Here is the memory context: {memory_content}"

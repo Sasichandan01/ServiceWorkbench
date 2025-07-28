@@ -210,6 +210,8 @@ export const refreshAccessToken = async () => {
 
 export const signInWithGoogle = async () => {
   try {
+    // Proceed directly with Google sign-in
+    // The authentication check will be handled by the AuthProvider after redirect
     await signInWithRedirect({
       provider: 'Google'
     });
@@ -226,5 +228,91 @@ export const checkAuthState = async () => {
   } catch (error) {
     console.error('Error checking auth state:', error);
     return null;
+  }
+};
+
+/**
+ * Manual OAuth token exchange function
+ * Use this if you need to handle the OAuth flow manually instead of using Amplify
+ */
+export const exchangeAuthCodeForTokens = async (authCode: string, redirectUri: string) => {
+  const domain = `${import.meta.env.VITE_COGNITO_DOMAIN}.auth.${import.meta.env.VITE_COGNITO_REGION}.amazoncognito.com`;
+  const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const clientSecret = import.meta.env.VITE_COGNITO_CLIENT_SECRET; // Optional, only if your app client has a secret
+  
+  const tokenUrl = `https://${domain}/oauth2/token`;
+  
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: authCode,
+    redirect_uri: redirectUri,
+  });
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  
+  // Add Authorization header if client secret exists
+  if (clientSecret) {
+    const credentials = btoa(`${clientId}:${clientSecret}`);
+    headers['Authorization'] = `Basic ${credentials}`;
+  }
+  
+  try {
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers,
+      body: body.toString(),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+    }
+    
+    const tokenData = await response.json();
+    
+    // Store tokens in localStorage
+    if (tokenData.access_token) {
+      localStorage.setItem('accessToken', tokenData.access_token);
+    }
+    if (tokenData.id_token) {
+      localStorage.setItem('idToken', tokenData.id_token);
+    }
+    if (tokenData.refresh_token) {
+      localStorage.setItem('refreshToken', tokenData.refresh_token);
+    }
+    
+    return tokenData;
+  } catch (error) {
+    console.error('Token exchange error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get user information using the access token
+ * This requires the aws.cognito.signin.user.admin scope
+ */
+export const getUserInfo = async (accessToken: string) => {
+  const domain = `${import.meta.env.VITE_COGNITO_DOMAIN}.auth.${import.meta.env.VITE_COGNITO_REGION}.amazoncognito.com`;
+  const userInfoUrl = `https://${domain}/oauth2/userInfo`;
+  
+  try {
+    const response = await fetch(userInfoUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`GetUser failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('GetUser error:', error);
+    throw error;
   }
 };

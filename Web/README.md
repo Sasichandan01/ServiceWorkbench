@@ -1,73 +1,112 @@
-# Welcome to your Lovable project
+# CAP Workbench Web Application
 
-## Project info
+This is the web frontend for the CAP Workbench application, built with React, TypeScript, and Vite.
 
-**URL**: https://lovable.dev/projects/0b4801b7-8705-4e96-bc37-e15861d8ee9d
+## Features
 
-## How can I edit this code?
+- AI-powered solution generation
+- Real-time chat with AI agents
+- Code editor with syntax highlighting
+- WebSocket-based communication
+- Role-based access control
 
-There are several ways of editing your application.
+## Environment Configuration
 
-**Use Lovable**
+### Required Environment Variables
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0b4801b7-8705-4e96-bc37-e15861d8ee9d) and start prompting.
+Create a `.env` file in the root directory with the following variables:
 
-Changes made via Lovable will be committed automatically to this repo.
+```env
+# WebSocket URL for real-time chat communication
+VITE_WEBSOCKET_URL=wss://your-api-gateway-url.execute-api.region.amazonaws.com/stage
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Other environment variables as needed
+VITE_API_URL=https://your-api-gateway-url.execute-api.region.amazonaws.com/stage
 ```
 
-**Edit a file directly in GitHub**
+### WebSocket Configuration
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The application uses WebSocket connections for real-time chat functionality. Make sure to:
 
-**Use GitHub Codespaces**
+1. Set the `VITE_WEBSOCKET_URL` environment variable to your WebSocket endpoint
+2. Ensure your WebSocket endpoint accepts authentication tokens
+3. The WebSocket URL should be in the format: `wss://your-api-gateway-url.execute-api.region.amazonaws.com/stage`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Troubleshooting WebSocket Issues
 
-## What technologies are used for this project?
+If you encounter "Cannot send: input empty, wsClientRef" errors:
 
-This project is built with:
+1. **Check Environment Variables**: Ensure `VITE_WEBSOCKET_URL` is properly set
+2. **Authentication**: Verify that the access token is available in localStorage
+3. **Network**: Check if the WebSocket endpoint is accessible from your network
+4. **CORS**: Ensure your WebSocket endpoint allows connections from your domain
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Development
 
-## How can I deploy this project?
+### Prerequisites
 
-Simply open [Lovable](https://lovable.dev/projects/0b4801b7-8705-4e96-bc37-e15861d8ee9d) and click on Share -> Publish.
+- Node.js 18+ or Bun
+- npm, yarn, or bun package manager
 
-## Can I connect a custom domain to my Lovable project?
+### Installation
 
-Yes, you can!
+```bash
+# Using npm
+npm install
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Using yarn
+yarn install
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+# Using bun
+bun install
+```
+
+### Running the Development Server
+
+```bash
+# Using npm
+npm run dev
+
+# Using yarn
+yarn dev
+
+# Using bun
+bun dev
+```
+
+The application will be available at `http://localhost:5173`
+
+### Building for Production
+
+```bash
+# Using npm
+npm run build
+
+# Using yarn
+yarn build
+
+# Using bun
+bun run build
+```
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+├── pages/              # Page components
+├── services/           # API service functions
+├── lib/                # Utility libraries
+├── hooks/              # Custom React hooks
+├── store/              # State management
+└── types/              # TypeScript type definitions
+```
+
+## Technologies Used
+
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool and dev server
+- **Tailwind CSS** - Styling
+- **shadcn/ui** - UI components
+- **WebSocket** - Real-time communication

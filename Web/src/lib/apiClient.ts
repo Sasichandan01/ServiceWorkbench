@@ -5,23 +5,40 @@ interface ApiClientOptions extends RequestInit {
 }
 
 import { refreshAccessToken, clearAllAuthData } from './auth';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 /**
  * Custom API client that ensures proper header formatting for our backend
  */
 export class ApiClient {
-  private static getAuthToken(): string | null {
-    return localStorage.getItem('accessToken');
+  private static async getAuthToken(): Promise<string | null> {
+    // First try to get token from localStorage (for username/password auth)
+    const localToken = localStorage.getItem('accessToken');
+    if (localToken) {
+      return localToken;
+    }
+    
+    // If no local token, try to get from Amplify session (for OAuth auth)
+    try {
+      const session = await fetchAuthSession();
+      if (session.tokens?.accessToken) {
+        return session.tokens.accessToken.toString();
+      }
+    } catch (error) {
+      console.log('No Amplify session found:', error);
+    }
+    
+    return null;
   }
 
-  private static createHeaders(customHeaders: Record<string, string> = {}): Headers {
+  private static async createHeaders(customHeaders: Record<string, string> = {}): Promise<Headers> {
     const headers = new Headers();
     
     // Set standard headers
     headers.set('Content-Type', 'application/json');
     
     // Add auth token if available
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
@@ -37,7 +54,7 @@ export class ApiClient {
   static async request(endpoint: string, options: ApiClientOptions = {}): Promise<Response> {
     const { headers: customHeaders = {}, ...restOptions } = options;
     
-    const headers = this.createHeaders(customHeaders);
+    const headers = await this.createHeaders(customHeaders);
     const config: RequestInit = {
       ...restOptions,
       headers: Object.fromEntries(headers.entries()),
@@ -56,7 +73,7 @@ export class ApiClient {
         try {
           await refreshAccessToken();
           // Update headers with new token
-          const retryHeaders = this.createHeaders(customHeaders);
+          const retryHeaders = await this.createHeaders(customHeaders);
           const retryConfig: RequestInit = {
             ...restOptions,
             headers: Object.fromEntries(retryHeaders.entries()),
@@ -101,7 +118,7 @@ export class ApiClient {
   }
 
   static async postFormData(endpoint: string, formData: FormData, options: Omit<ApiClientOptions, 'method' | 'body'> = {}): Promise<Response> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: Record<string, string> = {};
     
     if (token) {

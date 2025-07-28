@@ -87,8 +87,19 @@ const SolutionTabs = ({
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
-          <SolutionOverviewCards solutionData={solution} solutionId={solutionId} />
-          <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
+          {solution ? (
+            <>
+              <SolutionOverviewCards solutionData={solution} solutionId={solutionId} />
+              <SolutionInformation solutionData={solution} getStatusBadgeClass={getStatusBadgeClass} />
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading solution data...</p>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {!isNewSolution && (
@@ -146,7 +157,14 @@ const SolutionTabs = ({
               <CardTitle>Datasources</CardTitle>
             </CardHeader>
             <CardContent>
-              {Array.isArray(solution.Datasources) && solution.Datasources.length > 0 ? (
+              {!solution ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading solution data...</p>
+                  </div>
+                </div>
+              ) : Array.isArray(solution.Datasources) && solution.Datasources.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
