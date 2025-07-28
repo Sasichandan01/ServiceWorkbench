@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { CostService } from "@/services/costService";
 import { WorkspaceService } from "@/services/workspaceService";
+import { UserService } from "@/services/userService";
+import { RoleService } from "@/services/roleService";
 import { getUserInfo } from "@/lib/tokenUtils";
 
 const AdminSystemOverview = () => {
@@ -36,26 +38,26 @@ const AdminSystemOverview = () => {
     { name: "File Storage", status: "healthy", uptime: "99.9%", icon: HardDrive },
   ];
 
-  const stats = [
+  const [stats, setStats] = useState([
     {
       title: "Total Users",
-      value: "12",
+      value: "0",
       changeType: "positive",
       icon: Users
     },
     {
       title: "Active Workspaces",
-      value: "10",
+      value: "0",
       changeType: "positive",
       icon: Cloud
     },
     {
       title: "Roles",
-      value: "5",
+      value: "0",
       changeType: "positive",
       icon: Shield
     }
-  ];
+  ]);
 
   // New state for cost listing table
   const [groupBy, setGroupBy] = useState("all-workspaces");
@@ -77,6 +79,47 @@ const AdminSystemOverview = () => {
       setWorkspaces(response.Workspaces || []);
     } catch (err) {
       console.error('Error fetching workspaces:', err);
+    }
+  };
+
+  // Fetch total counts for stats cards
+  const fetchTotalCounts = async () => {
+    try {
+      // Fetch users count
+      const usersResponse = await UserService.getUsers({ limit: 1, offset: 1 });
+      const totalUsers = usersResponse.Pagination?.TotalCount || 0;
+
+      // Fetch workspaces count
+      const workspacesResponse = await WorkspaceService.getWorkspaces({ limit: 1, offset: 1 });
+      const totalWorkspaces = workspacesResponse.Pagination?.TotalCount || 0;
+
+      // Fetch roles count
+      const rolesResponse = await RoleService.getRoles({ limit: 1, offset: 1 });
+      const totalRoles = rolesResponse.Pagination?.TotalCount || 0;
+
+      // Update stats with actual counts
+      setStats([
+        {
+          title: "Total Users",
+          value: totalUsers.toString(),
+          changeType: "positive",
+          icon: Users
+        },
+        {
+          title: "Active Workspaces",
+          value: totalWorkspaces.toString(),
+          changeType: "positive",
+          icon: Cloud
+        },
+        {
+          title: "Roles",
+          value: totalRoles.toString(),
+          changeType: "positive",
+          icon: Shield
+        }
+      ]);
+    } catch (err) {
+      console.error('Error fetching total counts:', err);
     }
   };
 
@@ -107,7 +150,18 @@ const AdminSystemOverview = () => {
       // Transform the response to match the expected format
       if (Array.isArray(response)) {
         const transformedData = response.map((item: any, index: number) => {
-          if (groupByParam === 'workspace') {
+          // Check if the response contains solution data (when a workspace is selected)
+          if (item.SolutionName && item.SolutionId) {
+            return {
+              name: item.SolutionName || `Solution ${index + 1}`,
+              value: item.Cost || 0,
+              description: `Solution: ${item.SolutionName}`,
+              gradient: `url(#gradient${index})`,
+              id: item.SolutionId,
+            };
+          }
+          // Check if the response contains workspace data
+          else if (item.WorkspaceName && item.WorkspaceId) {
             return {
               name: item.WorkspaceName || `Workspace ${index + 1}`,
               value: item.Cost || 0,
@@ -115,13 +169,25 @@ const AdminSystemOverview = () => {
               gradient: `url(#gradient${index})`,
               id: item.WorkspaceId,
             };
-          } else {
+          }
+          // Check if the response contains user data
+          else if (item.UserName && item.UserId) {
             return {
               name: item.UserName || `User ${index + 1}`,
               value: item.Cost || 0,
               description: `User: ${item.UserName}`,
               gradient: `url(#gradient${index})`,
               id: item.UserId,
+            };
+          }
+          // Fallback for unknown data structure
+          else {
+            return {
+              name: item.name || `Item ${index + 1}`,
+              value: item.Cost || item.value || 0,
+              description: `Cost: $${item.Cost || item.value || 0}`,
+              gradient: `url(#gradient${index})`,
+              id: item.id || `item-${index}`,
             };
           }
         });
@@ -141,6 +207,7 @@ const AdminSystemOverview = () => {
   // Load initial data
   useEffect(() => {
     fetchWorkspaces();
+    fetchTotalCounts();
   }, [workspaceSearch]);
 
   // Initialize workspace from URL query parameter

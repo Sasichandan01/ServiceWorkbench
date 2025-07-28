@@ -96,14 +96,23 @@ const CostDashboard = () => {
     try {
       let response;
       let groupByParam: 'workspace' | 'solution' | 'user' = 'workspace';
+      let identifier: string | undefined;
       
       if (groupBy === 'workspaces') {
         groupByParam = 'workspace';
+        // If a specific workspace is selected, pass its ID as identifier
+        if (selectedItem !== 'all') {
+          identifier = selectedItem;
+        }
       } else if (groupBy === 'solutions') {
         groupByParam = 'solution';
+        // If a specific solution is selected, pass its ID as identifier
+        if (selectedItem !== 'all') {
+          identifier = selectedItem;
+        }
       }
       
-      response = await CostService.getCosts(groupByParam);
+      response = await CostService.getCosts(groupByParam, identifier);
       
       // Transform the response to match the expected format
       if (Array.isArray(response)) {
