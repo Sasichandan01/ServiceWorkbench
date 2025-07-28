@@ -111,10 +111,33 @@ def handle_cft_upload(event):
                 "<codegenerated>":"true"
             }
         )
+
+        if workspace_id and solution_id:
+            try:
+                SOLUTIONS_TABLE.update_item(
+                    Key={
+                        'WorkspaceId': workspace_id,
+                        'SolutionId': solution_id
+                    },
+                    UpdateExpression='SET #s = :ready',
+                    ExpressionAttributeNames={
+                        '#s': 'SolutionStatus'
+                    },
+                    ExpressionAttributeValues={
+                        ':ready': 'READY'
+                    },
+                    ReturnValues='UPDATED_NEW'
+                )
+                print(f"Successfully updated solution status to READY for workspace {workspace_id}, solution {solution_id}")
+            except Exception as e:
+                print(f"Error updating solution status to READY: {e}")
+
         return build_agent_response(event, response_message)
     except Exception as e:
         print(f"Error uploading CFT to S3: {e}")
         return build_agent_response(event, f"Error uploading CFT to S3: {str(e)}")
+
+    
 
 def handle_deploy(event):
     """
@@ -186,25 +209,7 @@ def handle_deploy(event):
                 print(f"Error storing invoke_point in solutions table: {e}")
 
         # Update solution status to READY after successful deployment
-        if workspace_id and solution_id:
-            try:
-                SOLUTIONS_TABLE.update_item(
-                    Key={
-                        'WorkspaceId': workspace_id,
-                        'SolutionId': solution_id
-                    },
-                    UpdateExpression='SET #s = :ready',
-                    ExpressionAttributeNames={
-                        '#s': 'SolutionStatus'
-                    },
-                    ExpressionAttributeValues={
-                        ':ready': 'READY'
-                    },
-                    ReturnValues='UPDATED_NEW'
-                )
-                print(f"Successfully updated solution status to READY for workspace {workspace_id}, solution {solution_id}")
-            except Exception as e:
-                print(f"Error updating solution status to READY: {e}")
+        
         
         # Success response
         success_message = json.dumps({

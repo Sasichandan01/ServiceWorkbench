@@ -109,7 +109,7 @@ def share_resource(event):
     if not validate_user_exists(body['Username']):
         return return_response(400, {'Message': 'Invalid user ID provided'})
 
-    valid_access_types = ['read_only', 'editor', 'owner']
+    valid_access_types = ['read-only', 'editor', 'owner']
     if body['AccessType'] not in valid_access_types:
         return return_response(400, {'Message': f'Invalid access type. Must be one of: {valid_access_types}'})
 
@@ -198,7 +198,7 @@ def share_resource(event):
         solutions_skipped = 0
 
         # Define permission hierarchy
-        LEVEL_RANK = {"read_only": 1, "editor": 2, "owner": 3}
+        LEVEL_RANK = {"read-only": 1, "editor": 2, "owner": 3}
 
         try:
             solutions_response = SOLUTIONS_TABLE.query(

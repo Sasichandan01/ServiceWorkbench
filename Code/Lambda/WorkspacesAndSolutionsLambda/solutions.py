@@ -185,7 +185,7 @@ def create_solution(workspace_id, body, user_id):
         resource_name=solution_name,
         resource_id=solution_id,
         user_id=user_id,
-        action="SOLUTION CREATED"
+        action="Solution Created"
     )
 
     # Grant owner permissions to the creator
@@ -363,7 +363,7 @@ def update_solution(workspace_id, solution_id, body, user_id, params=None):
             resource_name=solution_name,
             resource_id=solution_id,
             user_id=user_id,
-            action="DATASOURCE UPDATED"
+            action="Datasource Updated"
         )
         return return_response(200, {"Message": "Solution datasources updated"})
     else:
@@ -392,7 +392,7 @@ def update_solution(workspace_id, solution_id, body, user_id, params=None):
             resource_name=body.get("SolutionName"),
             resource_id=solution_id,
             user_id=user_id,
-            action="SOLUTION UPDATED"
+            action="Solution Updated"
         )
         return return_response(200, {"Message": "Solution updated"})
 
@@ -456,7 +456,7 @@ def delete_solution(workspace_id, solution_id,user_id):
         resource_name=solution_name,
         resource_id=solution_id,
         user_id=user_id,
-        action="SOLUTION DELETED"
+        action="Solution Deleted"
     )
 
     return return_response(200,{"Message": "Solution deleted"})
