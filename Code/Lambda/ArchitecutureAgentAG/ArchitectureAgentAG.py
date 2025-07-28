@@ -3,7 +3,6 @@ import os
 import json
 from typing import Dict, Any, List, Optional, Callable
 from http import HTTPStatus
-
 import boto3
 
 # Configuration
@@ -56,13 +55,18 @@ def create_success_response(action_group: str, function: str, version: str, body
     """
     Build a standardized success response payload.
     """
+    ans={}
+    if body.get('PresignedURL'):
+        ans['<PresignedURL>']=body.get('PresignedURL')
+    else:
+        ans['message']=body.get('message')
     return {
         'response': {
             'actionGroup': action_group,
             'function': function,
             'functionResponse': {
                 'responseBody': {
-                    'TEXT': {'body': body.get('body', '')}
+                    'TEXT': {'body': json.dumps(ans)}
                 }
             }
         },
@@ -126,7 +130,7 @@ def handle_update_invoke_point(event: Event) -> Response:
         LOGGER.error('Error updating invoke point for solution %s: %s', solution_id, e)
         return create_error_response(action_group, function, version, f'Error updating invoke point for solution {solution_id}: {e}')
 
-    return create_success_response(action_group, function, version, {'body': 'Invoke point updated successfully'})
+    return create_success_response(action_group, function, version, {'message': 'Invoke point updated successfully'})
 
 # Mapping of function names to handlers
 HANDLERS: Dict[str, Callable[[Event], Response]] = {
