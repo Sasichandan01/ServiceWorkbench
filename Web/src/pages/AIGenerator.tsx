@@ -128,41 +128,46 @@ function parsePlainTextSolution(content: string) {
 }
 
 // Component to render the structured solution JSON
-const AIChatSolutionMessage = ({ solutionJson }: { solutionJson: any }) => (
-  <div>
-    <div className="text-base text-gray-900 whitespace-pre-line">
-      {solutionJson.Summary}
+const AIChatSolutionMessage = ({ solutionJson }: { solutionJson: any }) => {
+  console.log('AIChatSolutionMessage received:', solutionJson);
+  console.log('Diagram content:', solutionJson.Diagram);
+  
+  return (
+    <div>
+      <div className="text-base text-gray-900 whitespace-pre-line">
+        {solutionJson.Summary}
+      </div>
+      <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
+        Requirements
+      </h3>
+      <div className="text-gray-700 whitespace-pre-line">
+        {solutionJson.Requirements}
+      </div>
+      <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
+        Architecture
+      </h3>
+      <div className="text-gray-700 whitespace-pre-line">
+        {solutionJson.Architecture}
+      </div>
+      <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
+        Cost Analysis
+      </h3>
+      <div className="text-gray-700 whitespace-pre-line">
+        {solutionJson.CostAnalysis}
+      </div>
+      {solutionJson.Diagram && (
+        <>
+          <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
+            Architecture Diagram
+          </h3>
+          <div className="w-full max-h-[70vh] bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg overflow-auto">
+            <Mermaid chart={solutionJson.Diagram} />
+          </div>
+        </>
+      )}
     </div>
-    <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
-      Requirements
-    </h3>
-    <div className="text-gray-700 whitespace-pre-line">
-      {solutionJson.Requirements}
-    </div>
-    <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
-      Architecture
-    </h3>
-    <div className="text-gray-700 whitespace-pre-line">
-      {solutionJson.Architecture}
-    </div>
-    <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
-      Cost Analysis
-    </h3>
-    <div className="text-gray-700 whitespace-pre-line">
-      {solutionJson.CostAnalysis}
-    </div>
-    {solutionJson.Diagram && (
-      <>
-        <h3 className="font-semibold mt-4 mb-1 text-gray-800 text-lg">
-          Architecture Diagram
-        </h3>
-        <div className="w-full max-h-[70vh] bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg overflow-auto">
-          <Mermaid chart={solutionJson.Diagram} />
-        </div>
-      </>
-    )}
-  </div>
-);
+  );
+};
 
 const AIGenerator = () => {
   const lastMermaidDiagramRef = useRef<string | null>(null);
@@ -1275,7 +1280,21 @@ const AIGenerator = () => {
                                     );
                                   }
                                 }
-                                // If not a code response, render as JSON
+                                // Check if it's a structured solution object
+                                console.log('Checking if contentObj is structured solution:', contentObj);
+                                if (
+                                  contentObj &&
+                                  typeof contentObj === 'object' &&
+                                  'Summary' in contentObj &&
+                                  'Requirements' in contentObj &&
+                                  'Architecture' in contentObj &&
+                                  'CostAnalysis' in contentObj &&
+                                  'Diagram' in contentObj
+                                ) {
+                                  console.log('Found structured solution object, rendering with AIChatSolutionMessage');
+                                  return <AIChatSolutionMessage solutionJson={contentObj} />;
+                                }
+                                // If not a code response or structured solution, render as JSON
                                 return <pre className="whitespace-pre-wrap">{JSON.stringify(contentObj, null, 2)}</pre>;
                               }
                               if (typeof message.content === "string" && isStructuredSolutionJson(message.content)) {
