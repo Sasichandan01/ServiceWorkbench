@@ -290,7 +290,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
             if message:
                 chat_context += f"{role.capitalize()}: {message}\n"
     
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}{chat_context}"
+    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id} and chat context is {chat_context}"
 
     # if memory_content:
     #     combined_prompt += f" Here is the memory context: {memory_content}"
@@ -308,11 +308,16 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         sessionState={'sessionAttributes': {'user_id': user_id}},
         streamingConfigurations={'streamFinalResponse': False}
     )
-# Initialize state variables at the beginning of your function
+    # Initialize state variables at the beginning of your function
+    # Initialize state variables at the beginning of your function
     code_payload = {}
+    cft_payload = {}
+    url_payload = {}
     code_generated = "false"
+    cft_generated = "false"
     url_generated = "false" 
-    s3_key = None
+    code_s3_key = None
+    cft_s3_key = None
 
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
@@ -339,13 +344,13 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 observation_type = trace["trace"]["orchestrationTrace"]["observation"]["type"]
                 
                 if observation_type == "KNOWLEDGE_BASE":
-                    response_obj["AITrace"] = [
-                        {
-                            "Dataset": reference["location"]["s3Location"]["uri"].split("/")[-3],
-                            "Domain": reference["location"]["s3Location"]["uri"].split("/")[-4],
-                            "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
-                        } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
-                    ]
+                    # response_obj["AITrace"] = [
+                    #     {
+                    #         "Dataset": reference["location"]["s3Location"]["uri"].split("/")[-3],
+                    #         "Domain": reference["location"]["s3Location"]["uri"].split("/")[-4],
+                    #         "File": reference["location"]["s3Location"]["uri"].split("/")[-1]
+                    #     } for reference in trace["trace"]["orchestrationTrace"]["observation"]["knowledgeBaseLookupOutput"]["retrievedReferences"]
+                    # ]
             
                 elif observation_type == "ACTION_GROUP" and trace['agentId'] == agent_info['codegeneration'].get('AgentId'):
                     try:
@@ -365,7 +370,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             if 'Metadata' not in code_payload:
                                 code_payload['Metadata'] = {}
                             code_payload['Metadata']['IsCode'] = True
-                            
+                            # Don't set IsComplete here yet
                             
                         else:
                             LOGGER.info("<codegenerated> is not true")
@@ -409,7 +414,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         # Fix: Parse JSON to extract URL
                         outer_json = json.loads(text)
-                        url_generated = outer_json.get('<PresignedURL>', "false")
+                        url_generated = outer_json.get('<PreSignedURL>', "false")
                     
                         if url_generated != "false":
                             LOGGER.info("URL generated is true")
@@ -492,10 +497,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     trace=response_obj.get('AITrace'), 
                     message_id=message_id
                 )
-                    
-                LOGGER.info(f"Current state - code_generated: {code_generated}, url_generated: {url_generated}")
+                
+            LOGGER.info(f"Current state - code_generated: {code_generated}, cft_generated: {cft_generated}, url_generated: {url_generated}")
 
-
+        # Log final state if we exit the loop without FINISH
+        LOGGER.warning(f"Exited trace loop without FINISH - Final state: code_generated={code_generated}, cft_generated={cft_generated}, url_generated={url_generated}")
 
 
 def lambda_handler(event, context):

@@ -3,7 +3,6 @@ import os
 import json
 from typing import Dict, Any, List, Optional, Callable
 from http import HTTPStatus
-
 import boto3
 
 # Configuration
