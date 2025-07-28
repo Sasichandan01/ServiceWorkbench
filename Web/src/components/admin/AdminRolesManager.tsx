@@ -82,6 +82,8 @@ interface CreateRolePayload {
     glue: 'Fullaccess' | 'Manage' | 'View';
     stepfunction: 'Fullaccess' | 'Manage' | 'View';
     s3: 'Fullaccess' | 'Manage' | 'View';
+    lambda: 'Fullaccess' | 'Manage' | 'View';
+    dynamodb: 'Fullaccess' | 'Manage' | 'View';
   };
 }
 
@@ -110,7 +112,7 @@ const AdminRolesManager = () => {
       roles: 'View',
       glue: 'View',
       stepfunction: 'View',
-      s3: 'View',
+      lambda: 'View',
     }
   });
 
@@ -270,9 +272,9 @@ const AdminRolesManager = () => {
       'stepfunction.view': 'View Step Functions',
       'stepfunction.manage': 'Manage Step Functions',
       'stepfunction.fullaccess': 'Full Access Step Functions',
-      's3.view': 'View S3',
-      's3.manage': 'Manage S3',
-      's3.fullaccess': 'Full Access S3'
+      'lambda.view': 'View Lambda',
+      'lambda.manage': 'Manage Lambda',
+      'lambda.fullaccess': 'Full Access Lambda'
     };
 
     const allDisplayPermissions = permissions.map(permission => 
@@ -381,7 +383,7 @@ const AdminRolesManager = () => {
                   <div>
                     <h3 className="text-lg font-semibold mb-4">AWS Services</h3>
                     <div className="grid grid-cols-2 gap-6">
-                      {(['glue', 'stepfunction', 's3'] as const).map((service) => (
+                      {(['glue', 'stepfunction', 'lambda'] as const).map((service) => (
                         <div key={service} className="space-y-3">
                           <Label className="text-sm font-medium capitalize">
                             {service === 'stepfunction' ? 'Step Functions' : service.toUpperCase()}
