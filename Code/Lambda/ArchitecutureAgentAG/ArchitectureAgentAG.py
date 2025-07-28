@@ -97,45 +97,9 @@ def handle_presigned_url(event: Event) -> Response:
     )
     return create_success_response(action_group, function, version, {'PresignedURL': url})
 
-def handle_update_invoke_point(event: Event) -> Response:
-    """
-    Update the invoke point for the solution.
-    """
-    action_group = event['actionGroup']
-    function = event['function']
-    version = event.get('messageVersion', '1.0')
-    params = event.get('parameters', [])
-
-    solution_id = get_parameter_value(params, 'solutionId')
-    if not solution_id:
-        return create_error_response(action_group, function, version, 'Missing "solutionId" parameter')
-    
-    invoke_point = get_parameter_value(params, 'invokePoint')
-    if not invoke_point:
-        return create_error_response(action_group, function, version, 'Missing "invokePoint" parameter')
-
-    try:
-        response = table.get_item(Key={'SolutionId': solution_id})
-        solution = response.get('Item')
-        if not solution:
-            return create_error_response(action_group, function, version, f'Solution with ID {solution_id} not found')
-        
-        table.update_item(
-            Key={'SolutionId': solution_id},
-            UpdateExpression='SET #invokePoint = :invokePoint',
-            ExpressionAttributeNames={'#invokePoint': 'InvokePoint'},
-            ExpressionAttributeValues={':invokePoint': invoke_point}
-        )
-    except Exception as e:
-        LOGGER.error('Error updating invoke point for solution %s: %s', solution_id, e)
-        return create_error_response(action_group, function, version, f'Error updating invoke point for solution {solution_id}: {e}')
-
-    return create_success_response(action_group, function, version, {'message': 'Invoke point updated successfully'})
-
 # Mapping of function names to handlers
 HANDLERS: Dict[str, Callable[[Event], Response]] = {
-    'PresignedURL': handle_presigned_url,
-    'UpdateInvokePoint': handle_update_invoke_point,
+    'PresignedURL': handle_presigned_url
 }
 
 
