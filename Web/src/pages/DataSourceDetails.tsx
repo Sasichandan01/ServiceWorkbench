@@ -206,7 +206,7 @@ const DataSourceDetails = () => {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="role">Access Level <span className="text-red-500">*</span></Label>
                         <Select value={shareRole} onValueChange={setShareRole}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a role" />
@@ -214,7 +214,7 @@ const DataSourceDetails = () => {
                           <SelectContent>
                             <SelectItem value="owner">Owner</SelectItem>
                             <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="read-only">Read-only</SelectItem>
+                            <SelectItem value="read-only">ReadOnly</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -248,7 +248,7 @@ const DataSourceDetails = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
-                      <TableHead>Role</TableHead>
+                      <TableHead>Access Level</TableHead>
                       <TableHead>Joined</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
