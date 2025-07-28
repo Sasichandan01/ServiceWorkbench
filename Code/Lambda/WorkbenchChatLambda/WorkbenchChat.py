@@ -49,7 +49,7 @@ def sanitize_for_dynamodb(obj):
         return obj
 
 def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None,s3_key=None, chat_context="AIChat"):
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
     chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Convert trace string to list
