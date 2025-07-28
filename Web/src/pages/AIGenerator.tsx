@@ -812,12 +812,17 @@ const AIGenerator = () => {
   const toggleThinking = async (messageId: string) => {
     const message = messages.find(msg => msg.id === messageId);
     const isCurrentlyExpanded = expandedThinking[messageId];
-    
-    // If we're expanding and traces haven't been loaded yet, load them
-    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded) {
+
+    // Only load traces if not expanded, is AI, and traces are not loaded
+    if (
+      !isCurrentlyExpanded &&
+      message &&
+      message.sender === 'ai' &&
+      !message.tracesLoaded // Only fetch if not already loaded
+    ) {
       await loadMessageTraces(messageId);
     }
-    
+
     setExpandedThinking((prev) => ({
       ...prev,
       [messageId]: !prev[messageId],
