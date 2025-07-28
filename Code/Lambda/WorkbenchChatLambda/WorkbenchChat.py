@@ -239,6 +239,37 @@ def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
         LOGGER.warning(f"S3 error {code} for prefix s3://{bucket}/{prefix}")
         return result
 
+def read_selected_s3_files(bucket: str, prefix: str, filenames: list[str]) -> dict[str, str]:
+
+    result = {}
+
+    if prefix and not prefix.endswith('/'):
+        prefix += '/'
+    
+    for filename in filenames:
+        try:
+            # Construct the full S3 key
+            key = f"{prefix}{filename}"
+            
+            # Get the specific file from S3
+            file_obj = s3_client.get_object(Bucket=bucket, Key=key)
+            body = file_obj['Body'].read()
+            result[filename] = body.decode('utf-8')
+            
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == 'NoSuchKey':
+                LOGGER.warning(f"File not found: s3://{bucket}/{key}")
+                result[filename] = f"Error: File not found - s3://{bucket}/{key}"
+            else:
+                LOGGER.warning(f"S3 error {code} for file s3://{bucket}/{key}")
+                result[filename] = f"Error: {code} - s3://{bucket}/{key}"
+
+        except Exception as e:
+            LOGGER.warning(f"Unexpected error reading s3://{bucket}/{key}: {str(e)}")
+            result[filename] = f"Error: {str(e)} - s3://{bucket}/{key}"
+    return result
+
 
 def send_message_to_websocket(client, conn_id, message):
     try:
@@ -256,7 +287,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     body = json.loads(event.get('body', '{}'))
     user_prompt = body.get('userMessage')
     agent_info=extract_agent_info()
-    
+    chat_context = body.get('Context')
+    combined_prompt=""
+    if chat_context == 'AIChat':
+        file_context=body.get('FileContext')
+        s3_data=read_selected_s3_files("develop-service-workbench-workspaces", file_context, file_context)
+        combined_prompt = f"Here is the file context: {s3_data}."
     message_id = str(uuid.uuid4())
     user_message_id = str(uuid.uuid4())
 
@@ -275,8 +311,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
 
     add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id)
 
-    
-   
     current_lambda_requirements = generate_requirements()
     
     # Get the last 10 chat messages
@@ -290,7 +324,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
             if message:
                 chat_context += f"{role.capitalize()}: {message}\n"
     
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id} and chat context is {chat_context}"
+    combined_prompt+= f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id} and chat context is {chat_context}"
 
     # if memory_content:
     #     combined_prompt += f" Here is the memory context: {memory_content}"
