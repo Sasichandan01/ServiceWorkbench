@@ -24,11 +24,23 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
       .then(({ svg }) => {
         setSvg(svg);
         setError(null);
+        // Hide any divs with id starting with 'dmermaid-'
+        setTimeout(() => {
+          document.querySelectorAll('div[id^="dmermaid-"]').forEach(div => {
+            (div as HTMLElement).style.display = 'none';
+          });
+        }, 0);
       })
       .catch((err) => {
         const errorMessage = err?.message || err || "Unknown diagram error";
         setError(errorMessage);
         setSvg(""); // Clear SVG on error
+        // Hide any divs with id starting with 'dmermaid-'
+        setTimeout(() => {
+          document.querySelectorAll('div[id^="dmermaid-"]').forEach(div => {
+            (div as HTMLElement).style.display = 'none';
+          });
+        }, 0);
       });
   }, [chart]);
 
