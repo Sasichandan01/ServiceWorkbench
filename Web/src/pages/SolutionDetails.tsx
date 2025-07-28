@@ -332,7 +332,7 @@ const SolutionDetails = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="role">Access Level <span className="text-red-500">*</span></Label>
                   <Select value={newUserRole} onValueChange={setNewUserRole}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a role" />
@@ -340,7 +340,7 @@ const SolutionDetails = () => {
                     <SelectContent>
                       <SelectItem value="owner">Owner</SelectItem>
                       <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="read-only">Read-only</SelectItem>
+                      <SelectItem value="read-only">ReadOnly</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -363,7 +363,7 @@ const SolutionDetails = () => {
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <Input
-              placeholder="Search users by name, email, or role..."
+              placeholder="Search users by name, email, or access level..."
               value={usersSearch}
               onChange={(e) => {
                 setUsersSearch(e.target.value);
@@ -377,7 +377,7 @@ const SolutionDetails = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Access Level</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>

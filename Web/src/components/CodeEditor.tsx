@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -333,6 +335,8 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   const wsClientRef = useRef<ReturnType<typeof createWebSocketClient> | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [selectedFileContext, setSelectedFileContext] = useState<string[]>([]);
+  const [autoIncludeActiveFile, setAutoIncludeActiveFile] = useState(false);
 
   // Indentation settings
   const getIndentSize = (language: string): number => {
@@ -464,7 +468,23 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     return undefined;
   };
 
+  // Get all available files for context selection
+  const getAllFiles = (): ScriptFile[] => {
+    const allFiles: ScriptFile[] = [];
+    for (const folder of Object.keys(folderTree)) {
+      allFiles.push(...folderTree[folder]);
+    }
+    return allFiles;
+  };
+
   const activeFile = getFileById(activeFileId);
+
+  // Auto-include active file in context when enabled
+  useEffect(() => {
+    if (autoIncludeActiveFile && activeFile && !selectedFileContext.includes(activeFile.name)) {
+      setSelectedFileContext(prev => [...prev, activeFile.name]);
+    }
+  }, [activeFile, autoIncludeActiveFile]);
   const openFiles = openFileIds.map(getFileById).filter(Boolean) as ScriptFile[];
 
   // Keyboard shortcuts
@@ -988,6 +1008,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
       workspaceid: workspaceId,
       solutionid: solutionId,
       Context: "Editor",
+      FileContext: selectedFileContext,
     });
     console.log("[CodeEditor] Sending over websocket:", payload);
     wsClientRef.current.send(payload);
@@ -1478,19 +1499,213 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
             </div>
             
             <div className={`p-4 ${isDarkMode ? 'border-t border-[#3c3c3c]' : 'border-t border-gray-300'}`}>
+              {/* File Context Selection - Cursor Style */}
+              <div className="mb-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline" 
+                      className={`w-full justify-start h-10 px-3 ${
+                        isDarkMode 
+                          ? 'bg-[#2d2d30] border-[#3c3c3c] hover:bg-[#333338] text-gray-300' 
+                          : 'bg-white border-border hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-sm text-muted-foreground mr-2">@</span>
+                      <span className="text-sm">
+                        {selectedFileContext.length > 0 
+                          ? `${selectedFileContext.length} file${selectedFileContext.length > 1 ? 's' : ''} selected`
+                          : 'Add Context'
+                        }
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className={`w-80 p-0 ${
+                      isDarkMode 
+                        ? 'bg-[#2d2d30] border-[#3c3c3c]' 
+                        : 'bg-white border-border'
+                    }`}
+                    align="start"
+                  >
+                    <div className={`p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-border'}`}>
+                      <div className="flex items-center justify-between">
+                        <h4 className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-foreground'}`}>
+                          File Context
+                        </h4>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const allFileNames = getAllFiles().map(f => f.name);
+                              setSelectedFileContext(allFileNames);
+                            }}
+                            className={`h-6 px-2 text-xs ${isDarkMode ? 'text-green-400 hover:text-green-300 hover:bg-green-400/10' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
+                          >
+                            All
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedFileContext([])}
+                            className={`h-6 px-2 text-xs ${isDarkMode ? 'text-red-400 hover:text-red-300 hover:bg-red-400/10' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Auto include option */}
+                      <label className="flex items-center space-x-2 mt-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={autoIncludeActiveFile}
+                          onChange={(e) => setAutoIncludeActiveFile(e.target.checked)}
+                          className={`w-3 h-3 rounded ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}
+                        />
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-muted-foreground'}`}>
+                          Auto-include active file
+                        </span>
+                      </label>
+                    </div>
+                    
+                    <div className="max-h-64 overflow-y-auto">
+                      {getAllFiles().length === 0 ? (
+                        <div className="p-4 text-center">
+                          <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-muted-foreground'}`}>
+                            No files available
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-2">
+                          {getAllFiles().map((file) => (
+                            <div
+                              key={file.id}
+                              className={`flex items-center space-x-3 px-2 py-2 rounded-md cursor-pointer transition-colors ${
+                                selectedFileContext.includes(file.name)
+                                  ? isDarkMode 
+                                    ? 'bg-blue-500/20 border border-blue-500/30' 
+                                    : 'bg-blue-50 border border-blue-200'
+                                  : isDarkMode 
+                                    ? 'hover:bg-[#333338]' 
+                                    : 'hover:bg-gray-50'
+                              }`}
+                              onClick={() => {
+                                if (selectedFileContext.includes(file.name)) {
+                                  setSelectedFileContext(prev => prev.filter(name => name !== file.name));
+                                } else {
+                                  setSelectedFileContext(prev => [...prev, file.name]);
+                                }
+                              }}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                selectedFileContext.includes(file.name)
+                                  ? isDarkMode 
+                                    ? 'bg-blue-500 border-blue-500' 
+                                    : 'bg-blue-600 border-blue-600'
+                                  : isDarkMode 
+                                    ? 'border-gray-600' 
+                                    : 'border-gray-300'
+                              }`}>
+                                {selectedFileContext.includes(file.name) && (
+                                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                    <path 
+                                      d="M6.5 2L3 5.5L1.5 4" 
+                                      stroke="white" 
+                                      strokeWidth="1.5" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-medium truncate ${
+                                  isDarkMode ? 'text-gray-200' : 'text-foreground'
+                                }`}>
+                                  {file.name}
+                                </div>
+                                <div className={`text-xs truncate ${
+                                  isDarkMode ? 'text-gray-400' : 'text-muted-foreground'
+                                }`}>
+                                  {file.folder}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {activeFile && !selectedFileContext.includes(activeFile.name) && (
+                      <div className={`p-3 border-t ${isDarkMode ? 'border-[#3c3c3c]' : 'border-border'}`}>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFileContext(prev => [...prev, activeFile.name]);
+                          }}
+                          className={`w-full h-8 text-xs ${
+                            isDarkMode
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          Add Current File ({activeFile.name})
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+                
+                {/* Selected files display */}
+                {selectedFileContext.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedFileContext.map((fileName) => (
+                      <Badge
+                        key={fileName}
+                        variant="secondary"
+                        className={`text-xs px-2 py-1 ${
+                          isDarkMode 
+                            ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' 
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        }`}
+                      >
+                        {fileName}
+                        <button
+                          onClick={() => setSelectedFileContext(prev => prev.filter(name => name !== fileName))}
+                          className={`ml-1 hover:opacity-70 ${
+                            isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                          }`}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
               <div className="flex space-x-2">
-                <Input
-                  placeholder="Ask me anything..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  className={`flex-1 text-sm ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
-                />
+                <div className="flex-1 relative">
+                  <Input
+                    placeholder={selectedFileContext.length > 0 ? `Ask me anything (${selectedFileContext.length} file${selectedFileContext.length > 1 ? 's' : ''} in context)` : "Ask me anything..."}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    className={`text-sm ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
+                  />
+                  {selectedFileContext.length > 0 && (
+                    <div className={`absolute -top-6 left-0 text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                      Context: {selectedFileContext.join(', ')}
+                    </div>
+                  )}
+                </div>
                 <Button
                   onClick={handleSendMessage}
                   size="sm"
