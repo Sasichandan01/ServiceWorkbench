@@ -172,7 +172,13 @@ const WorkspaceDetails = () => {
       setCostLoading(true);
       setCostError(null);
       const response = await CostService.getCostByWorkspaceId(id);
-      setMonthlyCost(response.cost);
+      // Add safety check for response structure
+      if (response && typeof response.cost === 'number') {
+        setMonthlyCost(response.cost);
+      } else {
+        console.warn('Invalid cost response structure:', response);
+        setMonthlyCost(0);
+      }
     } catch (err: any) {
       console.error('Error fetching monthly cost:', err);
       setCostError(err.message || 'Failed to fetch cost data');
@@ -460,7 +466,7 @@ const WorkspaceDetails = () => {
                   ) : costError ? (
                     <span className="text-red-600">Error</span>
                   ) : (
-                    `$${monthlyCost.toLocaleString()}`
+                    `$${(monthlyCost || 0).toLocaleString()}`
                   )}
                 </p>
                 <p className="text-sm text-gray-600">Monthly Cost</p>

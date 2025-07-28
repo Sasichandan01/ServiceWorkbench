@@ -22,7 +22,6 @@ import {
   Trash2,
 } from "lucide-react";
 import Prism from 'prismjs';
-import 'prismjs/themes/prism-tomorrow.css';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-typescript';
@@ -52,12 +51,12 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ThinkingStep {
   id: string;
-  content: string;
+  content: string | object;
   timestamp: Date;
 }
 
 interface Message {
-  id: number;
+  id: string; // This should be the actual MessageId from the API
   content: string | object;
   sender: "user" | "ai";
   timestamp: string;
@@ -185,8 +184,141 @@ const AIGenerator = () => {
   const [wsError, setWsError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
-  const [loadingTraces, setLoadingTraces] = useState<Record<number, boolean>>({});
+  const [loadingTraces, setLoadingTraces] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+
+  // Add custom CSS for syntax highlighting
+  useEffect(() => {
+    const styleId = 'syntax-highlighting-styles';
+    let existingStyle = document.getElementById(styleId);
+    
+    if (!existingStyle) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        /* Dark theme syntax highlighting - VSCode like */
+        .syntax-dark .token.comment,
+        .syntax-dark .token.prolog,
+        .syntax-dark .token.doctype,
+        .syntax-dark .token.cdata {
+          color: #6A9955;
+          font-style: italic;
+        }
+        
+        .syntax-dark .token.punctuation {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.property,
+        .syntax-dark .token.tag,
+        .syntax-dark .token.boolean,
+        .syntax-dark .token.number,
+        .syntax-dark .token.constant,
+        .syntax-dark .token.symbol,
+        .syntax-dark .token.deleted {
+          color: #B5CEA8;
+        }
+        
+        .syntax-dark .token.selector,
+        .syntax-dark .token.attr-name,
+        .syntax-dark .token.string,
+        .syntax-dark .token.char,
+        .syntax-dark .token.builtin,
+        .syntax-dark .token.inserted {
+          color: #CE9178;
+        }
+        
+        .syntax-dark .token.operator,
+        .syntax-dark .token.entity,
+        .syntax-dark .token.url,
+        .syntax-dark .language-css .token.string,
+        .syntax-dark .style .token.string {
+          color: #D4D4D4;
+        }
+        
+        .syntax-dark .token.atrule,
+        .syntax-dark .token.attr-value,
+        .syntax-dark .token.keyword {
+          color: #569CD6;
+        }
+        
+        .syntax-dark .token.function,
+        .syntax-dark .token.class-name {
+          color: #DCDCAA;
+        }
+        
+        .syntax-dark .token.regex,
+        .syntax-dark .token.important,
+        .syntax-dark .token.variable {
+          color: #9CDCFE;
+        }
+        
+        /* Light theme syntax highlighting */
+        .syntax-light .token.comment,
+        .syntax-light .token.prolog,
+        .syntax-light .token.doctype,
+        .syntax-light .token.cdata {
+          color: #008000;
+        }
+        
+        .syntax-light .token.punctuation {
+          color: #000000;
+        }
+        
+        .syntax-light .token.property,
+        .syntax-light .token.tag,
+        .syntax-light .token.boolean,
+        .syntax-light .token.number,
+        .syntax-light .token.constant,
+        .syntax-light .token.symbol,
+        .syntax-light .token.deleted {
+          color: #0070f3;
+        }
+        
+        .syntax-light .token.selector,
+        .syntax-light .token.attr-name,
+        .syntax-light .token.string,
+        .syntax-light .token.char,
+        .syntax-light .token.builtin,
+        .syntax-light .token.inserted {
+          color: #a31515;
+        }
+        
+        .syntax-light .token.operator,
+        .syntax-light .token.entity,
+        .syntax-light .token.url,
+        .syntax-light .language-css .token.string,
+        .syntax-light .style .token.string {
+          color: #000000;
+        }
+        
+        .syntax-light .token.atrule,
+        .syntax-light .token.attr-value,
+        .syntax-light .token.keyword {
+          color: #0000ff;
+        }
+        
+        .syntax-light .token.function,
+        .syntax-light .token.class-name {
+          color: #795e26;
+        }
+        
+        .syntax-light .token.regex,
+        .syntax-light .token.important,
+        .syntax-light .token.variable {
+          color: #d73a49;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    return () => {
+      const style = document.getElementById(styleId);
+      if (style) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
 
   // Function to load chat history
   const loadChatHistory = async () => {
@@ -196,38 +328,74 @@ const AIGenerator = () => {
       setIsLoadingHistory(true);
       const response = await ChatService.getChatHistory(workspaceId, solutionId);
       
+      // Debug: Log the response structure (only in development)
+      if (import.meta.env.DEV) {
+        console.log('Chat history response:', response);
+        console.log('Response type:', typeof response);
+        console.log('Response keys:', response ? Object.keys(response) : 'null/undefined');
+      }
+      
+      // Check if response and ChatHistory exist
+      let chatHistory: ChatMessage[] = [];
+      
+      if (response && response.ChatHistory && Array.isArray(response.ChatHistory)) {
+        // Standard response format
+        chatHistory = response.ChatHistory;
+      } else if (Array.isArray(response)) {
+        // Direct array response
+        chatHistory = response;
+      } else {
+        console.warn('Chat history response is invalid or empty:', response);
+        setMessages([]);
+        return;
+      }
+      
       // Convert API response to component message format
-      const historyMessages: Message[] = response.ChatHistory
+      const historyMessages: Message[] = chatHistory
         .filter((chatMsg: ChatMessage) => {
           // Filter out messages with empty content or only whitespace
-          return chatMsg.Message && chatMsg.Message.trim().length > 0;
+          return chatMsg && chatMsg.Message && chatMsg.Message.trim().length > 0;
         })
-        .map((chatMsg: ChatMessage, index: number) => ({
-          id: index + 1,
-          content: chatMsg.Message,
-          sender: chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai',
-          timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
-          chatId: chatMsg.ChatId, // Store the original chat ID
-          tracesLoaded: false, // Mark traces as not loaded initially
-          thinking: undefined // Don't load traces initially
-        }));
+        .map((chatMsg: ChatMessage, index: number) => {
+          // Validate required fields
+          if (!chatMsg.Message || !chatMsg.Sender || !chatMsg.TimeStamp || !chatMsg.ChatId) {
+            console.warn('Invalid chat message:', chatMsg);
+            return null;
+          }
+          
+          return {
+            id: chatMsg.MessageId, // Use the actual MessageId string from API
+            content: chatMsg.Message,
+            sender: (chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai') as "user" | "ai",
+            timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
+            chatId: chatMsg.ChatId, // Store the original chat ID
+            tracesLoaded: false, // Mark traces as not loaded initially
+            thinking: undefined // Don't load traces initially
+          };
+        })
+        .filter((msg) => msg !== null) as Message[]; // Remove null messages
       
       setMessages(historyMessages);
     } catch (error) {
       console.error('Failed to load chat history:', error);
-      // Don't show error to user for now, just log it
+      setMessages([]); // Set empty messages on error
+      toast({
+        title: "Warning",
+        description: "Failed to load chat history. Starting with empty chat.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
   // Function to load traces for a specific message
-  const loadMessageTraces = async (messageId: number, chatId: string) => {
-    if (!workspaceId || !solutionId || !chatId) return;
+  const loadMessageTraces = async (messageId: string) => {
+    if (!workspaceId || !solutionId) return;
     
     try {
       setLoadingTraces(prev => ({ ...prev, [messageId]: true }));
-      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, chatId);
+      const chatMessage = await ChatService.getChatMessageDetails(workspaceId, solutionId, messageId);
       
       // Update the message with traces
       setMessages(prev => prev.map(msg => {
@@ -302,18 +470,32 @@ const AIGenerator = () => {
   useEffect(() => {
     const wsClient = createWebSocketClient();
     wsClientRef.current = wsClient;
-    wsClient.connect();
+    
+    // Check if WebSocket URL is configured
+    if (!import.meta.env.VITE_WEBSOCKET_URL) {
+      console.error("[Chat] VITE_WEBSOCKET_URL environment variable is not set");
+      setWsError("WebSocket URL not configured. Please check your environment settings.");
+      return;
+    }
+    
+    // Set up event listeners
     wsClient.on("open", () => {
+      console.log("[Chat] WebSocket connected successfully");
       setWsConnected(true);
       setWsError(null);
     });
+    
     wsClient.on("close", () => {
+      console.log("[Chat] WebSocket connection closed");
       setWsConnected(false);
     });
+    
     wsClient.on("error", (e) => {
-      setWsError("WebSocket error");
+      console.error("[Chat] WebSocket error:", e);
+      setWsError("WebSocket connection error");
       setWsConnected(false);
     });
+    
     wsClient.on("message", (event) => {
       console.log("[Chat] WebSocket message received:", event);
       console.log("[Chat] Raw event data:", event.data);
@@ -354,9 +536,10 @@ const AIGenerator = () => {
           setIsGenerating(true);
         } else if (aiMessage) {
           // This is the final AIMessage - create the complete message
+          const tempId = `temp-ai-${Date.now()}`;
           setMessages((prev) => {
             const aiMsg: Message = {
-              id: prev.length + 1,
+              id: tempId, // Temporary ID that will be updated when chat history is refreshed
               content: aiMessage,
               sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
@@ -371,73 +554,56 @@ const AIGenerator = () => {
           setCurrentThinking([]);
           currentThinkingRef.current = [];
           setIsGenerating(false);
+          
+          // Refresh chat history to get the actual MessageId for the new message
+          setTimeout(() => {
+            loadChatHistory();
+          }, 1000); // Wait 1 second for the backend to process and store the message
         } else if (data && data.Metadata && data.Metadata.IsCode === true) {
-          // Handle code messages as part of thinking process
-          const thinkingStep: ThinkingStep = {
-            id: Date.now().toString() + Math.random(),
-            content: data, // Keep the entire code object as content
-            timestamp: new Date(),
-          };
-          setCurrentThinking((prev) => {
-            const newThinking = [...prev, thinkingStep];
-            currentThinkingRef.current = newThinking;
-            return newThinking;
-          });
-          setIsGenerating(true);
-        } else {
-          // Fallback for other message formats
-          let content: any = "";
-          if (typeof data === "string") {
-            content = data;
-          } else if (data && typeof data.response === "string") {
-            content = data.response;
-          } else if (data && typeof data.content === "string") {
-            content = data.content;
-          } else if (data && typeof data.message === "string") {
-            content = data.message;
-          } else if (data && typeof data.text === "string") {
-            content = data.text;
-          } else {
-            content = JSON.stringify(data);
-          }
-
-          if ((typeof content === "string" && content.trim()) || typeof content === "object") {
-            setMessages((prev) => {
-              const msg: Message = {
-                id: prev.length + 1,
-                content: content,
-                sender: "ai" as const,
-                timestamp: new Date().toLocaleTimeString(),
-              };
-              console.log("[Chat] Adding AI message:", msg);
-              return [...prev, msg];
-            });
-            setIsGenerating(false);
-          }
-        }
-      } catch (err) {
-        console.error("[Chat] Error parsing message:", err);
-        // Fallback: treat the raw data as string content
-        const content =
-          typeof event.data === "string" ? event.data : String(event.data);
-        if (content.trim()) {
+          // Handle code messages as the final message content
+          const tempId = `temp-ai-${Date.now()}`;
           setMessages((prev) => {
-            const msg: Message = {
-              id: prev.length + 1,
-              content: content,
-              sender: "ai" as const,
+            const aiMsg: Message = {
+              id: tempId, // Temporary ID that will be updated when chat history is refreshed
+              content: data, // Use the code object as the main content
+              sender: "ai",
               timestamp: new Date().toLocaleTimeString(),
+              thinking:
+                currentThinkingRef.current.length > 0
+                  ? [...currentThinkingRef.current]
+                  : undefined,
+              isCompleted: metadata.IsComplete,
             };
-            return [...prev, msg];
+            return [...prev, aiMsg];
           });
+          setCurrentThinking([]);
+          currentThinkingRef.current = [];
           setIsGenerating(false);
+          
+          // Refresh chat history to get the actual MessageId for the new message
+          setTimeout(() => {
+            loadChatHistory();
+          }, 1000); // Wait 1 second for the backend to process and store the message
         }
+      } catch (error) {
+        console.error("[Chat] Error parsing WebSocket message:", error);
       }
     });
+
+    // Attempt to connect
+    try {
+      wsClient.connect();
+    } catch (error) {
+      console.error("[Chat] Failed to initialize WebSocket connection:", error);
+      setWsError("Failed to initialize WebSocket connection");
+    }
+
+    // Cleanup function
     return () => {
+      console.log("[Chat] Cleaning up WebSocket connection");
       wsClient.close();
     };
-  }, []);
+  }, [workspaceId, solutionId]);
 
   useEffect(() => {
     // Auto-expand current thinking when first trace arrives
@@ -465,21 +631,67 @@ const AIGenerator = () => {
 
   const handleSendMessage = async () => {
     console.log("[Chat] handleSendMessage called");
-    if (!inputValue.trim() || !wsClientRef.current || !wsConnected) {
-      console.log(
-        "[Chat] Cannot send: input empty, wsClientRef",
-        wsClientRef.current,
-        "wsConnected",
-        wsConnected
-      );
+    
+    // Enhanced input validation
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput) {
+      console.log("[Chat] Cannot send: input is empty or only whitespace");
+      toast({
+        title: "Cannot send message",
+        description: "Please enter a message before sending.",
+        variant: "destructive",
+      });
       return;
     }
+
+    // Check WebSocket client existence
+    if (!wsClientRef.current) {
+      console.log("[Chat] Cannot send: WebSocket client not initialized");
+      toast({
+        title: "Connection Error",
+        description: "WebSocket client not initialized. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check WebSocket connection and attempt to reconnect if needed
+    if (!wsConnected) {
+      console.log("[Chat] WebSocket not connected, attempting to reconnect...");
+      try {
+        wsClientRef.current.connect();
+        // Wait a bit for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check if connection was established
+        if (!wsConnected) {
+          console.log("[Chat] Reconnection failed");
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to chat server. Please check your internet connection and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("[Chat] Reconnection error:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to chat server. Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // All validations passed, proceed with sending message
     const userMessage: Message = {
-      id: messages.length + 1,
-      content: inputValue,
+      id: `temp-${Date.now()}`, // Temporary ID for new messages
+      content: trimmedInput,
       sender: "user" as const,
       timestamp: new Date().toLocaleTimeString(),
     };
+    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsGenerating(true);
@@ -496,7 +708,21 @@ const AIGenerator = () => {
       solutionid: solutionId,
     });
     console.log("[Chat] Sending over websocket:", payload);
-    wsClientRef.current.send(payload);
+    
+    try {
+      wsClientRef.current.send(payload);
+    } catch (error) {
+      console.error("[Chat] Failed to send message:", error);
+      toast({
+        title: "Send Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+      // Revert the message addition and input clearing
+      setMessages((prev) => prev.slice(0, -1));
+      setInputValue(trimmedInput);
+      setIsGenerating(false);
+    }
   };
 
   const handlePauseGeneration = () => {
@@ -513,13 +739,13 @@ const AIGenerator = () => {
     }
   };
 
-  const toggleThinking = async (messageId: number) => {
+  const toggleThinking = async (messageId: string) => {
     const message = messages.find(msg => msg.id === messageId);
     const isCurrentlyExpanded = expandedThinking[messageId];
     
     // If we're expanding and traces haven't been loaded yet, load them
-    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded && message.chatId) {
-      await loadMessageTraces(messageId, message.chatId);
+    if (!isCurrentlyExpanded && message && message.sender === 'ai' && !message.tracesLoaded) {
+      await loadMessageTraces(messageId);
     }
     
     setExpandedThinking((prev) => ({
@@ -546,8 +772,23 @@ const AIGenerator = () => {
       {/* Chat Window */}
       <Card className="shadow-lg border-0 bg-gradient-to-br from-background via-background to-muted/20 flex-1 flex flex-col max-h-[83vh]">
         <CardContent className="p-0 h-screen">
+          {/* Connection Status Indicator */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-sm text-muted-foreground">
+                {wsConnected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            {wsError && (
+              <div className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded">
+                {wsError}
+              </div>
+            )}
+          </div>
+          
           {wsError && (
-            <div className="text-red-500 text-center">
+            <div className="text-red-500 text-center p-4 bg-red-50 border-b border-red-200">
               WebSocket error: {wsError}
             </div>
           )}
@@ -759,9 +1000,94 @@ const AIGenerator = () => {
                                           key={step.id}
                                           className="space-y-1"
                                         >
-                                          <p className="text-sm text-muted-foreground leading-relaxed">
-                                            {step.content}
-                                          </p>
+                                          {(() => {
+                                            // Handle code objects in thinking steps
+                                            if (typeof step.content === 'object' && step.content !== null) {
+                                              const contentObj: any = step.content;
+                                              if (contentObj.Metadata && contentObj.Metadata.IsCode === true) {
+                                                const keys = Object.keys(contentObj).filter((k) => k !== "Metadata");
+                                                if (keys.length > 0) {
+                                                  return (
+                                                    <div className="space-y-2">
+                                                      {keys.map((filename: string) => {
+                                                        const codeContent = contentObj[filename];
+                                                        
+                                                        // Detect language from filename
+                                                        const getLanguageFromFilename = (filename: string): string => {
+                                                          const ext = filename.split('.').pop()?.toLowerCase();
+                                                          switch (ext) {
+                                                            case 'py': return 'python';
+                                                            case 'js': return 'javascript';
+                                                            case 'ts': return 'typescript';
+                                                            case 'json': return 'json';
+                                                            case 'sh': return 'bash';
+                                                            case 'yml':
+                                                            case 'yaml': return 'yaml';
+                                                            case 'sql': return 'sql';
+                                                            default: return 'text';
+                                                          }
+                                                        };
+
+                                                        const language = getLanguageFromFilename(filename);
+                                                        
+                                                        // Apply syntax highlighting
+                                                        let highlightedCode = codeContent;
+                                                        try {
+                                                          if (Prism.languages[language]) {
+                                                            highlightedCode = Prism.highlight(codeContent, Prism.languages[language], language);
+                                                          }
+                                                        } catch (error) {
+                                                          console.warn(`Failed to highlight ${language} code:`, error);
+                                                        }
+
+                                                        return (
+                                                          <div key={filename} className="group">
+                                                            <div className="bg-[#2d2d2d] border border-[#404040] rounded-lg overflow-hidden shadow-sm">
+                                                              {/* Header - ChatGPT style */}
+                                                              <div className="flex items-center justify-between bg-[#343434] px-4 py-3 border-b border-[#404040]">
+                                                                <div className="flex items-center">
+                                                                  <span className="text-sm font-medium text-[#e5e5e5]">{filename}</span>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                  <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-auto px-3 py-1.5 text-[#e5e5e5] hover:bg-[#404040] transition-colors text-sm"
+                                                                    onClick={() => {
+                                                                      navigator.clipboard.writeText(codeContent);
+                                                                    }}
+                                                                  >
+                                                                    <Copy className="w-4 h-4 mr-1" />
+                                                                    Copy
+                                                                  </Button>
+                                                                </div>
+                                                              </div>
+                                                              
+                                                              {/* Code content */}
+                                                              <div className="relative bg-[#1e1e1e]">
+                                                                <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
+                                                                  <code 
+                                                                    className={`language-${language} block whitespace-pre syntax-dark`}
+                                                                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                                                                  />
+                                                                </pre>
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  );
+                                                }
+                                              }
+                                            }
+                                            // Default rendering for non-code content
+                                            return (
+                                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                                {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                              </p>
+                                            );
+                                          })()}
                                         </div>
                                       ))
                                     ) : (
@@ -859,7 +1185,7 @@ const AIGenerator = () => {
                                                 <div className="relative bg-[#1e1e1e]">
                                                   <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
                                                     <code 
-                                                      className={`language-${language} block whitespace-pre`}
+                                                      className={`language-${language} block whitespace-pre syntax-dark`}
                                                       dangerouslySetInnerHTML={{ __html: highlightedCode }}
                                                     />
                                                   </pre>
@@ -888,7 +1214,9 @@ const AIGenerator = () => {
                                 if (parsed && (parsed.Summary || parsed.Diagram)) {
                                   return <AIChatSolutionMessage solutionJson={parsed} />;
                                 }
-                                return <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>;
+                                // Ensure content is always a string before rendering in p tag
+                                const contentString = typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2);
+                                return <p className="leading-relaxed whitespace-pre-wrap">{contentString}</p>;
                               }
                               // Fallback for unknown types - ensure objects are stringified
                               if (typeof message.content === 'object' && message.content !== null) {
@@ -944,9 +1272,9 @@ const AIGenerator = () => {
                                         key={step.id}
                                         className="space-y-1 animate-fade-in"
                                       >
-                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                          {step.content}
-                                        </p>
+                                         <p className="text-sm text-muted-foreground leading-relaxed">
+                                           {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                         </p>
                                       </div>
                                     ))}
                                   </div>
@@ -1001,8 +1329,13 @@ const AIGenerator = () => {
                       ) : (
                         <Button
                           onClick={handleSendMessage}
-                          disabled={!inputValue.trim() || isGenerating}
-                          className="h-[60px] px-6 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
+                          disabled={!inputValue.trim() || isGenerating || !wsConnected}
+                          className={`h-[60px] px-6 rounded-xl transition-all duration-300 ${
+                            !wsConnected 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:shadow-primary/25'
+                          }`}
+                          title={!wsConnected ? 'WebSocket not connected' : 'Send message'}
                         >
                           <Send className="w-5 h-5" />
                         </Button>

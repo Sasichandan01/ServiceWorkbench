@@ -1,6 +1,5 @@
 import json
 import os
-import os
 import re
 import logging
 import boto3
@@ -31,8 +30,8 @@ KEYWORD_MAP = {
 MAX_MESSAGES = 10
 chat_table = dynamodb.Table(os.environ['CHAT_TABLE'])
 
-def build_chat_pk(workspace_id, solution_id):
-    return f"ws#{workspace_id}#sol#{solution_id}"
+# def build_chat_pk(workspace_id, solution_id):
+#     return f"ws#{workspace_id}#sol#{solution_id}"
 
 # def add_chat_message(workspace_id, solution_id, role, content=None,trace=None,message_id=None):
 #     pk = build_chat_pk(workspace_id, solution_id)
@@ -142,12 +141,12 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
     chat_table.put_item(Item=item)
 
 
-def get_latest_chat_messages(workspace_id, solution_id, limit=10):
-    pk = build_pk(workspace_id, solution_id)
+def get_latest_chat_messages(user_id, solution_id, limit=10):
+    chat_id = f"{solution_id}#{user_id}#SOLUTION"
 
     # Step 1: Fetch latest N messages (reverse scan)
     response = chat_table.query(
-        KeyConditionExpression=Key('ChatId').eq(pk),
+        KeyConditionExpression=Key('ChatId').eq(chat_id),
         ScanIndexForward=False,  # Newest first
         Limit=limit
     )
@@ -286,7 +285,19 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     s3_key = f"{body['workspaceid']}/{body['solutionid']}/memory.txt"
     # memory_content = read_s3_file( 'wb-bhargav-misc-bucket', s3_key)
     current_lambda_requirements = generate_requirements()
-    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}"
+    
+    # Get the last 10 chat messages
+    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10)
+    chat_context = ""
+    if chat_history:
+        chat_context = "\n\nChat History:\n"
+        for msg in chat_history:
+            role = msg.get('Sender', 'unknown')
+            message = msg.get('Message', '')
+            if message:
+                chat_context += f"{role.capitalize()}: {message}\n"
+    
+    combined_prompt = f"Here are the lambda dependencies: {current_lambda_requirements}. Here is the user prompt: {user_prompt}. Here is the workspace id {body['workspaceid']} and solution id {body['solutionid']}. Here is the user_id {user_id}{chat_context}"
 
     # if memory_content:
     #     combined_prompt += f" Here is the memory context: {memory_content}"
@@ -294,8 +305,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Prompt: {combined_prompt}")
 
     invoke_agent_response = bedrock_agent_runtime_client.invoke_agent(
-        agentId=agent_info['cftgeneration'].get('AgentId'),
-        agentAliasId=agent_info['cftgeneration'].get('AgentAliasId'),
+        agentId=agent_info['supervisor'].get('AgentId'),
+        agentAliasId=agent_info['supervisor'].get('AgentAliasId'),
         sessionId=connection_id[:-1],
         inputText=combined_prompt,
         bedrockModelConfigurations={'performanceConfig': {'latency': 'standard'}},
@@ -306,13 +317,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     )
     code_payload={}
     code_generated="false"
+    url_generated="false"
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
-        
-        
+        print(code_generated)
         if trace:
-            LOGGER.info(f"{code_generated}")
-            LOGGER.info(f"Trace: {trace}")
+
             response_obj = {"Metadata": {"IsComplete": False}}
 
             if "failureTrace" in trace["trace"]:
@@ -375,11 +385,31 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             code_payload['Metadata'] = {}
                         code_payload['Metadata']['IsCode']=True
                         code_payload['Metadata']['IsComplete']=True
-                        
-
                     else:
                         print(code_generated)
                         LOGGER.info("<codegenerated> is not true")
+
+                elif observation_type == "ACTION_GROUP" and trace['agentId']==agent_info['architecture'].get('AgentId'):
+                    text= trace['trace']['orchestrationTrace']['observation']['actionGroupInvocationOutput']['text']
+                    print(text)
+                    outer_json = json.loads(text)
+                    print(outer_json)
+                    url_generated = outer_json.get('<PreSignedURL>', "false")
+                    print(url_generated)
+                    if url_generated != "false":
+                        LOGGER.info("url generated  is true")
+                        
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['PresignedURL']=url_generated
+                        code_payload['Metadata']['IsPresignedURL']=True
+                        code_payload['Metadata']['IsComplete']=True
+                        print(code_payload)
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        url_generated = "false"
+                    else:
+                        print(code_generated)
+                        LOGGER.info("url generated is not true")
 
                 
                 elif observation_type == "FINISH" and agent_info['supervisor'].get('AgentId')==trace['agentId']:
@@ -394,10 +424,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                 # Store assistant response
                 add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'assistant',trace = response_obj.get('AITrace'), message_id= message_id)  
                 LOGGER.info(f"code_generated:{code_generated}")
-                if code_generated=="true" :
 
-                    send_message_to_websocket(apigw_client, connection_id, code_payload)
-                    code_generated="false"
+    if code_generated=="true" :
+        send_message_to_websocket(apigw_client, connection_id, code_payload)
+        code_generated="false"
+
 
 
 
@@ -419,6 +450,6 @@ def lambda_handler(event, context):
 
     if rc['routeKey'] == 'sendMessage':
         handle_send_message(event, client, cid, rc['authorizer']['user_id'])
-        # send_message_to_websocket(client, cid, {'status': 'Success', 'message': 'Completed'})
+
 
     return {'statusCode': 400}

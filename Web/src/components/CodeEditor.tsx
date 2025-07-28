@@ -3,8 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize } from "lucide-react";
+import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 // Load languages in correct dependency order
@@ -34,10 +39,18 @@ interface FolderTree {
   [folder: string]: ScriptFile[];
 }
 
+interface ThinkingStep {
+  id: string;
+  content: string | object;
+  timestamp: Date;
+}
+
 interface ChatMessage {
   id: number;
   role: string;
   content: string | object;
+  thinking?: ThinkingStep[];
+  isCompleted?: boolean;
 }
 
 interface CodeEditorProps {
@@ -301,8 +314,12 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   ]);
   const [chatInput, setChatInput] = useState("");
   const [showChat, setShowChat] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const [currentThinking, setCurrentThinking] = useState<ThinkingStep[]>([]);
+  const [currentThinkingExpanded, setCurrentThinkingExpanded] = useState(true);
+  const currentThinkingRef = useRef<ThinkingStep[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(320); // Default 320px (w-80)
+  const [sidebarWidth, setSidebarWidth] = useState(400); // Increased default width to accommodate longer file names
   const [chatWidth, setChatWidth] = useState(320); // Default 320px (w-80)
   const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
   const [isDraggingChat, setIsDraggingChat] = useState(false);
@@ -475,9 +492,9 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingSidebar) {
         const containerWidth = window.innerWidth;
-        const maxSidebarWidth = Math.min(600, containerWidth * 0.4);
+        const maxSidebarWidth = Math.min(800, containerWidth * 0.7); // Increased max width
         const deltaX = e.clientX - dragStartX;
-        const newWidth = Math.max(200, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX));
+        const newWidth = Math.max(250, Math.min(maxSidebarWidth, initialSidebarWidth + deltaX)); // Increased min width
         setSidebarWidth(newWidth);
       }
     };
@@ -859,27 +876,82 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
       setWsConnected(false);
     });
     wsClient.on('message', (event) => {
+      console.log("[CodeEditor] WebSocket message received:", event);
+      console.log("[CodeEditor] Raw event data:", event.data);
+
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        // Handle AI response
-        let content = '';
-        if (typeof data === 'string') {
-          content = data;
-        } else if (data && typeof data.response === 'string') {
-          content = data.response;
-        } else if (data && typeof data.content === 'string') {
-          content = data.content;
-        } else if (data && typeof data.message === 'string') {
-          content = data.message;
-        } else if (data && typeof data.text === 'string') {
-          content = data.text;
-        } else {
-          content = JSON.stringify(data);
+        console.log("[CodeEditor] Parsed data:", data);
+
+        // Ignore system messages like 'Endpoint request timed out'
+        if (
+          data &&
+          typeof data.message === 'string' &&
+          data.message === 'Endpoint request timed out'
+        ) {
+          console.log("[CodeEditor] Ignored system message:", data.message);
+          return;
         }
-        if (content.trim()) {
-          setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content }]);
+
+        // Handle the format: {"Metadata":{"IsComplete":false},"AITrace":"string"} or {"Metadata":{"IsComplete":true},"AIMessage":"string"}
+        const metadata = data.Metadata || {};
+        const aiTrace = data.AITrace;
+        const aiMessage = data.AIMessage;
+
+        if (aiTrace) {
+          // This is an AITrace message - add to thinking
+          const thinkingStep: ThinkingStep = {
+            id: Date.now().toString() + Math.random(),
+            content: Array.isArray(aiTrace) 
+              ? aiTrace.map(item => typeof item === 'object' ? `${item.Dataset}/${item.Domain}/${item.File}` : String(item)).join(', ')
+              : typeof aiTrace === 'object' ? JSON.stringify(aiTrace, null, 2) : String(aiTrace),
+            timestamp: new Date(),
+          };
+          setCurrentThinking((prev) => {
+            const newThinking = [...prev, thinkingStep];
+            currentThinkingRef.current = newThinking;
+            return newThinking;
+          });
+        } else if (aiMessage) {
+          // This is the final AIMessage - create the complete message
+          setChatMessages((prev) => {
+            const aiMsg: ChatMessage = {
+              id: Date.now(),
+              role: "assistant",
+              content: aiMessage,
+              thinking:
+                currentThinkingRef.current.length > 0
+                  ? [...currentThinkingRef.current]
+                  : undefined,
+              isCompleted: metadata.IsComplete,
+            };
+            return [...prev, aiMsg];
+          });
+          setCurrentThinking([]);
+          currentThinkingRef.current = [];
+        } else {
+          // Fallback for other message formats
+          let content = '';
+          if (typeof data === 'string') {
+            content = data;
+          } else if (data && typeof data.response === 'string') {
+            content = data.response;
+          } else if (data && typeof data.content === 'string') {
+            content = data.content;
+          } else if (data && typeof data.message === 'string') {
+            content = data.message;
+          } else if (data && typeof data.text === 'string') {
+            content = data.text;
+          } else {
+            content = JSON.stringify(data);
+          }
+          
+          if (content.trim()) {
+            setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content }]);
+          }
         }
       } catch (err) {
+        console.error("[CodeEditor] Error parsing message:", err);
         setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: String(event.data) }]);
       }
     });
@@ -888,11 +960,36 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     };
   }, []);
 
+  const toggleThinking = (messageId: string) => {
+    setExpandedThinking((prev) => ({
+      ...prev,
+      [messageId]: !prev[messageId],
+    }));
+  };
+
+  const toggleCurrentThinking = () => {
+    setCurrentThinkingExpanded((prev) => !prev);
+  };
+
   const handleSendMessage = () => {
     if (!chatInput.trim() || !wsClientRef.current || !wsConnected) return;
     const userMessage = { id: Date.now(), role: 'user' as const, content: chatInput };
     setChatMessages(prev => [...prev, userMessage]);
-    wsClientRef.current.send(JSON.stringify({ action: 'sendMessage', message: chatInput, workspaceId, solutionId }));
+    
+    // Clear any previous thinking and reset expansion state
+    setCurrentThinking([]);
+    currentThinkingRef.current = [];
+    setCurrentThinkingExpanded(true);
+    
+    // Send message via websocket using the same format as AIGenerator
+    const payload = JSON.stringify({
+      action: "sendMessage",
+      userMessage: chatInput,
+      workspaceid: workspaceId,
+      solutionid: solutionId,
+    });
+    console.log("[CodeEditor] Sending over websocket:", payload);
+    wsClientRef.current.send(payload);
     setChatInput("");
   };
 
@@ -987,7 +1084,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                     {folderTree[folder].map(file => (
                       <div
                         key={file.id}
-                        className={`flex items-center space-x-2 px-4 py-1 rounded cursor-pointer text-sm group transition-colors ${
+                        className={`flex items-center px-4 py-1 rounded cursor-pointer text-sm group transition-colors ${
                           activeFileId === file.id
                             ? isDarkMode ? "bg-[#37373d] text-white" : "bg-blue-100 text-blue-900"
                             : isDarkMode ? "text-[#cccccc] hover:bg-[#2a2d2e]" : "text-gray-700 hover:bg-gray-100"
@@ -999,18 +1096,22 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                           setActiveFileId(file.id);
                         }}
                       >
-                        {getFileIcon(file.name)}
-                        <span className="flex-1 text-xs">{file.name}</span>
-                        {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFile(file.id);
-                          }}
-                          className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        <div className="flex-shrink-0 mr-2">
+                          {getFileIcon(file.name)}
+                        </div>
+                        <span className="flex-1 text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{file.name}</span>
+                        <div className="flex-shrink-0 flex items-center space-x-1">
+                          {openFileIds.includes(file.id) && <div className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFile(file.id);
+                            }}
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:text-red-400' : 'hover:text-red-600'}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1208,6 +1309,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                   onChange={(e) => handleContentChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onScroll={handleTextareaScroll}
+                  spellCheck={false}
                   className={`absolute inset-0 w-full h-full min-w-0 max-w-full resize-none border-none rounded-none font-mono text-sm leading-6 p-4 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 editor-scrollbar ${
                     isDarkMode ? 'text-[#d4d4d4] placeholder:text-[#6a6a6a]' : 'text-gray-900 placeholder:text-gray-500'
                   }`}
@@ -1247,9 +1349,6 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {!wsConnected && (
-                <div className="text-xs text-yellow-600 mb-2">Connecting to AI chat...</div>
-              )}
               {wsError && (
                 <div className="text-xs text-red-600 mb-2">{wsError}</div>
               )}
@@ -1261,6 +1360,57 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                 
                 return (
                   <div key={message.id} className={`${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    {/* Thinking Section - Only for AI messages */}
+                    {message.role === 'assistant' && message.thinking && message.thinking.length > 0 && (
+                      <div className="mb-2">
+                        <Collapsible
+                          open={expandedThinking[message.id] || false}
+                          onOpenChange={() => toggleThinking(message.id.toString())}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`flex items-center space-x-2 text-xs mb-2 p-1 h-auto ${
+                                isDarkMode 
+                                  ? 'text-gray-300 hover:text-white' 
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span>Show thinking</span>
+                              </div>
+                              {expandedThinking[message.id] ? (
+                                <ChevronDown className="w-3 h-3" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3" />
+                              )}
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-2">
+                            <div className={`border rounded-lg p-3 space-y-2 ${
+                              isDarkMode 
+                                ? 'border-gray-600 bg-gray-800/50' 
+                                : 'border-border/50 bg-muted/30'
+                            }`}>
+                              {message.thinking.map((step, index) => (
+                                <div key={step.id} className="space-y-1">
+                                  <p className={`text-xs leading-relaxed ${
+                                    isDarkMode 
+                                      ? 'text-gray-300' 
+                                      : 'text-muted-foreground'
+                                  }`}>
+                                    {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+                    )}
+
+                    {/* Main Message */}
                     <div className={`inline-block max-w-[80%] p-3 rounded-lg text-sm ${
                       message.role === 'user'
                         ? isDarkMode ? 'bg-[#0e639c] text-white' : 'bg-blue-500 text-white'
@@ -1271,6 +1421,59 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                   </div>
                 );
               })}
+
+              {/* Current Thinking (while AI is processing) */}
+              {currentThinking.length > 0 && (
+                <div className="text-left">
+                  <div className="mb-2">
+                    <Collapsible
+                      open={currentThinkingExpanded}
+                      onOpenChange={toggleCurrentThinking}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`flex items-center space-x-2 text-xs mb-2 p-1 h-auto ${
+                            isDarkMode 
+                              ? 'text-gray-300 hover:text-white' 
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Show thinking</span>
+                          </div>
+                          {currentThinkingExpanded ? (
+                            <ChevronDown className="w-3 h-3" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-2">
+                        <div className={`border rounded-lg p-3 space-y-2 ${
+                          isDarkMode 
+                            ? 'border-gray-600 bg-gray-800/50' 
+                            : 'border-border/50 bg-muted/30'
+                        }`}>
+                          {currentThinking.map((step) => (
+                            <div key={step.id} className="space-y-1">
+                              <p className={`text-xs leading-relaxed ${
+                                isDarkMode 
+                                  ? 'text-gray-300' 
+                                  : 'text-muted-foreground'
+                              }`}>
+                                {typeof step.content === 'object' ? JSON.stringify(step.content, null, 2) : step.content}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className={`p-4 ${isDarkMode ? 'border-t border-[#3c3c3c]' : 'border-t border-gray-300'}`}>

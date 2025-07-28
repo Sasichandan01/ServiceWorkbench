@@ -9,11 +9,12 @@ cf = boto3.client('cloudformation')
 sc = boto3.client('servicecatalog')
 sfn_client = boto3.client('stepfunctions')
 DYNAMO_DB = boto3.resource('dynamodb')
-SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table("Workbench-wb-abhishek-SolutionsTable")
+SOLUTIONS_TABLE_NAME = os.environ.get("SOLUTIONS_TABLE")
+SOLUTIONS_TABLE = DYNAMO_DB.Table(SOLUTIONS_TABLE_NAME)
 
 KNOWLEDGE_BASE_ID = "1IRBPZU9KF"
 MODEL_ARN = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
-S3_OUTPUT_BUCKET = "develop-service-workbench-workspaces"  # Default, can be overridden by event param if needed
+S3_OUTPUT_BUCKET = "develop-service-workbench-workspaces" 
 
 PORTFOLIO_ID = "port-po3aqdmed72ig"
 PROVISIONED_PRODUCT_NAME_PREFIX = "AgentProvisionedProduct"
@@ -122,18 +123,25 @@ def handle_deploy(event):
     global GLOBAL_S3_OBJECT_KEY
     global workspace_id, solution_id
     print("Handling deployment - executing Service Catalog provisioning synchronously.")
-    # Check for approval parameter
+    
+    # Extract parameters
     approval = None
+    invoke_point = None
     parameters = event.get("parameters", [])
     for param in parameters:
         if param.get("name") == "approval":
             approval = param.get("value")
-            break
+        elif param.get("name") == "invoke_point":
+            invoke_point = param.get("value")
+    
     if approval != "true":
         return build_agent_response(event, "Deployment not approved. Please provide approval=true to proceed with deployment.")
     if not GLOBAL_S3_OBJECT_KEY or not workspace_id or not solution_id:
         return build_agent_response(event, "No CFT has been uploaded yet or missing workspace/solution id. Please upload a CFT first using the cftUpload function.")
+    
     print(f"Using S3 object key: {GLOBAL_S3_OBJECT_KEY}")
+    print(f"Invoke point: {invoke_point}")
+    
     try:
         # Extract any additional parameters for provisioning
         provisioning_parameters = []
@@ -155,6 +163,49 @@ def handle_deploy(event):
         finalize_result = execute_finalize_phase(record_id, provisioned_product_name)
         if finalize_result.get("phase") == "error":
             return build_agent_response(event, f"Provisioning failed during finalization: {finalize_result.get('error_message')}")
+        
+        # Store invoke_point in solutions table if provided
+        if invoke_point and workspace_id and solution_id:
+            try:
+                SOLUTIONS_TABLE.update_item(
+                    Key={
+                        'WorkspaceId': workspace_id,
+                        'SolutionId': solution_id
+                    },
+                    UpdateExpression='SET #invoke = :invoke_point',
+                    ExpressionAttributeNames={
+                        '#invoke': 'Invocation'
+                    },
+                    ExpressionAttributeValues={
+                        ':invoke_point': invoke_point
+                    },
+                    ReturnValues='UPDATED_NEW'
+                )
+                print(f"Successfully stored invoke_point '{invoke_point}' in solutions table")
+            except Exception as e:
+                print(f"Error storing invoke_point in solutions table: {e}")
+
+        # Update solution status to READY after successful deployment
+        if workspace_id and solution_id:
+            try:
+                SOLUTIONS_TABLE.update_item(
+                    Key={
+                        'WorkspaceId': workspace_id,
+                        'SolutionId': solution_id
+                    },
+                    UpdateExpression='SET #s = :ready',
+                    ExpressionAttributeNames={
+                        '#s': 'SolutionStatus'
+                    },
+                    ExpressionAttributeValues={
+                        ':ready': 'READY'
+                    },
+                    ReturnValues='UPDATED_NEW'
+                )
+                print(f"Successfully updated solution status to READY for workspace {workspace_id}, solution {solution_id}")
+            except Exception as e:
+                print(f"Error updating solution status to READY: {e}")
+        
         # Success response
         success_message = json.dumps({
             "Status": "Success",
@@ -194,18 +245,76 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
         )
         product_id = product['ProductViewDetail']['ProductViewSummary']['ProductId']
         artifact_id = product['ProvisioningArtifactDetail']['Id']
-        sc.associate_product_with_portfolio(
-            ProductId=product_id,
-            PortfolioId=PORTFOLIO_ID
-        )
-        time.sleep(5)
-        response = sc.provision_product(
-            ProductId=product_id,
-            ProvisioningArtifactId=artifact_id,
-            ProvisionedProductName=provisioned_product_name,
-            ProvisioningParameters=provisioning_parameters,
-            Tags=tags
-        )
+        
+        # Associate product with portfolio
+        try:
+            sc.associate_product_with_portfolio(
+                ProductId=product_id,
+                PortfolioId=PORTFOLIO_ID
+            )
+            print(f"Successfully associated product {product_id} with portfolio {PORTFOLIO_ID}")
+        except Exception as e:
+            print(f"Error associating product with portfolio: {e}")
+            raise Exception(f"Failed to associate product with portfolio: {str(e)}")
+        
+        # Wait for association to propagate
+        print("Waiting for product association to propagate...")
+        time.sleep(10)
+        
+        # Verify the association was successful
+        try:
+            portfolio_detail = sc.describe_portfolio(Id=PORTFOLIO_ID)
+            associated_products = []
+            
+            # Check if there are any associated products
+            if 'AssociatedProducts' in portfolio_detail.get('PortfolioDetail', {}):
+                associated_products = [p['ProductId'] for p in portfolio_detail['PortfolioDetail']['AssociatedProducts']]
+            
+            if product_id not in associated_products:
+                print(f"Warning: Product {product_id} not found in associated products list")
+                # Try to verify by describing the product
+                try:
+                    product_detail = sc.describe_product(Id=product_id)
+                    print(f"Product {product_id} exists and is accessible")
+                except Exception as product_error:
+                    print(f"Error describing product {product_id}: {product_error}")
+                    raise Exception(f"Product {product_id} was not successfully associated with portfolio {PORTFOLIO_ID}")
+            
+            print(f"Product {product_id} successfully associated with portfolio {PORTFOLIO_ID}")
+        except Exception as e:
+            print(f"Error verifying product association: {e}")
+            print(f"Warning: Could not verify product association, but continuing with provisioning")
+        
+        print(f"Attempting to provision product with ID: {product_id}, artifact ID: {artifact_id}")
+        print(f"Portfolio ID: {PORTFOLIO_ID}")
+        print(f"Provisioned product name: {provisioned_product_name}")
+        
+        try:
+            response = sc.provision_product(
+                ProductId=product_id,
+                ProvisioningArtifactId=artifact_id,
+                ProvisionedProductName=provisioned_product_name,
+                ProvisioningParameters=provisioning_parameters,
+                Tags=tags
+            )
+            print(f"Successfully initiated provisioning with record ID: {response['RecordDetail']['RecordId']}")
+        except Exception as provision_error:
+            print(f"Provisioning failed with error: {provision_error}")
+            
+            # Try to get more details about the product and portfolio
+            try:
+                product_detail = sc.describe_product(Id=product_id)
+                print(f"Product details: {product_detail}")
+            except Exception as e:
+                print(f"Could not get product details: {e}")
+            
+            try:
+                portfolio_detail = sc.describe_portfolio(Id=PORTFOLIO_ID)
+                print(f"Portfolio details: {portfolio_detail}")
+            except Exception as e:
+                print(f"Could not get portfolio details: {e}")
+            
+            raise provision_error
         return {
             "phase": "poll",
             "RecordId": response['RecordDetail']['RecordId'],
@@ -325,7 +434,7 @@ def execute_finalize_phase(record_id, provisioned_product_name):
         ]
         if workspace_id and solution_id:
             try:
-                SOLUTION_EXECUTIONS_TABLE.update_item(
+                SOLUTIONS_TABLE.update_item(
                     Key={
                         'WorkspaceId': workspace_id,
                         'SolutionId': solution_id
@@ -369,8 +478,12 @@ def handle_provision(event):
 
     provisioned_product_name = f"{PROVISIONED_PRODUCT_NAME_PREFIX}-{int(time.time())}"
 
-    template_url = DEFAULT_HARDCODED_CFT_URL
-    print(f"Using CFT template URL for Service Catalog provisioning: {GLOBAL_S3_OBJECT_KEY}")
+    # Use the global S3 object key to construct the template URL
+    if GLOBAL_S3_OBJECT_KEY:
+        template_url = f"https://{S3_OUTPUT_BUCKET}.s3.us-east-1.amazonaws.com/{GLOBAL_S3_OBJECT_KEY}"
+    else:
+        template_url = DEFAULT_HARDCODED_CFT_URL
+    print(f"Using CFT template URL for Service Catalog provisioning: {template_url}")
 
     try:
         product = sc.create_product(
@@ -556,14 +669,14 @@ def lambda_handler(event, context):
                 #upadte the solution table status field to "READY"
                 global workspace_id, solution_id
                 if workspace_id and solution_id:
-                    response = SOLUTION_EXECUTIONS_TABLE.update_item(
+                    response = SOLUTIONS_TABLE.update_item(
                         Key={
                             'WorkspaceId': workspace_id,
                             'SolutionId': solution_id
                         },
                         UpdateExpression='SET #s = :ready',
                         ExpressionAttributeNames={
-                            '#s': 'Status'
+                            '#s': 'SolutionStatus'
                         },
                         ExpressionAttributeValues={
                             ':ready': 'READY'

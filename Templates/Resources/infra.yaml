@@ -603,6 +603,10 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource:
               - !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+          - Effect: Allow
+            Action: s3:*
+            Resource: "*"
+            
 
   RAGCustomResourceLambda:
     Type: AWS::Lambda::Function

@@ -13,3 +13,4 @@ six==1.16.0
 urllib3==2.2.3
 python-jose
 beautifulsoup4==4.12.3
+pyyaml==6.0.1

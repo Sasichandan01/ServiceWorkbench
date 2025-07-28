@@ -1,9 +1,64 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Shield, Database, Cloud, BarChart3, Users, Cog, Zap, Globe, HardDrive, Mail, MessageSquare, Bell, Workflow, Shuffle, Code, Layers } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useAppSelector } from "@/hooks/useAppSelector";
 
 const Index = () => {
+  const { isAuthenticated, user, loading } = useAppSelector((state) => state.auth);
+
+  console.log('Index page: Auth state - isAuthenticated:', isAuthenticated, 'user:', user, 'loading:', loading);
+
+  // Show loading state while authentication is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Debug: Show authentication state for troubleshooting (temporarily disabled)
+  // if (isAuthenticated && user) {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <h2 className="text-2xl font-bold mb-4">Authentication Debug</h2>
+  //         <p className="mb-2">User: {user.name}</p>
+  //         <p className="mb-2">Role: {user.role}</p>
+  //         <p className="mb-4">Email: {user.email}</p>
+  //         <button 
+  //           onClick={() => {
+  //             if (user.role === 'ITAdmin') {
+  //               window.location.href = '/admin';
+  //             } else {
+  //               window.location.href = '/workspaces';
+  //             }
+  //           }}
+  //           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+  //         >
+  //           Manual Redirect
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+  // Redirect authenticated users to appropriate page based on role
+  if (isAuthenticated && user) {
+    console.log('Index page: User is authenticated, role:', user.role);
+    if (user.role === 'ITAdmin') {
+      console.log('Index page: Redirecting to /admin');
+      return <Navigate to="/admin" replace />;
+    } else {
+      console.log('Index page: Redirecting to /workspaces');
+      return <Navigate to="/workspaces" replace />;
+    }
+  }
+
   const features = [{
     icon: Cloud,
     title: "Workspace Management",
