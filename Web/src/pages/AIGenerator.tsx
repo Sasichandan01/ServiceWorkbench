@@ -436,6 +436,21 @@ const AIGenerator = () => {
       setMessages([]);
       setCurrentThinking([]);
       currentThinkingRef.current = [];
+      setIsGenerating(false);
+      
+      // Disconnect and reconnect WebSocket for fresh state
+      if (wsClientRef.current) {
+        console.log("[Chat] Disconnecting WebSocket for chat clear...");
+        wsClientRef.current.close();
+        
+        // Wait a moment for the connection to close
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reconnect
+        console.log("[Chat] Reconnecting WebSocket after chat clear...");
+        wsClientRef.current.connect();
+      }
+      
       toast({
         title: "Chat cleared",
         description: "All chat history has been cleared successfully.",
@@ -555,10 +570,8 @@ const AIGenerator = () => {
           currentThinkingRef.current = [];
           setIsGenerating(false);
           
-          // Refresh chat history to get the actual MessageId for the new message
-          setTimeout(() => {
-            loadChatHistory();
-          }, 1000); // Wait 1 second for the backend to process and store the message
+          // Don't reload chat history - keep the current message with temporary ID
+          // The actual MessageId will be available when user views chat history later
         } else if (data && data.Metadata && data.Metadata.IsCode === true) {
           // Handle code messages as the final message content
           const tempId = `temp-ai-${Date.now()}`;
@@ -580,10 +593,8 @@ const AIGenerator = () => {
           currentThinkingRef.current = [];
           setIsGenerating(false);
           
-          // Refresh chat history to get the actual MessageId for the new message
-          setTimeout(() => {
-            loadChatHistory();
-          }, 1000); // Wait 1 second for the backend to process and store the message
+          // Don't reload chat history - keep the current message with temporary ID
+          // The actual MessageId will be available when user views chat history later
         }
       } catch (error) {
         console.error("[Chat] Error parsing WebSocket message:", error);
@@ -726,9 +737,24 @@ const AIGenerator = () => {
   };
 
   const handlePauseGeneration = () => {
-    if (wsClientRef.current) {
-      wsClientRef.current.close();
-      setIsGenerating(false);
+    // Don't close the WebSocket connection, just stop the generation process
+    // This allows users to send new messages after pausing
+    setIsGenerating(false);
+    setCurrentThinking([]);
+    currentThinkingRef.current = [];
+    
+    // Optionally, send a pause message to the server if needed
+    if (wsClientRef.current && wsConnected) {
+      try {
+        const pausePayload = JSON.stringify({
+          action: "pauseGeneration",
+          workspaceid: workspaceId,
+          solutionid: solutionId,
+        });
+        wsClientRef.current.send(pausePayload);
+      } catch (error) {
+        console.error("[Chat] Failed to send pause message:", error);
+      }
     }
   };
 
