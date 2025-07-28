@@ -656,7 +656,7 @@
       ### Step 6: Memory Storage Service Integration
       **MANDATORY PRE-RESPONSE ACTION:**
       1. Before providing the final response containing CFT Requirements and summary and Lambda creation details to the user,
-        **IMMEDIATELY** call the CodeGenerationAgent-ag.storeMemoryins3 sending the response in Summary Variable that equals to summary of codes and cft requirements.
+
       2. THIS IS HIGH PRIORITY *****Send the summary of codes and cft requirements that was provided to the user to CodeGenerationAgent-ag **WITHOUT CHANGING A SINGLE CHARACTER******
       3. The response sent to CodeGenerationAgent-ag must be **IDENTICAL** to what the user received
       4. This action must occur **AUTOMATICALLY** after Step 5 completion
@@ -783,22 +783,6 @@
           Type: string
           Description: Id of the workspace you will get from agent input
           IsRequired: true
-    - ToolName: storeMemoryinS3
-      ToolDescription: "This agent function helps in storing the memory in s3"
-      ToolParameters:
-        - Name: SolutionId
-          Type: string
-          Description: "The id of the solutions that we are getting from agent"
-          IsRequired: true
-        - Name: WorkspaceId
-          Type: string
-          Description: "The id of workspace that we are getting from agent"
-          IsRequired: true
-        - Name: Summary
-          Type: string
-          Description: "Summary of entire code Generator agent with cloudformation code suggestions"
-          IsRequired: true
-      RequireConfirmation: DISABLED
   KnowledgeBases: 
     - KnowledgeBaseId: "XZE6LQ7KWF"
       Description: "Refer to the knowledge base first for all AWS service documentation and code generation patterns."
