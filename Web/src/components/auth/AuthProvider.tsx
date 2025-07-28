@@ -81,9 +81,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (session.tokens?.idToken) {
               localStorage.setItem('idToken', session.tokens.idToken.toString());
             }
-            if (session.tokens?.refreshToken) {
-              localStorage.setItem('refreshToken', session.tokens.refreshToken.toString());
-            }
             
             const permissions = PermissionService.getPermissionsForRole(userRole);
             dispatch(setPermissions(permissions));

@@ -113,6 +113,8 @@ const AdminRolesManager = () => {
       glue: 'View',
       stepfunction: 'View',
       lambda: 'View',
+      s3: 'View',
+      dynamodb: 'View',
     }
   });
 
@@ -228,6 +230,8 @@ const AdminRolesManager = () => {
           glue: 'View',
           stepfunction: 'View',
           s3: 'View',
+          lambda: 'View',
+          dynamodb: 'View',
         }
       });
       

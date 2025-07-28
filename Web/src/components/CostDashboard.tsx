@@ -94,21 +94,42 @@ const CostDashboard = () => {
     setError(null);
     
     try {
-      const userInfo = getUserInfo();
-      if (!userInfo?.sub) {
-        throw new Error('User ID not found');
+      let response;
+      let groupByParam: 'workspace' | 'solution' | 'user' = 'workspace';
+      
+      if (groupBy === 'workspaces') {
+        groupByParam = 'workspace';
+      } else if (groupBy === 'solutions') {
+        groupByParam = 'solution';
       }
-
-      const response = await CostService.getCosts(groupBy, userInfo.sub);
       
-      // Transform the API response to match our pie chart format
-      const costs = response?.costs || [];
-      const transformedData = costs.map((item, index) => ({
-        ...item,
-        gradient: `url(#gradient${index})`,
-      }));
+      response = await CostService.getCosts(groupByParam);
       
-      setPieChartData(transformedData);
+      // Transform the response to match the expected format
+      if (Array.isArray(response)) {
+        const transformedData = response.map((item: any, index: number) => {
+          if (groupByParam === 'workspace') {
+            return {
+              name: item.WorkspaceName || `Workspace ${index + 1}`,
+              value: item.Cost || 0,
+              description: `Workspace: ${item.WorkspaceName}`,
+              gradient: `url(#gradient${index})`,
+              id: item.WorkspaceId,
+            };
+          } else {
+            return {
+              name: item.SolutionName || `Solution ${index + 1}`,
+              value: item.Cost || 0,
+              description: `Solution: ${item.SolutionName}`,
+              gradient: `url(#gradient${index})`,
+              id: item.SolutionId,
+            };
+          }
+        });
+        setPieChartData(transformedData);
+      } else {
+        setPieChartData([]);
+      }
     } catch (err: any) {
       console.error('Error fetching cost data:', err);
       setError(err.message || 'Failed to fetch cost data');
@@ -212,10 +233,10 @@ const CostDashboard = () => {
                 <SelectTrigger className="border-2 hover:border-blue-300 transition-colors">
                   <SelectValue placeholder="Group by" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="workspaces">Workspaces</SelectItem>
-                  <SelectItem value="solutions">Solutions</SelectItem>
-                </SelectContent>
+                 <SelectContent>
+                   <SelectItem value="workspaces">Workspaces</SelectItem>
+                   <SelectItem value="solutions">Solutions</SelectItem>
+                 </SelectContent>
               </Select>
             </div>
 

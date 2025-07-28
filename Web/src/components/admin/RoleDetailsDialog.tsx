@@ -109,6 +109,8 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       glue: 'view' as 'fullaccess' | 'manage' | 'view',
       stepfunction: 'view' as 'fullaccess' | 'manage' | 'view',
       lambda: 'view' as 'fullaccess' | 'manage' | 'view',
+      s3: 'view' as 'fullaccess' | 'manage' | 'view',
+      dynamodb: 'view' as 'fullaccess' | 'manage' | 'view',
     };
 
     if (Array.isArray(permissions)) {
