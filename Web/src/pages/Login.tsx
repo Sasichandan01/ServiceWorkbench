@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,9 @@ const Login = ({ isSignupDefault = false }: LoginProps) => {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Note: Authentication check is now handled by AuthProvider
+  // No need to check here as it causes UserUnAuthenticatedException errors
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,9 +257,10 @@ const Login = ({ isSignupDefault = false }: LoginProps) => {
                   try {
                     await signInWithGoogle();
                   } catch (error: any) {
+                    console.error('Google sign in error:', error);
                     toast({
                       title: "Error",
-                      description: error.message,
+                      description: error.message || "Failed to sign in with Google",
                       variant: "destructive",
                     });
                   }

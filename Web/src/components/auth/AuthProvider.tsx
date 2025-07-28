@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { setAuth, setLoading } from '../../store/slices/authSlice';
 import { setPermissions, clearPermissions } from '../../store/slices/permissionsSlice';
@@ -14,6 +15,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   
   // Timer reference
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -23,10 +25,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         dispatch(setLoading(true));
         
+        // Check if this is an OAuth callback by looking for auth code in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get('code');
+        const state = urlParams.get('state');
+        
+        if (authCode && state) {
+          console.log('OAuth callback detected - auth code and state present');
+          // Clear the URL parameters to prevent issues
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+          
+          // Add a small delay to allow Amplify to process the OAuth callback
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         // Try to check Amplify auth state first
         try {
           const amplifyUser = await getCurrentUser();
           const session = await fetchAuthSession();
+          
+          console.log('Amplify auth check - User:', amplifyUser ? 'Found' : 'Not found');
+          console.log('Amplify auth check - Session tokens:', session.tokens ? 'Present' : 'Not present');
           
           if (amplifyUser && session.tokens) {
             // User is authenticated via Amplify (Google/social)
@@ -38,7 +58,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               role: 'Default' // You might want to get this from user attributes
             };
 
+            // Try to get role from ID token if available
+            if (session.tokens.idToken) {
+              try {
+                const payload = session.tokens.idToken.toString().split('.')[1];
+                const decodedPayload = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+                const parsedPayload = JSON.parse(decodedPayload);
+                userInfo.role = parsedPayload['custom:Role'] || parsedPayload['custom:role'] || 'Default';
+              } catch (e) {
+                console.log('Could not decode ID token for role:', e);
+              }
+            }
+
             const userRole = userInfo.role || 'Default';
+            console.log('OAuth Authentication successful - User Role:', userRole);
+            console.log('Current path:', window.location.pathname);
+            
+            // Store tokens in localStorage for API client compatibility
+            if (session.tokens?.accessToken) {
+              localStorage.setItem('accessToken', session.tokens.accessToken.toString());
+            }
+            if (session.tokens?.idToken) {
+              localStorage.setItem('idToken', session.tokens.idToken.toString());
+            }
+            if (session.tokens?.refreshToken) {
+              localStorage.setItem('refreshToken', session.tokens.refreshToken.toString());
+            }
+            
             const permissions = PermissionService.getPermissionsForRole(userRole);
             dispatch(setPermissions(permissions));
             
@@ -46,12 +92,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               user: userInfo,
               isAuthenticated: true,
             }));
+
+            // Redirect based on role after successful OAuth authentication
+            const currentPath = window.location.pathname;
+            if (currentPath === '/' || currentPath === '/login' || currentPath === '/signup') {
+              console.log('Redirecting user to appropriate page based on role:', userRole);
+              // Use a longer delay to ensure authentication state is fully established
+              setTimeout(() => {
+                if (userRole === 'ITAdmin') {
+                  console.log('Redirecting to /admin');
+                  navigate('/admin', { replace: true });
+                } else {
+                  console.log('Redirecting to /workspaces');
+                  navigate('/workspaces', { replace: true });
+                }
+              }, 500);
+            }
             
             return; // Exit early if Amplify auth successful
           }
         } catch (amplifyError) {
           // Amplify auth failed, continue to check local storage
           console.log('No Amplify auth session found, checking local storage...');
+          console.log('Amplify error:', amplifyError);
         }
         
         // Fallback to original logic for username/password auth
