@@ -41,14 +41,22 @@ export class CostService {
     return response.json();
   };
 
-  static async getCosts(groupBy: string, userId: string): Promise<CostsResponse> {
+  static async getCosts(groupBy: 'workspace' | 'solution' | 'user', identifier?: string): Promise<any> {
     const searchParams = new URLSearchParams();
     searchParams.append('groupby', groupBy);
-    searchParams.append('userid', userId);
+    
+    // Add appropriate identifier based on groupBy type
+    if (identifier && groupBy === 'user') {
+      searchParams.append('userid', identifier); // username for user
+    } else if (identifier && groupBy === 'workspace') {
+      searchParams.append('workspaceid', identifier); // workspace id
+    } else if (identifier && groupBy === 'solution') {
+      searchParams.append('solutionid', identifier); // solution id
+    }
     
     const endpoint = `/costs?${searchParams.toString()}`;
     const response = await ApiClient.get(endpoint);
-    return this.handleResponse<CostsResponse>(response);
+    return this.handleResponse<any>(response);
   }
 
   static async getCostByWorkspaceId(workspaceId: string): Promise<WorkspaceCostResponse> {

@@ -43,6 +43,8 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       glue: 'view' as 'fullaccess' | 'manage' | 'view',
       stepfunction: 'view' as 'fullaccess' | 'manage' | 'view',
       s3: 'view' as 'fullaccess' | 'manage' | 'view',
+      lambda: 'view' as 'fullaccess' | 'manage' | 'view',
+      dynamodb: 'view' as 'fullaccess' | 'manage' | 'view',
     }
   });
   const [isOpen, setIsOpen] = useState(false);
@@ -106,7 +108,9 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
       roles: 'view' as 'fullaccess' | 'manage' | 'view',
       glue: 'view' as 'fullaccess' | 'manage' | 'view',
       stepfunction: 'view' as 'fullaccess' | 'manage' | 'view',
+      lambda: 'view' as 'fullaccess' | 'manage' | 'view',
       s3: 'view' as 'fullaccess' | 'manage' | 'view',
+      dynamodb: 'view' as 'fullaccess' | 'manage' | 'view',
     };
 
     if (Array.isArray(permissions)) {
@@ -429,7 +433,7 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
                     <div>
                       <h3 className="text-lg font-semibold mb-4">AWS Services</h3>
                       <div className="grid grid-cols-2 gap-6">
-                        {(['glue', 'stepfunction', 's3'] as const).map((service) => (
+                        {(['glue', 'stepfunction', 'lambda'] as const).map((service) => (
                           <div key={service} className="space-y-3">
                             <Label className="text-sm font-medium capitalize">
                               {service === 'stepfunction' ? 'Step Functions' : service.toUpperCase()}
