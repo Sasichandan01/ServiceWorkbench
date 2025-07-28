@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { CostService } from "@/services/costService";
 import { WorkspaceService } from "@/services/workspaceService";
-import { SolutionService } from "@/services/solutionService";
 import { getUserInfo } from "@/lib/tokenUtils";
 
 const AdminSystemOverview = () => {
@@ -62,12 +61,10 @@ const AdminSystemOverview = () => {
   const [groupBy, setGroupBy] = useState("all-workspaces");
   const [selectedWorkspace, setSelectedWorkspace] = useState("all");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [solutions, setSolutions] = useState<any[]>([]);
   const [costData, setCostData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workspaceSearch, setWorkspaceSearch] = useState("");
-  const [solutionSearch, setSolutionSearch] = useState("");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   // Fetch workspaces
@@ -83,18 +80,7 @@ const AdminSystemOverview = () => {
     }
   };
 
-  // Fetch solutions for a specific workspace
-  const fetchSolutions = async (workspaceId: string) => {
-    try {
-      const response = await SolutionService.getSolutions(workspaceId, { 
-        limit: 10,
-        filterBy: solutionSearch.trim() || undefined
-      });
-      setSolutions(response.Solutions || []);
-    } catch (err) {
-      console.error('Error fetching solutions:', err);
-    }
-  };
+
 
   // Fetch cost data
   const fetchCostData = async () => {
@@ -162,7 +148,6 @@ const AdminSystemOverview = () => {
     const workspaceIdFromUrl = searchParams.get('workspaceid');
     if (workspaceIdFromUrl && workspaceIdFromUrl !== selectedWorkspace) {
       setSelectedWorkspace(workspaceIdFromUrl);
-      fetchSolutions(workspaceIdFromUrl);
     }
   }, []);
 
@@ -171,18 +156,12 @@ const AdminSystemOverview = () => {
     fetchCostData();
   }, [groupBy, selectedWorkspace]);
 
-  // Fetch solutions when workspace or search changes
-  useEffect(() => {
-    if (selectedWorkspace && selectedWorkspace !== "all") {
-      fetchSolutions(selectedWorkspace);
-    }
-  }, [selectedWorkspace, solutionSearch]);
+
 
   // Handle groupBy change
   const handleGroupByChange = (value: string) => {
     setGroupBy(value);
     setSelectedWorkspace("all");
-    setSolutions([]);
   };
 
   // Handle workspace selection
@@ -192,13 +171,11 @@ const AdminSystemOverview = () => {
     // Update query string parameter
     if (value !== "all") {
       setSearchParams({ workspaceid: value });
-      fetchSolutions(value);
     } else {
       // Remove workspaceid parameter if "all" is selected
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('workspaceid');
       setSearchParams(newSearchParams);
-      setSolutions([]);
     }
   };
 
