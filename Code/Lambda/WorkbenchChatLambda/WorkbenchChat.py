@@ -49,7 +49,7 @@ def sanitize_for_dynamodb(obj):
         return obj
 
 def add_chat_message(workspace_id, solution_id, user_id, role, message=None, trace=None, message_id=None,s3_key=None, chat_context="AIChat"):
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
     chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Convert trace string to list
@@ -112,8 +112,8 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
     chat_table.put_item(Item=item)
 
 
-def get_latest_chat_messages(user_id, solution_id, limit=10):
-    chat_id = f"{solution_id}#{user_id}#AIChat"
+def get_latest_chat_messages(user_id, solution_id, limit=10,chat_context="AIChat"):
+    chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Step 1: Fetch latest N messages (reverse scan)
     response = chat_table.query(
@@ -230,14 +230,16 @@ def send_message_to_websocket(client, conn_id, message):
 
 
 def handle_send_message(event, apigw_client, connection_id, user_id):
-
+    LOGGER.info("Handling send message")
     body = json.loads(event.get('body', '{}'))
+    LOGGER.info(f"Received body: {body}")
     user_prompt = body.get('userMessage')
     agent_info=extract_agent_info()
-    chat_context = body.get('Context', 'AIChat')
+    chatcontext =body.get('Context', 'AIChat')
+    LOGGER.info(f"Received chat context: {chatcontext}")
    
     combined_prompt=""
-    if chat_context == 'AIChat':
+    if chatcontext == 'AIChat':
         file_context=body.get('FileContext')
         if file_context:
             s3_data=read_selected_s3_files("develop-service-workbench-workspaces",f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}", file_context)
@@ -258,12 +260,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
         send_message_to_websocket(apigw_client, connection_id, {"status": "error", "message": msg})
         return {"statusCode": 400, "body": json.dumps({"message": msg})}
 
-    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id, chat_context=chat_context)
+    add_chat_message(body['workspaceid'], body['solutionid'], user_id, 'user', user_prompt, message_id=user_message_id, chat_context=chatcontext)
 
     current_lambda_requirements = generate_requirements()
     
     # Get the last 10 chat messages
-    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10)
+    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10,chat_context=chatcontext)
     chat_context = ""
     if chat_history:
         chat_context = "\n\nChat History:\n"
@@ -337,13 +339,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         if code_generated == "true" and function == "storeServiceArtifactsInS3":
                             LOGGER.info("<codegenerated> is true")
-                            s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
-                            
-
-                            code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
-                            if 'Metadata' not in code_payload:
-                                code_payload['Metadata'] = {}
-                            code_payload['Metadata']['IsCode'] = True
 
                             
                         else:
@@ -360,10 +355,10 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         LOGGER.info(f"CFT generation agent response: {text}")
                         
                         outer_json = json.loads(text)
-                        code_generated = outer_json.get("<codegenerated>", "false")
+                        cft_generated = outer_json.get("<codegenerated>", "false")
                         
-                        if code_generated == "true":
-                            LOGGER.info("<codegenerated> is true for CFT")
+                        if cft_generated == "true":
+                            LOGGER.info("<cftgenerated> is true for CFT")
                             s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft"
                             
                             # Don't send code immediately, wait for completion
@@ -388,7 +383,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         # Fix: Parse JSON to extract URL
                         outer_json = json.loads(text)
-                        url_generated = outer_json.get('<PreSignedURL>', "false")
+                        url_generated = outer_json.get('<PresignedURL>', "false")
                     
                         if url_generated != "false":
                             LOGGER.info("URL generated is true")
@@ -416,8 +411,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     send_message_to_websocket(apigw_client, connection_id, response_obj)
                     
                     # Now send code/artifacts if they were generated
-                    if code_generated == "true" and code_payload:
-                        code_payload['Metadata']['IsComplete'] = True
+                    if code_generated == "true" :
+                        s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
+                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['Metadata']['IsCode'] = True
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
                         LOGGER.info("Code payload sent after completion")
                     
@@ -430,6 +429,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
                         LOGGER.info("URL payload sent after completion")
                     
+                    if cft_generated == "true" and 'Metadata' in code_payload:
+                        code_payload['Metadata']['IsComplete'] = True
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        LOGGER.info("CFT payload sent after completion")
+                    
                     # Store chat message with s3_key if available
                     if s3_key:
                         add_chat_message(
@@ -440,7 +444,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             message=response_obj["AIMessage"], 
                             message_id=message_id,
                             s3_key=s3_key, 
-                            chat_context=chat_context
+                            chat_context=chatcontext
                         )
                     else:
                         add_chat_message(
@@ -450,12 +454,13 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             'assistant', 
                             message=response_obj["AIMessage"], 
                             message_id=message_id, 
-                            chat_context=chat_context
+                            chat_context=chatcontext
                         )
                     
                     # Reset state after completion
                     code_payload = {}
                     code_generated = "false"
+                    cft_generated = "false"
                     url_generated = "false"
                     s3_key = None
                     
@@ -472,7 +477,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     'assistant',
                     trace=response_obj.get('AITrace'), 
                     message_id=message_id, 
-                    chat_context=chat_context
+                    chat_context=chatcontext
                 )
                 
             LOGGER.info(f"Current state - code_generated: {code_generated}, cft_generated: {cft_generated}, url_generated: {url_generated}")
