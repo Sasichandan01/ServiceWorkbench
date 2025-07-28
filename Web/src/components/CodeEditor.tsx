@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2 } from "lucide-react";
+import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2, Pause } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Collapsible,
@@ -337,6 +337,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
   const [wsError, setWsError] = useState<string | null>(null);
   const [selectedFileContext, setSelectedFileContext] = useState<string[]>([]);
   const [autoIncludeActiveFile, setAutoIncludeActiveFile] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Indentation settings
   const getIndentSize = (language: string): number => {
@@ -479,10 +480,34 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
 
   const activeFile = getFileById(activeFileId);
 
+  // Helper to build proper file path for FileContext
+  const buildFilePath = (file: ScriptFile): string => {
+    if (file.folder === 'code') {
+      return `code/${file.name}`;
+    } else if (file.folder === 'cft') {
+      return `cft/${file.name}`;
+    }
+    return file.name; // fallback
+  };
+
+  // Helper to get file by name from selectedFileContext
+  const getFileByName = (fileName: string): ScriptFile | undefined => {
+    for (const folder of Object.keys(folderTree)) {
+      const file = folderTree[folder].find(f => f.name === fileName);
+      if (file) return file;
+    }
+    return undefined;
+  };
+
+  // Helper to get display name from file path
+  const getDisplayName = (filePath: string): string => {
+    return filePath.split('/').pop() || filePath;
+  };
+
   // Auto-include active file in context when enabled
   useEffect(() => {
-    if (autoIncludeActiveFile && activeFile && !selectedFileContext.includes(activeFile.name)) {
-      setSelectedFileContext(prev => [...prev, activeFile.name]);
+    if (autoIncludeActiveFile && activeFile && !selectedFileContext.includes(buildFilePath(activeFile))) {
+      setSelectedFileContext(prev => [...prev, buildFilePath(activeFile)]);
     }
   }, [activeFile, autoIncludeActiveFile]);
   const openFiles = openFileIds.map(getFileById).filter(Boolean) as ScriptFile[];
@@ -949,6 +974,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
           });
           setCurrentThinking([]);
           currentThinkingRef.current = [];
+          setIsGenerating(false);
         } else {
           // Fallback for other message formats
           let content = '';
@@ -968,11 +994,13 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
           
           if (content.trim()) {
             setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content }]);
+            setIsGenerating(false);
           }
         }
       } catch (err) {
         console.error("[CodeEditor] Error parsing message:", err);
         setChatMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: String(event.data) }]);
+        setIsGenerating(false);
       }
     });
     return () => {
@@ -1000,6 +1028,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     setCurrentThinking([]);
     currentThinkingRef.current = [];
     setCurrentThinkingExpanded(true);
+    setIsGenerating(true);
     
     // Send message via websocket using the same format as AIGenerator
     const payload = JSON.stringify({
@@ -1015,9 +1044,52 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     setChatInput("");
   };
 
+  const handlePauseGeneration = () => {
+    // Don't close the WebSocket connection, just stop the generation process
+    // This allows users to send new messages after pausing
+    setIsGenerating(false);
+    setCurrentThinking([]);
+    currentThinkingRef.current = [];
+    
+    // Optionally, send a pause message to the server if needed
+    if (wsClientRef.current && wsConnected) {
+      try {
+        const pausePayload = JSON.stringify({
+          action: "pauseGeneration",
+          workspaceid: workspaceId,
+          solutionid: solutionId,
+          Context: "Editor",
+        });
+        wsClientRef.current.send(pausePayload);
+      } catch (error) {
+        console.error("[CodeEditor] Failed to send pause message:", error);
+      }
+    }
+  };
+
   // Calculate line numbers based on content
   const lines = activeFile?.content.split('\n') || [''];
   const lineCount = lines.length;
+
+  // Auto-expand current thinking when first trace arrives
+  useEffect(() => {
+    if (currentThinking.length === 1 && isGenerating) {
+      setCurrentThinkingExpanded(true);
+    }
+  }, [currentThinking.length, isGenerating]);
+
+  // Auto-collapse thinking when AI message is complete
+  useEffect(() => {
+    if (!isGenerating && chatMessages.length > 0) {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg.role === 'assistant' && lastMsg.thinking && lastMsg.thinking.length > 0) {
+        // Auto-collapse the thinking section for the completed message
+        setExpandedThinking((prev) => ({ ...prev, [lastMsg.id]: false }));
+      }
+      // Reset current thinking expansion state
+      setCurrentThinkingExpanded(true);
+    }
+  }, [isGenerating, chatMessages]);
 
   return (
     <div className={`${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} flex flex-col w-full max-w-full overflow-hidden ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
@@ -1538,8 +1610,8 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              const allFileNames = getAllFiles().map(f => f.name);
-                              setSelectedFileContext(allFileNames);
+                              const allFilePaths = getAllFiles().map(f => buildFilePath(f));
+                              setSelectedFileContext(allFilePaths);
                             }}
                             className={`h-6 px-2 text-xs ${isDarkMode ? 'text-green-400 hover:text-green-300 hover:bg-green-400/10' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
                           >
@@ -1583,7 +1655,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                             <div
                               key={file.id}
                               className={`flex items-center space-x-3 px-2 py-2 rounded-md cursor-pointer transition-colors ${
-                                selectedFileContext.includes(file.name)
+                                selectedFileContext.includes(buildFilePath(file))
                                   ? isDarkMode 
                                     ? 'bg-blue-500/20 border border-blue-500/30' 
                                     : 'bg-blue-50 border border-blue-200'
@@ -1592,15 +1664,15 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                                     : 'hover:bg-gray-50'
                               }`}
                               onClick={() => {
-                                if (selectedFileContext.includes(file.name)) {
-                                  setSelectedFileContext(prev => prev.filter(name => name !== file.name));
+                                if (selectedFileContext.includes(buildFilePath(file))) {
+                                  setSelectedFileContext(prev => prev.filter(name => name !== buildFilePath(file)));
                                 } else {
-                                  setSelectedFileContext(prev => [...prev, file.name]);
+                                  setSelectedFileContext(prev => [...prev, buildFilePath(file)]);
                                 }
                               }}
                             >
                               <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                                selectedFileContext.includes(file.name)
+                                selectedFileContext.includes(buildFilePath(file))
                                   ? isDarkMode 
                                     ? 'bg-blue-500 border-blue-500' 
                                     : 'bg-blue-600 border-blue-600'
@@ -1608,7 +1680,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                                     ? 'border-gray-600' 
                                     : 'border-gray-300'
                               }`}>
-                                {selectedFileContext.includes(file.name) && (
+                                {selectedFileContext.includes(buildFilePath(file)) && (
                                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                                     <path 
                                       d="M6.5 2L3 5.5L1.5 4" 
@@ -1624,7 +1696,7 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                                 <div className={`text-sm font-medium truncate ${
                                   isDarkMode ? 'text-gray-200' : 'text-foreground'
                                 }`}>
-                                  {file.name}
+                                  {getDisplayName(buildFilePath(file))}
                                 </div>
                                 <div className={`text-xs truncate ${
                                   isDarkMode ? 'text-gray-400' : 'text-muted-foreground'
@@ -1638,12 +1710,12 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                       )}
                     </div>
                     
-                    {activeFile && !selectedFileContext.includes(activeFile.name) && (
+                    {activeFile && !selectedFileContext.includes(buildFilePath(activeFile)) && (
                       <div className={`p-3 border-t ${isDarkMode ? 'border-[#3c3c3c]' : 'border-border'}`}>
                         <Button
                           size="sm"
                           onClick={() => {
-                            setSelectedFileContext(prev => [...prev, activeFile.name]);
+                            setSelectedFileContext(prev => [...prev, buildFilePath(activeFile)]);
                           }}
                           className={`w-full h-8 text-xs ${
                             isDarkMode
@@ -1661,9 +1733,9 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                 {/* Selected files display */}
                 {selectedFileContext.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {selectedFileContext.map((fileName) => (
+                    {selectedFileContext.map((filePath) => (
                       <Badge
-                        key={fileName}
+                        key={filePath}
                         variant="secondary"
                         className={`text-xs px-2 py-1 ${
                           isDarkMode 
@@ -1671,9 +1743,9 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                             : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                         }`}
                       >
-                        {fileName}
+                        {getDisplayName(filePath)}
                         <button
-                          onClick={() => setSelectedFileContext(prev => prev.filter(name => name !== fileName))}
+                          onClick={() => setSelectedFileContext(prev => prev.filter(name => name !== filePath))}
                           className={`ml-1 hover:opacity-70 ${
                             isDarkMode ? 'text-blue-400' : 'text-blue-600'
                           }`}
@@ -1698,21 +1770,35 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
                         handleSendMessage();
                       }
                     }}
+                    disabled={isGenerating}
                     className={`text-sm ${isDarkMode ? 'bg-[#3c3c3c] border-[#3c3c3c] text-white placeholder:text-gray-400' : 'bg-white border-gray-300'}`}
                   />
                   {selectedFileContext.length > 0 && (
-                    <div className={`absolute -top-6 left-0 text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                      Context: {selectedFileContext.join(', ')}
+                    <div className="flex flex-wrap gap-2 absolute -top-6 left-0">
+                      {[...new Set(selectedFileContext.map(getDisplayName))].map((fileName) => (
+                        <span key={fileName} className={`text-xs px-2 py-1 rounded ${isDarkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{fileName}</span>
+                      ))}
                     </div>
                   )}
                 </div>
-                <Button
-                  onClick={handleSendMessage}
-                  size="sm"
-                  className={`px-3 ${isDarkMode ? 'bg-[#0e639c] hover:bg-[#1177bb]' : 'bg-blue-500 hover:bg-blue-600'}`}
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
+                {isGenerating ? (
+                  <Button
+                    onClick={handlePauseGeneration}
+                    size="sm"
+                    className={`px-3 ${isDarkMode ? 'bg-[#0e639c] hover:bg-[#1177bb]' : 'bg-blue-500 hover:bg-blue-600'}`}
+                  >
+                    <Pause className="w-4 h-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!chatInput.trim() || !wsConnected}
+                    size="sm"
+                    className={`px-3 ${isDarkMode ? 'bg-[#0e639c] hover:bg-[#1177bb]' : 'bg-blue-500 hover:bg-blue-600'}`}
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </div>
             
