@@ -297,9 +297,8 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     code_generated = "false"
     cft_generated = "false"
     url_generated = "false" 
-    code_s3_key = None
-    cft_s3_key = None
-
+    s3_key=None
+    
     for event in invoke_agent_response["completion"]:
         trace = event.get("trace")
         if trace:
