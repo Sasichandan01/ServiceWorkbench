@@ -9,7 +9,7 @@ from decimal import Decimal
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
-
+ 
 
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
