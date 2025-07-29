@@ -2,6 +2,7 @@ import json
 import boto3
 import os
 import time
+import logging
 
 bedrock_agent_runtime = boto3.client("bedrock-agent-runtime")
 s3_client = boto3.client("s3")
@@ -20,7 +21,8 @@ PORTFOLIO_ID = "port-po3aqdmed72ig"
 PROVISIONED_PRODUCT_NAME_PREFIX = "AgentProvisionedProduct"
 
 STEP_FUNCTION_ARN = "arn:aws:states:us-east-1:043309350924:stateMachine:wb-test-stepfunction"
-DEFAULT_HARDCODED_CFT_URL = "https://wb-agent-output-bucket.s3.us-east-1.amazonaws.com/1/1/cft/1.yaml"
+LOGGER = logging.getLogger()
+LOGGER.setLevel(logging.INFO)
 
 # Global variable to store S3 object key
 GLOBAL_S3_OBJECT_KEY = None
@@ -32,8 +34,21 @@ solution_id = None
 def build_agent_response(event, text):
     """
     Constructs the response body for the Bedrock Agent.
+    
+    Key Steps:
+        1. Extract action group and function information from event
+        2. Format response body with TEXT content
+        3. Include session and prompt attributes
+        4. Return structured response object
+    
+    Parameters:
+        event (dict): The original event containing action group and function details
+        text (str): The response text to be returned to the agent
+    
+    Returns:
+        dict: Formatted response object for Bedrock Agent
     """
-    print("Building agent response")
+    LOGGER.info("Building agent response")
     response = {
         "messageVersion": "1.0",
         "response": {
@@ -50,31 +65,68 @@ def build_agent_response(event, text):
         "sessionAttributes": event.get("sessionAttributes", {}),
         "promptSessionAttributes": event.get("promptSessionAttributes", {})
     }
-    print(response)
+    LOGGER.debug(f"Agent response: {response}")
     return response
 
 def get_cft_s3_key(workspace_id, solution_id):
     """
     Returns the S3 key for the CFT file based on workspace and solution IDs.
+    
+    Key Steps:
+        1. Construct path using workspace and solution IDs
+        2. Return formatted S3 key string
+    
+    Parameters:
+        workspace_id (str): The workspace identifier
+        solution_id (str): The solution identifier
+    
+    Returns:
+        str: S3 object key for the CFT file
     """
     return f"workspaces/{workspace_id}/solutions/{solution_id}/cft/cft.yaml"
 
 def get_cft_s3_url(bucket, workspace_id, solution_id, region="us-east-1"):
     """
     Returns the S3 URL for the CFT file based on workspace and solution IDs.
+    
+    Key Steps:
+        1. Construct S3 URL using bucket, region, and path
+        2. Return formatted URL string
+    
+    Parameters:
+        bucket (str): S3 bucket name
+        workspace_id (str): The workspace identifier
+        solution_id (str): The solution identifier
+        region (str, optional): AWS region (default: "us-east-1")
+    
+    Returns:
+        str: Full S3 URL for the CFT file
     """
     return f"https://{bucket}.s3.{region}.amazonaws.com/workspaces/{workspace_id}/solutions/{solution_id}/cft/cft.yaml"
 
 def handle_cft_upload(event):
     """
     Handles CFT upload to S3 and returns the S3 object key.
+    
+    Key Steps:
+        1. Extract CFT content and workspace/solution IDs from event parameters
+        2. Validate required parameters are present
+        3. Generate S3 key and upload CFT content to S3
+        4. Update solution status to READY in DynamoDB
+        5. Return success response with upload status
+    
+    Parameters:
+        event (dict): Event containing CFT content and workspace/solution IDs
+    
+    Returns:
+        dict: Agent response with upload status and success message
     """
     global GLOBAL_S3_OBJECT_KEY
     global workspace_id, solution_id
     workspace_id = ""
     solution_id = ""
     
-    print("Handling CFT upload to S3.")
+    LOGGER.info("Handling CFT upload to S3.")
     
     cft_value = None
     parameters = event.get("parameters", [])
@@ -94,7 +146,7 @@ def handle_cft_upload(event):
     
     s3_key = get_cft_s3_key(workspace_id, solution_id)
     GLOBAL_S3_OBJECT_KEY = s3_key  # Store in global variable
-    print(f"Attempting to upload CFT to s3://{S3_OUTPUT_BUCKET}/{s3_key}")
+    LOGGER.info(f"Attempting to upload CFT to s3://{S3_OUTPUT_BUCKET}/{s3_key}")
     
     try:
         s3_client.put_object(
@@ -103,7 +155,7 @@ def handle_cft_upload(event):
             Body=cft_value.encode('utf-8'),
             ContentType="text/yaml"
         )
-        print(f"Successfully uploaded CFT to s3://{S3_OUTPUT_BUCKET}/{s3_key}")
+        LOGGER.info(f"Successfully uploaded CFT to s3://{S3_OUTPUT_BUCKET}/{s3_key}")
         s3_object_key_response = f"s3://{S3_OUTPUT_BUCKET}/{s3_key}"
         response_message = json.dumps(
             {
@@ -128,24 +180,38 @@ def handle_cft_upload(event):
                     },
                     ReturnValues='UPDATED_NEW'
                 )
-                print(f"Successfully updated solution status to READY for workspace {workspace_id}, solution {solution_id}")
+                LOGGER.info(f"Successfully updated solution status to READY for workspace {workspace_id}, solution {solution_id}")
             except Exception as e:
-                print(f"Error updating solution status to READY: {e}")
+                LOGGER.error(f"Error updating solution status to READY: {e}")
 
         return build_agent_response(event, response_message)
     except Exception as e:
-        print(f"Error uploading CFT to S3: {e}")
+        LOGGER.error(f"Error uploading CFT to S3: {e}")
         return build_agent_response(event, f"Error uploading CFT to S3: {str(e)}")
 
-    
 
 def handle_deploy(event):
     """
     Handles deployment by executing all Service Catalog phases synchronously.
+    
+    Key Steps:
+        1. Extract approval and invoke_point parameters from event
+        2. Validate approval and CFT upload status
+        3. Execute provisioning phase (create product and provision)
+        4. Poll for completion status
+        5. Finalize deployment and extract resources
+        6. Store invoke_point in solutions table
+        7. Return deployment success response
+    
+    Parameters:
+        event (dict): Event containing deployment parameters and approval status
+    
+    Returns:
+        dict: Agent response with deployment status and resource information
     """
     global GLOBAL_S3_OBJECT_KEY
     global workspace_id, solution_id
-    print("Handling deployment - executing Service Catalog provisioning synchronously.")
+    LOGGER.info("Handling deployment - executing Service Catalog provisioning synchronously.")
     
     # Extract parameters
     approval = None
@@ -162,27 +228,27 @@ def handle_deploy(event):
     if not GLOBAL_S3_OBJECT_KEY or not workspace_id or not solution_id:
         return build_agent_response(event, "No CFT has been uploaded yet or missing workspace/solution id. Please upload a CFT first using the cftUpload function.")
     
-    print(f"Using S3 object key: {GLOBAL_S3_OBJECT_KEY}")
-    print(f"Invoke point: {invoke_point}")
+    LOGGER.info(f"Using S3 object key: {GLOBAL_S3_OBJECT_KEY}")
+    LOGGER.info(f"Invoke point: {invoke_point}")
     
     try:
         # Extract any additional parameters for provisioning
         provisioning_parameters = []
         tags = []
         # Phase 1: Provision
-        print("Starting provisioning phase...")
+        LOGGER.info("Starting provisioning phase...")
         provision_result = execute_provision_phase(provisioning_parameters, tags, workspace_id, solution_id)
         if provision_result.get("phase") == "error":
             return build_agent_response(event, f"Provisioning failed: {provision_result.get('error_message')}")
         record_id = provision_result["RecordId"]
         provisioned_product_name = provision_result["provisioned_product_name"]
         # Phase 2: Poll until completion
-        print("Starting polling phase...")
+        LOGGER.info("Starting polling phase...")
         poll_result = execute_polling_phase(record_id, provisioned_product_name)
         if poll_result.get("phase") == "error":
             return build_agent_response(event, f"Provisioning failed during polling: {poll_result.get('error_message')}")
         # Phase 3: Finalize
-        print("Starting finalization phase...")
+        LOGGER.info("Starting finalization phase...")
         finalize_result = execute_finalize_phase(record_id, provisioned_product_name)
         if finalize_result.get("phase") == "error":
             return build_agent_response(event, f"Provisioning failed during finalization: {finalize_result.get('error_message')}")
@@ -204,9 +270,9 @@ def handle_deploy(event):
                     },
                     ReturnValues='UPDATED_NEW'
                 )
-                print(f"Successfully stored invoke_point '{invoke_point}' in solutions table")
+                LOGGER.info(f"Successfully stored invoke_point '{invoke_point}' in solutions table")
             except Exception as e:
-                print(f"Error storing invoke_point in solutions table: {e}")
+                LOGGER.error(f"Error storing invoke_point in solutions table: {e}")
 
         # Update solution status to READY after successful deployment
         
@@ -221,19 +287,37 @@ def handle_deploy(event):
         }, indent=2)
         return build_agent_response(event, success_message)
     except Exception as e:
-        print(f"Error during deployment: {e}")
+        LOGGER.error(f"Error during deployment: {e}")
         return build_agent_response(event, f"Error during deployment: {str(e)}")
 
 def execute_provision_phase(provisioning_parameters, tags, workspace_id, solution_id):
     """
     Executes the Service Catalog product provisioning phase.
+    
+    Key Steps:
+        1. Generate unique product name with timestamp
+        2. Create Service Catalog product with CFT template URL
+        3. Associate product with portfolio
+        4. Wait for association to propagate
+        5. Verify product association
+        6. Initiate product provisioning
+        7. Return record ID and product name
+    
+    Parameters:
+        provisioning_parameters (list): Service Catalog provisioning parameters
+        tags (list): Tags to apply to provisioned product
+        workspace_id (str): Workspace identifier
+        solution_id (str): Solution identifier
+    
+    Returns:
+        dict: Phase result with record ID and provisioned product name
     """
-    print("Provisioning product via Service Catalog")
+    LOGGER.info("Provisioning product via Service Catalog")
     global GLOBAL_S3_OBJECT_KEY
     provisioned_product_name = f"{PROVISIONED_PRODUCT_NAME_PREFIX}-{int(time.time())}"
     # Use the dynamic S3 URL for the template
     template_url = get_cft_s3_url(S3_OUTPUT_BUCKET, workspace_id, solution_id)
-    print(f"Using CFT template URL for Service Catalog provisioning: {template_url}")
+    LOGGER.info(f"Using CFT template URL for Service Catalog provisioning: {template_url}")
     try:
         product = sc.create_product(
             Name=provisioned_product_name,
@@ -257,13 +341,13 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
                 ProductId=product_id,
                 PortfolioId=PORTFOLIO_ID
             )
-            print(f"Successfully associated product {product_id} with portfolio {PORTFOLIO_ID}")
+            LOGGER.info(f"Successfully associated product {product_id} with portfolio {PORTFOLIO_ID}")
         except Exception as e:
-            print(f"Error associating product with portfolio: {e}")
+            LOGGER.error(f"Error associating product with portfolio: {e}")
             raise Exception(f"Failed to associate product with portfolio: {str(e)}")
         
         # Wait for association to propagate
-        print("Waiting for product association to propagate...")
+        LOGGER.info("Waiting for product association to propagate...")
         time.sleep(10)
         
         # Verify the association was successful
@@ -276,23 +360,23 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
                 associated_products = [p['ProductId'] for p in portfolio_detail['PortfolioDetail']['AssociatedProducts']]
             
             if product_id not in associated_products:
-                print(f"Warning: Product {product_id} not found in associated products list")
+                LOGGER.warning(f"Product {product_id} not found in associated products list")
                 # Try to verify by describing the product
                 try:
                     product_detail = sc.describe_product(Id=product_id)
-                    print(f"Product {product_id} exists and is accessible")
+                    LOGGER.info(f"Product {product_id} exists and is accessible")
                 except Exception as product_error:
-                    print(f"Error describing product {product_id}: {product_error}")
+                    LOGGER.error(f"Error describing product {product_id}: {product_error}")
                     raise Exception(f"Product {product_id} was not successfully associated with portfolio {PORTFOLIO_ID}")
             
-            print(f"Product {product_id} successfully associated with portfolio {PORTFOLIO_ID}")
+            LOGGER.info(f"Product {product_id} successfully associated with portfolio {PORTFOLIO_ID}")
         except Exception as e:
-            print(f"Error verifying product association: {e}")
-            print(f"Warning: Could not verify product association, but continuing with provisioning")
+            LOGGER.error(f"Error verifying product association: {e}")
+            LOGGER.warning("Could not verify product association, but continuing with provisioning")
         
-        print(f"Attempting to provision product with ID: {product_id}, artifact ID: {artifact_id}")
-        print(f"Portfolio ID: {PORTFOLIO_ID}")
-        print(f"Provisioned product name: {provisioned_product_name}")
+        LOGGER.info(f"Attempting to provision product with ID: {product_id}, artifact ID: {artifact_id}")
+        LOGGER.info(f"Portfolio ID: {PORTFOLIO_ID}")
+        LOGGER.info(f"Provisioned product name: {provisioned_product_name}")
         
         try:
             response = sc.provision_product(
@@ -302,22 +386,22 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
                 ProvisioningParameters=provisioning_parameters,
                 Tags=tags
             )
-            print(f"Successfully initiated provisioning with record ID: {response['RecordDetail']['RecordId']}")
+            LOGGER.info(f"Successfully initiated provisioning with record ID: {response['RecordDetail']['RecordId']}")
         except Exception as provision_error:
-            print(f"Provisioning failed with error: {provision_error}")
+            LOGGER.error(f"Provisioning failed with error: {provision_error}")
             
             # Try to get more details about the product and portfolio
             try:
                 product_detail = sc.describe_product(Id=product_id)
-                print(f"Product details: {product_detail}")
+                LOGGER.debug(f"Product details: {product_detail}")
             except Exception as e:
-                print(f"Could not get product details: {e}")
+                LOGGER.error(f"Could not get product details: {e}")
             
             try:
                 portfolio_detail = sc.describe_portfolio(Id=PORTFOLIO_ID)
-                print(f"Portfolio details: {portfolio_detail}")
+                LOGGER.debug(f"Portfolio details: {portfolio_detail}")
             except Exception as e:
-                print(f"Could not get portfolio details: {e}")
+                LOGGER.error(f"Could not get portfolio details: {e}")
             
             raise provision_error
         return {
@@ -326,7 +410,7 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
             "provisioned_product_name": provisioned_product_name,
         }
     except Exception as e:
-        print(f"Error in Service Catalog provisioning: {e}")
+        LOGGER.error(f"Error in Service Catalog provisioning: {e}")
         return {
             "phase": "error",
             "error_message": f"Provisioning failed during 'provision' phase: {str(e)}"
@@ -335,14 +419,30 @@ def execute_provision_phase(provisioning_parameters, tags, workspace_id, solutio
 def execute_polling_phase(record_id, provisioned_product_name, max_polls=60, poll_interval=30):
     """
     Polls the status of the Service Catalog product provisioning until completion.
+    
+    Key Steps:
+        1. Poll Service Catalog record status at specified intervals
+        2. Check for FAILED/ERROR status and return error
+        3. Check for SUCCEEDED status and return success
+        4. Continue polling for IN_PROGRESS status
+        5. Return timeout error if max polls exceeded
+    
+    Parameters:
+        record_id (str): Service Catalog record ID to monitor
+        provisioned_product_name (str): Name of the provisioned product
+        max_polls (int, optional): Maximum number of polling attempts (default: 60)
+        poll_interval (int, optional): Seconds between polls (default: 30)
+    
+    Returns:
+        dict: Phase result with status and error information if applicable
     """
-    print(f"Polling Service Catalog product with RecordId: {record_id}")
+    LOGGER.info(f"Polling Service Catalog product with RecordId: {record_id}")
     
     for attempt in range(max_polls):
         try:
             response = sc.describe_record(Id=record_id)
             status = response['RecordDetail']['Status']
-            print(f"Poll attempt {attempt + 1}: Status = {status}")
+            LOGGER.info(f"Poll attempt {attempt + 1}: Status = {status}")
 
             # If the status is FAILED or ERROR, return an error message
             if status in ["FAILED", "ERROR"]:
@@ -369,7 +469,7 @@ def execute_polling_phase(record_id, provisioned_product_name, max_polls=60, pol
                 continue
             
         except Exception as e:
-            print(f"Error polling Service Catalog product: {e}")
+            LOGGER.error(f"Error polling Service Catalog product: {e}")
             return {
                 "phase": "error",
                 "error_message": f"Provisioning failed during 'poll' phase: {str(e)}"
@@ -384,8 +484,23 @@ def execute_polling_phase(record_id, provisioned_product_name, max_polls=60, pol
 def execute_finalize_phase(record_id, provisioned_product_name):
     """
     Executes the finalization phase, extracting CloudFormation stack resources.
+    
+    Key Steps:
+        1. Get Service Catalog record details
+        2. Extract CloudFormation stack ARN from record outputs
+        3. Fallback to provisioned product details if needed
+        4. Describe CloudFormation stack resources
+        5. Update solutions table with resource information
+        6. Return finalization result with resources
+    
+    Parameters:
+        record_id (str): Service Catalog record ID
+        provisioned_product_name (str): Name of the provisioned product
+    
+    Returns:
+        dict: Finalization result with stack ARN and resource information
     """
-    print("Finalizing Service Catalog product")
+    LOGGER.info("Finalizing Service Catalog product")
     global workspace_id, solution_id
     try:
         record = sc.describe_record(Id=record_id)
@@ -410,7 +525,7 @@ def execute_finalize_phase(record_id, provisioned_product_name):
                         account_id = boto3.client('sts').get_caller_identity()['Account']
                         stack_arn = f"arn:aws:cloudformation:{region}:{account_id}:stack/{stack_parts[1]}/{stack_parts[2]}"
             except Exception as e:
-                print(f"Could not get stack ARN from provisioned product detail: {e}")
+                LOGGER.error(f"Could not get stack ARN from provisioned product detail: {e}")
         
         if not stack_arn:
             return {
@@ -454,7 +569,7 @@ def execute_finalize_phase(record_id, provisioned_product_name):
                     ReturnValues='UPDATED_NEW'
                 )
             except Exception as e:
-                print(f"Error updating Resource column in solutions table: {e}")
+                LOGGER.error(f"Error updating Resource column in solutions table: {e}")
 
         result = {
             "phase": "done",
@@ -463,11 +578,11 @@ def execute_finalize_phase(record_id, provisioned_product_name):
             "ProvisionedProductName": provisioned_product_name
         }
 
-        print("Service Catalog Finalization Result:", json.dumps(result))
+        LOGGER.info(f"Service Catalog Finalization Result: {json.dumps(result)}")
         return result
         
     except Exception as e:
-        print(f"Error during finalization: {e}")
+        LOGGER.error(f"Error during finalization: {e}")
         return {
             "phase": "error",
             "error_message": f"Provisioning failed during 'finalize' phase: {str(e)}"
@@ -477,8 +592,22 @@ def execute_finalize_phase(record_id, provisioned_product_name):
 def handle_provision(event):
     """
     Handles the Service Catalog product provisioning phase.
+    
+    Key Steps:
+        1. Generate unique product name with timestamp
+        2. Create Service Catalog product with global S3 template URL
+        3. Associate product with portfolio
+        4. Wait for association to propagate
+        5. Initiate product provisioning
+        6. Return record ID and product name
+    
+    Parameters:
+        event (dict): Event containing provisioning parameters and tags
+    
+    Returns:
+        dict: Phase result with record ID and provisioned product name
     """
-    print("Provisioning product via Service Catalog")
+    LOGGER.info("Provisioning product via Service Catalog")
     global GLOBAL_S3_OBJECT_KEY
 
     provisioned_product_name = f"{PROVISIONED_PRODUCT_NAME_PREFIX}-{int(time.time())}"
@@ -486,9 +615,7 @@ def handle_provision(event):
     # Use the global S3 object key to construct the template URL
     if GLOBAL_S3_OBJECT_KEY:
         template_url = f"https://{S3_OUTPUT_BUCKET}.s3.us-east-1.amazonaws.com/{GLOBAL_S3_OBJECT_KEY}"
-    else:
-        template_url = DEFAULT_HARDCODED_CFT_URL
-    print(f"Using CFT template URL for Service Catalog provisioning: {template_url}")
+    LOGGER.info(f"Using CFT template URL for Service Catalog provisioning: {template_url}")
 
     try:
         product = sc.create_product(
@@ -528,7 +655,7 @@ def handle_provision(event):
             "provisioned_product_name": provisioned_product_name,
         }
     except Exception as e:
-        print(f"Error in Service Catalog provisioning: {e}")
+        LOGGER.error(f"Error in Service Catalog provisioning: {e}")
         return {
             "phase": "error",
             "error_message": f"Provisioning failed during 'provision' phase: {str(e)}"
@@ -537,8 +664,20 @@ def handle_provision(event):
 def handle_poll(event):
     """
     Handles polling the status of the Service Catalog product provisioning.
+    
+    Key Steps:
+        1. Extract record ID from event
+        2. Poll Service Catalog record status
+        3. Check for FAILED/ERROR status and return error
+        4. Return appropriate phase based on status
+    
+    Parameters:
+        event (dict): Event containing record ID and provisioned product name
+    
+    Returns:
+        dict: Phase result with status and error information if applicable
     """
-    print(f"Polling Service Catalog product with RecordId: {event['RecordId']}")
+    LOGGER.info(f"Polling Service Catalog product with RecordId: {event['RecordId']}")
     record_id = event['RecordId']
     try:
         response = sc.describe_record(Id=record_id)
@@ -561,7 +700,7 @@ def handle_poll(event):
             "provisioned_product_name": event.get("provisioned_product_name"),
         }
     except Exception as e:
-        print(f"Error polling Service Catalog product: {e}")
+        LOGGER.error(f"Error polling Service Catalog product: {e}")
         return {
             "phase": "error",
             "error_message": f"Provisioning failed during 'poll' phase: {str(e)}"
@@ -570,8 +709,22 @@ def handle_poll(event):
 def handle_finalize(event, context=None):
     """
     Handles the finalization phase, extracting CloudFormation stack resources.
+    
+    Key Steps:
+        1. Get Service Catalog record details
+        2. Extract CloudFormation stack ARN from record outputs
+        3. Fallback to provisioned product details if needed
+        4. Describe CloudFormation stack resources
+        5. Return finalization result with resources
+    
+    Parameters:
+        event (dict): Event containing record ID and provisioned product name
+        context (object, optional): Lambda context for extracting account/region info
+    
+    Returns:
+        dict: Finalization result with stack ARN and resource information
     """
-    print("Finalizing Service Catalog product")
+    LOGGER.info("Finalizing Service Catalog product")
     record_id = event['RecordId']
     product_name = event.get('provisioned_product_name')
     try:
@@ -594,7 +747,7 @@ def handle_finalize(event, context=None):
                     region = context.invoked_function_arn.split(":")[3]
                     stack_arn = f"arn:aws:cloudformation:{region}:{account_id}:stack/{stack_id_from_detail.split('/')[1]}/{stack_id_from_detail.split('/')[2]}"
             except Exception as e:
-                print(f"Could not get stack ARN from provisioned product detail: {e}")
+                LOGGER.error(f"Could not get stack ARN from provisioned product detail: {e}")
                 pass
         if not stack_arn:
             return {
@@ -619,21 +772,19 @@ def handle_finalize(event, context=None):
             "ProvisionedProductName": product_name
         }
 
-        print("Service Catalog Finalization Result:", json.dumps(result))
+        LOGGER.info(f"Service Catalog Finalization Result: {json.dumps(result)}")
         return result
     except Exception as e:
-        print(f"Error during finalization: {e}")
+        LOGGER.error(f"Error during finalization: {e}")
         return {
             "phase": "error",
             "error_message": f"Provisioning failed during 'finalize' phase: {str(e)}"
         }
 
 def lambda_handler(event, context):
-    """
-    Main Lambda handler to process events from Bedrock Agent or Step Function.
-    """
+    
     try:
-        print("Received event:", json.dumps(event))
+        LOGGER.info(f"Received event: {json.dumps(event)}")
 
         # Check if this is an agent call
         is_agent_call = "actionGroup" in event and "function" in event
@@ -642,11 +793,11 @@ def lambda_handler(event, context):
             function_name = event.get("function")
             
             if function_name == "cftUpload":
-                print("Handling cftUpload function")
+                LOGGER.info("Handling cftUpload function")
                 return handle_cft_upload(event)
                 
             elif function_name == "deploycft":
-                print("Handling deploy function")
+                LOGGER.info("Handling deploy function")
                 return handle_deploy(event)
                 
             else:
@@ -654,7 +805,7 @@ def lambda_handler(event, context):
         
         else:
             # Handle Step Function phases (kept for backward compatibility)
-            print("Handling Step Function callback for Service Catalog phases.")
+            LOGGER.info("Handling Step Function callback for Service Catalog phases.")
             phase = event.get("phase")
 
             if phase == "provision":
@@ -696,7 +847,7 @@ def lambda_handler(event, context):
                 return result
 
     except Exception as e:
-        print(f"Error during Lambda execution: {str(e)}")
+        LOGGER.error(f"Error during Lambda execution: {str(e)}")
         if not is_agent_call:
             raise
         return build_agent_response(event, f"An unexpected error occurred: {str(e)}")

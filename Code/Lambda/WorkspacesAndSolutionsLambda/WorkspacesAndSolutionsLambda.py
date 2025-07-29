@@ -49,13 +49,31 @@ def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
 
 
 def get_chat_history(workspace_id, solution_id, user_id):
+    """
+    Retrieves chat history for a specific solution and user.
+    
+    Key Steps:
+        1. Build primary key for chat query
+        2. Query chat table with solution and user identifiers
+        3. Format chat messages with required fields
+        4. Return formatted chat history
+    
+    Parameters:
+        workspace_id (str): ID of the workspace
+        solution_id (str): ID of the solution
+        user_id (str): ID of the user requesting chat history
+    
+    Returns:
+        dict: HTTP response with chat history list
+    """
+    # Build primary key for chat query using solution and user IDs
     pk = build_chat_pk(solution_id, user_id)
     response = chat_table.query(
         KeyConditionExpression=Key('ChatId').eq(pk),
         ScanIndexForward=True  # oldest first
     )
     items = response.get('Items', [])
-    LOGGER.info(f"Chat history for {solution_id} by {user_id}: {items}")
+    LOGGER.info(f"Retrieved {len(items)} chat messages for solution {solution_id} by user {user_id}")
     chat_list = []
     
     for item in items:
@@ -107,6 +125,24 @@ def get_chat_history(workspace_id, solution_id, user_id):
     
     return return_response(200, chat_list)
 def delete_chat_history(workspace_id, solution_id, user_id):
+    """
+    Deletes all chat messages for a specific solution and user.
+    
+    Key Steps:
+        1. Build primary key for chat query
+        2. Query all chat messages for the solution and user
+        3. Delete each chat message from the table
+        4. Return success response
+    
+    Parameters:
+        workspace_id (str): ID of the workspace
+        solution_id (str): ID of the solution
+        user_id (str): ID of the user whose chat history to delete
+    
+    Returns:
+        dict: HTTP response with deletion confirmation
+    """
+    # Build primary key for chat query using solution and user IDs
     pk = build_chat_pk(solution_id, user_id)
     response = chat_table.query(
         KeyConditionExpression=Key('ChatId').eq(pk),
@@ -124,8 +160,22 @@ def delete_chat_history(workspace_id, solution_id, user_id):
     return return_response(200, {"Message": "All chat messages deleted"})
 
 def get_chat_trace(chat_id):
-    # Query the GSI on MessageId
-
+    """
+    Retrieves trace information for a specific chat message.
+    
+    Key Steps:
+        1. Query chat table using MessageId index
+        2. Extract trace information from the message
+        3. Ensure trace is properly formatted as a list
+        4. Return trace data or error if message not found
+    
+    Parameters:
+        chat_id (str): ID of the chat message to get trace for
+    
+    Returns:
+        dict: HTTP response with trace data or error message
+    """
+    # Query the GSI on MessageId to find the specific chat message
     response = chat_table.query(
         IndexName='MessageIdIndex',
         KeyConditionExpression=Key('MessageId').eq(chat_id)
@@ -145,8 +195,26 @@ def get_chat_trace(chat_id):
     return return_response(200, {"Trace": trace})
 
 def lambda_handler(event, context):
+    """
+    Main Lambda handler that routes API Gateway requests to appropriate functions.
+    
+    Key Steps:
+        1. Log incoming event for debugging
+        2. Handle special polling actions (execution-poll, logs-poll)
+        3. Extract request details (resource, path, method, auth)
+        4. Route requests based on resource path and HTTP method
+        5. Handle workspace, solution, execution, script, and chat operations
+        6. Return appropriate HTTP responses or error messages
+    
+    Parameters:
+        event (dict): API Gateway event containing request details
+        context (object): Lambda context object
+    
+    Returns:
+        dict: HTTP response with status code and body
+    """
     try:
-        print(event)
+        LOGGER.info(f"Received event: {event}")
 
         if event.get('action') == 'execution-poll':
             return process_execution(event, context)
@@ -156,18 +224,20 @@ def lambda_handler(event, context):
         resource = event.get('resource')
         path = event.get('path')
         httpMethod = event.get('httpMethod')
+        # Extract authentication and authorization information
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         role = auth.get("role")
-        # valid, msg = is_user_action_valid(user_id, role, resource, httpMethod, roles_table)
-        # if not valid:
-        #     return return_response(403, {"Error": msg})
+        
+        
+        # Extract path and query parameters for routing
         path_params = event.get('pathParameters') or {}
         query_params = event.get('queryStringParameters') or {}
         workspace_id = path_params.get('workspace_id',None)
         solution_id = path_params.get('solution_id',None)
         chat_id = path_params.get('chat_id', None)
 
+        # Route workspace operations
         if resource == '/workspaces':
             if httpMethod == 'POST':
                 return create_workspace(event, context)
@@ -183,47 +253,54 @@ def lambda_handler(event, context):
             elif httpMethod == 'DELETE':
                 return delete_workspace(event,context)
 
+        # Route solution collection operations
         elif resource == '/workspaces/{workspace_id}/solutions':
             if httpMethod == 'GET':
-                return list_solutions(workspace_id, query_params,user_id)
+                return list_solutions(workspace_id, query_params, user_id)
             elif httpMethod == 'POST':
                 body = json.loads(event.get('body', '{}'))
-                return create_solution(workspace_id, body,user_id)
+                return create_solution(workspace_id, body, user_id)
 
+        # Route individual solution operations
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}':
             if httpMethod == 'GET':
-                return get_solution(workspace_id, solution_id, query_params,user_id)
+                return get_solution(workspace_id, solution_id, query_params, user_id)
             elif httpMethod == 'PUT':
                 body = json.loads(event.get('body', '{}'))
-                return update_solution(workspace_id, solution_id, body,user_id,query_params)
+                return update_solution(workspace_id, solution_id, body, user_id, query_params)
             elif httpMethod == 'DELETE':
-                return delete_solution(workspace_id, solution_id,user_id)
+                return delete_solution(workspace_id, solution_id, user_id)
 
-        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions':
+        # Route execution operations
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/executions':
             if httpMethod == 'GET':
                 return get_executions(event, context)
             elif httpMethod == 'POST':
                 return start_execution(event, context)
 
-        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
+        # Route individual execution operations
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
             if httpMethod == 'GET':
                 return get_execution(event, context)
         
+        # Route script operations
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/scripts':
             base_prefix = f"workspaces/{workspace_id}/solutions/{solution_id}"
             if httpMethod == 'GET':
-                return handle_get(base_prefix,solution_id)
+                return handle_get(base_prefix, solution_id)
             elif httpMethod == 'POST':
                 body = json.loads(event.get('body', '{}'))
-                return handle_post(base_prefix,body,solution_id, workspace_id ,user_id)
+                return handle_post(base_prefix, body, solution_id, workspace_id, user_id)
         
-        elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
+        # Route execution log operations
+        elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
             if httpMethod == 'GET':
                 return get_execution_logs(event, context)
             elif httpMethod == 'POST':
                 return generate_execution_logs(event, context)
 
 
+        # Route chat operations
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat':
             if httpMethod == 'GET':
                 return get_chat_history(workspace_id, solution_id, user_id)
@@ -242,7 +319,9 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_chat_trace(chat_id)
 
+        # No matching resource found
+        LOGGER.warning(f"No matching resource found for: {resource} with method: {httpMethod}")
         return return_response(404, {"Error": "Resource not found"})
     except Exception as e:
-        print(e)
+        LOGGER.error(f"Unexpected error in lambda_handler: {e}")
         return return_response(500, {"Error": "Internal Server Error"})

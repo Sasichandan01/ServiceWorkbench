@@ -15,7 +15,6 @@ LOGGER.setLevel(logging.INFO)
 
 DYNAMO_DB = boto3.resource('dynamodb')
 
-
 SOLUTIONS_TABLE_NAME = os.environ.get('SOLUTIONS_TABLE')
 WORKSPACES_TABLE_NAME = os.environ.get('WORKSPACES_TABLE')
 TEMPLATES_TABLE_NAME = os.environ.get('TEMPLATES_TABLE')
@@ -34,7 +33,28 @@ SOLUTION_EXECUTIONS_TABLE = DYNAMO_DB.Table(SOLUTION_EXECUTIONS_TABLE_NAME)
 RESOURCE_ACCESS_TABLE = DYNAMO_DB.Table(RESOURCE_ACCESS_TABLE_NAME)
 USERS_TABLE = DYNAMO_DB.Table(USERS_TABLE_NAME)
 
-def list_solutions(workspace_id, params,user_id):
+def list_solutions(workspace_id, params, user_id):
+    """
+    Lists solutions in a workspace with filtering, sorting, and pagination support.
+    
+    Key Steps:
+        1. Validate and parse pagination parameters (limit, offset, sort order)
+        2. Verify workspace exists in the system
+        3. Query user's resource access permissions for the workspace
+        4. Extract solution IDs from access keys
+        5. Retrieve solution details from DynamoDB
+        6. Apply filtering and sorting
+        7. Format response with solution information
+        8. Return paginated results
+    
+    Parameters:
+        workspace_id (str): ID of the workspace to list solutions for
+        params (dict): Query parameters including filterBy, sortBy, limit, offset
+        user_id (str): ID of the user requesting the list
+    
+    Returns:
+        dict: Paginated list of solutions with metadata
+    """
     filter_by = params.get('filterBy')
     sort_order = params.get('sortBy','asc')
     limit = int(params.get('limit', 10))
@@ -81,18 +101,18 @@ def list_solutions(workspace_id, params,user_id):
         FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
         ProjectionExpression='AccessKey'
     )
-    print(resource_access_response)
+    LOGGER.debug(f"Resource access response: {resource_access_response}")
     
     solution_ids = []
     for item in resource_access_response.get('Items', []):
         access_key = item.get('AccessKey', '')
-        print(access_key)
+        LOGGER.debug(f"Processing access key: {access_key}")
         if access_key.startswith(f'SOLUTION#{workspace_id}#'):
             solution_id = access_key.split('#')[2]
-            print(solution_id)
+            LOGGER.debug(f"Found solution ID: {solution_id}")
             solution_ids.append(solution_id)
             
-    print(solution_ids)
+    LOGGER.debug(f"Solution IDs found: {solution_ids}")
     
     items = []
     for solution_id in solution_ids:
@@ -103,12 +123,12 @@ def list_solutions(workspace_id, params,user_id):
         if item:
             items.append(item)
 
-    print(items)
+    LOGGER.debug(f"Items before filtering: {items}")
 
     if filter_by:
         items = [item for item in items if filter_by in item.get('SolutionName', '').lower()]
 
-    print(items)
+    LOGGER.debug(f"Items after filtering: {items}")
 
     solutions = [{
         "SolutionId": item.get("SolutionId"),
@@ -134,6 +154,28 @@ def list_solutions(workspace_id, params,user_id):
     return pagination_response
 
 def create_solution(workspace_id, body, user_id):
+    """
+    Creates a new solution in the specified workspace with proper permissions.
+    
+    Key Steps:
+        1. Validate required fields (SolutionName, Description, Tags)
+        2. Check for duplicate solution names in the workspace
+        3. Verify workspace exists
+        4. Generate unique solution ID
+        5. Create solution item in DynamoDB
+        6. Log activity for solution creation
+        7. Grant owner permissions to creator
+        8. Grant owner permissions to all ITAdmin users
+        9. Return success response with solution ID
+    
+    Parameters:
+        workspace_id (str): ID of the workspace to create solution in
+        body (dict): Request body containing solution details
+        user_id (str): ID of the user creating the solution
+    
+    Returns:
+        dict: Success response with solution ID
+    """
     # Check for duplicate solution name in the same workspace
     solution_name = body.get("SolutionName")
     if not solution_name:
@@ -211,9 +253,9 @@ def create_solution(workspace_id, body, user_id):
             
             if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
                 create_solution_fgac(RESOURCE_ACCESS_TABLE, admin_user_id, "owner", workspace_id, solution_id)
-                print(f"Granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
+                LOGGER.info(f"Granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
     except Exception as e:
-        print(f"Error granting ITAdmin permissions for solution {solution_id}: {e}")
+        LOGGER.error(f"Error granting ITAdmin permissions for solution {solution_id}: {e}")
         # Continue with solution creation even if ITAdmin permission granting fails
 
     body = {
@@ -222,7 +264,28 @@ def create_solution(workspace_id, body, user_id):
     }
     return return_response(200, body)
 
-def get_solution(workspace_id, solution_id, params,user_id):
+def get_solution(workspace_id, solution_id, params, user_id):
+    """
+    Retrieves detailed information about a specific solution including user access.
+    
+    Key Steps:
+        1. Check user's access permissions for the solution
+        2. Verify workspace exists in the system
+        3. Retrieve solution details from DynamoDB
+        4. Query all users with access to this solution
+        5. Fetch user details and access types
+        6. Format response with solution and user information
+        7. Return complete solution details
+    
+    Parameters:
+        workspace_id (str): ID of the workspace containing the solution
+        solution_id (str): ID of the solution to retrieve
+        params (dict): Query parameters (currently unused)
+        user_id (str): ID of the user requesting the solution
+    
+    Returns:
+        dict: Complete solution details including user access information
+    """
 
     access_type = check_solution_access(RESOURCE_ACCESS_TABLE, user_id, workspace_id, solution_id)
     if not access_type:
@@ -286,11 +349,34 @@ def get_solution(workspace_id, solution_id, params,user_id):
                         "CreationTime": perm.get("CreationTime", "")
                     })
     except Exception as e:
-        print(f"Error fetching users for solution {solution_id}: {e}")
+        LOGGER.error(f"Error fetching users for solution {solution_id}: {e}")
     item["Users"] = users
     return return_response(200,item)
 
 def update_solution(workspace_id, solution_id, body, user_id, params=None):
+    """
+    Updates solution details or datasources based on user permissions and action type.
+    
+    Key Steps:
+        1. Check user's access permissions (editor or owner required)
+        2. Verify workspace and solution exist
+        3. Handle datasource updates if action is 'datasource'
+        4. Validate datasource IDs and fetch details
+        5. Update solution fields (SolutionName, Description, Tags)
+        6. Update timestamps and user information
+        7. Log activity for the update
+        8. Return success response
+    
+    Parameters:
+        workspace_id (str): ID of the workspace containing the solution
+        solution_id (str): ID of the solution to update
+        body (dict): Request body containing update fields
+        user_id (str): ID of the user performing the update
+        params (dict, optional): Query parameters including action type
+    
+    Returns:
+        dict: Success response with update confirmation
+    """
     action = None
     if params and isinstance(params, dict):
         action = params.get('action')
@@ -396,7 +482,27 @@ def update_solution(workspace_id, solution_id, body, user_id, params=None):
         )
         return return_response(200, {"Message": "Solution updated"})
 
-def delete_solution(workspace_id, solution_id,user_id):
+def delete_solution(workspace_id, solution_id, user_id):
+    """
+    Deletes a solution and all associated permissions from the system.
+    
+    Key Steps:
+        1. Check user's access permissions (owner required)
+        2. Verify workspace and solution exist
+        3. Query all permission records for the solution
+        4. Delete all permission entries from resource access table
+        5. Delete solution from solutions table
+        6. Log activity for solution deletion
+        7. Return success response
+    
+    Parameters:
+        workspace_id (str): ID of the workspace containing the solution
+        solution_id (str): ID of the solution to delete
+        user_id (str): ID of the user performing the deletion
+    
+    Returns:
+        dict: Success response with deletion confirmation
+    """
 
     access_type = check_solution_access(RESOURCE_ACCESS_TABLE, user_id, workspace_id, solution_id)
     if not access_type:
@@ -446,7 +552,7 @@ def delete_solution(workspace_id, solution_id,user_id):
         for item in permission_items:
             RESOURCE_ACCESS_TABLE.delete_item(Key={'Id': item['Id'], 'AccessKey': item['AccessKey']})
     except Exception as e:
-        print(f"Error deleting solution permissions: {e}")
+        LOGGER.error(f"Error deleting solution permissions: {e}")
 
     SOLUTIONS_TABLE.delete_item(Key=key)
 

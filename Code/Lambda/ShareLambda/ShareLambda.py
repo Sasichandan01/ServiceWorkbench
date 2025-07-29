@@ -2,9 +2,13 @@ import json
 import boto3
 from RBAC.rbac import is_user_action_valid
 import os
+import logging
 from datetime import datetime, timezone
 from Utils.utils import log_activity, paginate_list, return_response
 from boto3.dynamodb.conditions import Attr, Key
+
+LOGGER = logging.getLogger()
+LOGGER.setLevel(logging.INFO)
 
 DYNAMO_DB = boto3.resource('dynamodb')
 RESOURCE_ACCESS_TABLE = DYNAMO_DB.Table(os.environ.get('RESOURCE_ACCESS_TABLE'))
@@ -17,7 +21,20 @@ WORKSPACES_TABLE = DYNAMO_DB.Table(os.environ.get('WORKSPACES_TABLE'))
 
 def validate_user_exists(user_id):
     """
-    Validate if a user exists in the users table
+    Validates if a user exists in the users table by checking email or user ID.
+    
+    Key Steps:
+        1. Check if user_id contains '@' to determine if it's an email
+        2. If email: scan users table for matching email address
+        3. If user ID: get item directly from users table
+        4. Return True if user exists, False otherwise
+        5. Handle exceptions and log errors
+    
+    Parameters:
+        user_id (str): User ID or email address to validate
+    
+    Returns:
+        bool: True if user exists, False otherwise
     """
     try:
         if '@' in user_id:
@@ -26,14 +43,14 @@ def validate_user_exists(user_id):
             )
         else:
             response = USERS_TABLE.get_item(Key={'UserId': user_id})
-        print(response)
+        LOGGER.debug(f"User validation response: {response}")
         return 'Item' in response or 'Items' in response
     except Exception as e:
-        print(f"Error validating user {user_id}: {e}")
+        LOGGER.error(f"Error validating user {user_id}: {e}")
         return False
 
 def lambda_handler(event, context):
-    print(event)
+    LOGGER.info(f"Received event: {event}")
 
     resource = event.get('resource')
     path = event.get('path')
@@ -54,6 +71,23 @@ def lambda_handler(event, context):
         return return_response(405, {'Message': 'Method not allowed'})
 
 def get_access(event):
+    """
+    Retrieves access information for a specific resource type and ID.
+    
+    Key Steps:
+        1. Extract resource type and ID from query parameters
+        2. Validate required parameters are present
+        3. Build access key based on resource type (SOLUTION, WORKSPACE, DATASOURCE)
+        4. Query resource access table using access key
+        5. Format response items with user ID and access type
+        6. Return paginated list of access entries
+    
+    Parameters:
+        event (dict): API Gateway event containing query parameters
+    
+    Returns:
+        dict: Paginated list of resource access entries
+    """
     params = event.get('queryStringParameters') or {}
     resource_type = params.get('resourceType')
     resource_id = params.get('resourceId')
@@ -74,17 +108,13 @@ def get_access(event):
     else:
         return return_response(400, {'Message': f'Unsupported resource type: {resource_type}'})
 
-    print(access_key)
-
-    # response = RESOURCE_ACCESS_TABLE.scan(
-    #     FilterExpression=Attr('AccessKey-Index').eq(access_key)
-    # )
+    LOGGER.info(f"Access key: {access_key}")
 
     response = RESOURCE_ACCESS_TABLE.query(
         IndexName='AccessKey-Index',
         KeyConditionExpression=Key('AccessKey').eq(access_key)
     )
-    print(response)
+    LOGGER.debug(f"Resource access query response: {response}")
 
     items = response.get('Items', [])
     formatted_items = []
@@ -100,6 +130,24 @@ def get_access(event):
     return paginate_list('ResourceAccess', formatted_items, ['UserId', 'AccessType'], offset=int(params.get('offset', 1)), limit=int(params.get('limit', 10)), sort_by=params.get('sortBy'), sort_order=params.get('sortOrder', 'asc'))
 
 def share_resource(event):
+    """
+    Grants access to a resource for a specified user with given access type.
+    
+    Key Steps:
+        1. Parse and validate request body parameters
+        2. Validate user exists and access type is valid
+        3. Resolve user ID from email if necessary
+        4. Build access key based on resource type
+        5. Handle special cases for solutions and workspaces
+        6. Grant access to workspace solutions if applicable
+        7. Log activity and return success response
+    
+    Parameters:
+        event (dict): API Gateway event containing request body
+    
+    Returns:
+        dict: HTTP response with success message and status
+    """
     body = json.loads(event['body'])
 
     required_keys = ['Username', 'ResourceType', 'ResourceId', 'AccessType']
@@ -124,7 +172,7 @@ def share_resource(event):
     else:
         user_record = USERS_TABLE.get_item(Key={'UserId': user_id}).get('Item')
     
-    print("user_id", user_id)
+    LOGGER.info(f"Processing user_id: {user_id}")
 
     access_type = body['AccessType']
     resource_type = body['ResourceType'].upper()
@@ -145,7 +193,7 @@ def share_resource(event):
                 if workspace_item.get('WorkspaceType') == 'DEFAULT':
                     return return_response(400, {'Message': 'Cannot share default workspaces'})
         except Exception as e:
-            print(f"Error checking workspace type for {resource_id}: {e}")
+            LOGGER.error(f"Error checking workspace type for {resource_id}: {e}")
             # Continue with sharing if we can't verify the workspace type
         
         access_key = f'WORKSPACE#{resource_id}'
@@ -279,7 +327,7 @@ def share_resource(event):
                     solutions_granted += 1
 
         except Exception as e:
-            print(f"Error granting solution access: {e}")
+            LOGGER.error(f"Error granting solution access: {e}")
 
         msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated, {solutions_skipped} skipped (higher permissions already exist)."
         return return_response(200, {'Message': msg})
@@ -298,7 +346,7 @@ def share_resource(event):
                     default_workspace_id = ws.get('WorkspaceId')
                     break
         except Exception as e:
-            print(f"Error looking up default workspace for user {user_id}: {e}")
+            LOGGER.error(f"Error looking up default workspace for user {user_id}: {e}")
             
         if default_workspace_id and workspace_id != default_workspace_id:
             # Remove access from the original workspace and grant access only to default workspace
@@ -338,8 +386,26 @@ def share_resource(event):
     return return_response(200, {'Message': 'Access granted'})
     
 def revoke_access(event):
+    """
+    Revokes access to a resource for a specified user.
+    
+    Key Steps:
+        1. Parse and validate request body parameters
+        2. Validate user exists in the system
+        3. Resolve user ID from email if necessary
+        4. Build access key based on resource type
+        5. Query and delete existing access entries
+        6. Handle workspace access revocation (includes solutions)
+        7. Log activity and return success response
+    
+    Parameters:
+        event (dict): API Gateway event containing request body
+    
+    Returns:
+        dict: HTTP response with success message and status
+    """
     body = json.loads(event['body'])
-    print("inside revoke access")
+    LOGGER.info("Processing revoke access request")
 
     required_keys = ['Username', 'ResourceType', 'ResourceId']
     if not all(k in body for k in required_keys):
@@ -373,19 +439,14 @@ def revoke_access(event):
     else:
         return return_response(400, {'Message': f'Unsupported resource type: {resource_type}'})
     
-    print(access_key)
-
-    #Revoke access to the main resource
-    # response = RESOURCE_ACCESS_TABLE.scan(
-    #     FilterExpression=Attr('Id').begins_with(f"{body['UserId']}#") & Attr('AccessKey-Index').eq(access_key)
-    # )
+    LOGGER.info(f"Revoke access key: {access_key}")
 
     response = RESOURCE_ACCESS_TABLE.query(
         IndexName='AccessKey-Index',
         KeyConditionExpression=Key('AccessKey').eq(access_key)
     )
 
-    print(response)
+    LOGGER.debug(f"Revoke access query response: {response}")
     
     items = [
         item for item in response.get('Items', [])
@@ -421,14 +482,14 @@ def revoke_access(event):
                     KeyConditionExpression=Key('AccessKey').eq(solution_access_key)
                 )
 
-                print(solution_response)
+                LOGGER.debug(f"Solution access query response: {solution_response}")
 
                 items = [
                     item for item in solution_response.get('Items', [])
                     if item['Id'].startswith(f"{user_id}#")
                 ]
 
-                print(items)
+                LOGGER.debug(f"Solution access items to revoke: {items}")
                 
                 for solution_access_item in items:
                     solution_key = {
@@ -450,7 +511,7 @@ def revoke_access(event):
                         )
         
         except Exception as e:
-            print(f"Error revoking access to solutions in workspace {workspace_id}: {e}")
+            LOGGER.error(f"Error revoking access to solutions in workspace {workspace_id}: {e}")
             # Continue with workspace access revocation even if solution access revocation fails
 
     if ACTIVITY_LOGS_TABLE:
@@ -470,9 +531,22 @@ def revoke_access(event):
 
 def list_activity_logs(event, context):
     """
-    List activity logs for a resource, supporting pagination and filtering by resource_type and resource_id.
-    API path: /activity-logs/{resource_type}/{resource_id}
-    Query params: limit, offset
+    Lists activity logs for a resource with pagination and filtering support.
+    
+    Key Steps:
+        1. Extract resource type and ID from path parameters
+        2. Get pagination parameters (limit, offset) from query string
+        3. Query activity logs based on resource type (user or other resources)
+        4. Format log entries with required fields
+        5. Apply pagination and sorting
+        6. Return formatted response with activity logs
+    
+    Parameters:
+        event (dict): API Gateway event containing path and query parameters
+        context (object): Lambda context object
+    
+    Returns:
+        dict: Paginated list of activity log entries
     """
     try:
         path_params = event.get('pathParameters') or {}
@@ -533,5 +607,5 @@ def list_activity_logs(event, context):
         )
         return paginated
     except Exception as e:
-        print(e)
+        LOGGER.error(f"Error in list_activity_logs: {e}")
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
