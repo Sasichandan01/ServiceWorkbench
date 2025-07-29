@@ -890,7 +890,7 @@ const WorkspaceDetails = () => {
                                         <Button variant="destructive" onClick={async () => {
                                           try {
                                             await deleteShareResource({
-                                              Username: user.Username,
+                                              Username: user.Email,
                                               ResourceType: 'workspace',
                                               ResourceId: id!,
                                             }).unwrap();
