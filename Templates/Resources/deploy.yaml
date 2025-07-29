@@ -8,17 +8,20 @@ Parameters:
     Default: "develop"
     Description: Prefix for Lambda function naming
 
-  LambdaArtifactVersion:
+  ppLambdaArtifactVersion:
     Type: String
     Description: S3 path version folder for Lambda artifacts
   
+  # pGlueArtifactVersion:
+  #   Type: String
+  #   Description: S3 path version folder for Glue artifacts
 
-  ApiName:
+  ppApiName:
     Type: String
     Default: WorkbenchAPI
     Description: Name of the API Gateway API
 
-  pVPCPrefix:
+  ppVPCPrefix:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
@@ -33,12 +36,12 @@ Parameters:
     Default: "develop"
     Description: rag-prefix
   
-  DeploymentTrigger:
+  pprDeploymentTrigger:
     Type: String
     Default: "2025-07-02T00:00:00Z"
     Description: Trigger date for deployment, used for versioning
 
-  pWebSocketStage:
+  prWebSocketStage:
     Type: String
     Default: "prod"
     Description: "Stage name for websocket api"
@@ -55,7 +58,7 @@ Parameters:
 Resources:
 
   # S3 Bucket for artifacts
-  MiscBucket:
+  rMiscBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-service-workbench-misc"
@@ -77,10 +80,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  MiscBucketPolicy:
+  rMiscBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref MiscBucket
+      Bucket: !Ref rMiscBucket
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -88,11 +91,11 @@ Resources:
             Effect: Allow
             Principal: "*"
             Action: "s3:GetObject"
-            Resource: !Sub "${MiscBucket.Arn}/*"
+            Resource: !Sub "${rMiscBucket.Arn}/*"
 
 
   # CloudFront Origin Access Control (OAC)
-  WebsiteOAC:
+  rWebsiteOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
@@ -102,7 +105,7 @@ Resources:
         SigningProtocol: sigv4
 
 # CloudFront Distribution
-  WebsiteDistribution:
+  rWebsiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
@@ -112,7 +115,7 @@ Resources:
           - Id: S3Origin
             DomainName: !ImportValue WebsiteBucketRegionalDomainName
             S3OriginConfig: {}
-            OriginAccessControlId: !Ref WebsiteOAC
+            OriginAccessControlId: !Ref rWebsiteOAC
             OriginPath: !Sub "/${pPrefix}-web"
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
@@ -145,7 +148,7 @@ Resources:
           Value: "ServiceWorkbench"
 
 # S3 Bucket Policy to allow CloudFront OAC access only
-  WebsiteBucketPolicy:
+  rWebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !ImportValue WebsiteBucketName
@@ -161,7 +164,7 @@ Resources:
               - {BucketName: !ImportValue WebsiteBucketName}
 
 # Bucket policy to allow CloudFront to write logs
-  CloudFrontLogBucketPolicy:
+  rCloudFrontLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !ImportValue LogsBucketName
@@ -177,7 +180,7 @@ Resources:
               - {BucketName: !ImportValue LogsBucketName}
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${rWebsiteDistribution}'
           - Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
@@ -185,10 +188,10 @@ Resources:
             Resource: !ImportValue LogsBucketArn
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${rWebsiteDistribution}'
 
 # Cognito User Pool and Client
-  UserPool:
+  rUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "${pPrefix}-UserPool"
@@ -233,11 +236,11 @@ Resources:
         EmailSubject: "Your verification code for WorkBench"
         EmailMessage: "Your verification code is {####}"
 
-  UserPoolClient:
+  rUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       ClientName: !Sub "${pPrefix}-Client"
-      UserPoolId: !Ref UserPool
+      UserPoolId: !Ref rUserPool
       GenerateSecret: false
       RefreshTokenValidity: 30
       AccessTokenValidity: 60
@@ -255,14 +258,14 @@ Resources:
         - COGNITO
       PreventUserExistenceErrors: ENABLED
 
-  UserPoolDomain:
+  rUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
-      UserPoolId: !Ref UserPool
+      UserPoolId: !Ref rUserPool
       Domain: !Sub "${pPrefix}-${AWS::AccountId}-auth"
       ManagedLoginVersion: "2"
 
-  CleanupDLQ:
+  rCleanupDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "${pPrefix}-CleanupDLQ"
@@ -273,77 +276,77 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
     
-  CognitoTriggersCustomResource:
+  rCognitoTriggersCustomResource:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${pprDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-CognitoTriggersCustomResource"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${ppVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${ppVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
-      Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
+              Fn::Sub: "${ppVPCPrefix}-Lambda-SG-ID"
+      Role: !GetAtt rrCustomResourceLambdaExecutionRole.Arn
       Timeout: 300
       MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
+        S3Key: !Sub "lambda-${ppLambdaArtifactVersion}-${pPrefix}/workbenchcognitocustomresourcelambda/WorkbenchCognitoCustomResource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  CognitoTriggersResource:
+  rCognitoTriggersResource:
     Type: Custom::CognitoTriggers
     Properties:
-      ServiceToken: !GetAtt CognitoTriggersCustomResource.Arn
-      UserPoolId: !Ref UserPool
-      PreSignUpLambdaArn: !GetAtt PreSignUpFunction.Arn
-      PreAuthLambdaArn: !GetAtt PreAuthFunction.Arn
-      PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
-      PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
-      PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
-      Changesetflag: "202502"
+      ServiceToken: !GetAtt rCognitoTriggersCustomResource.Arn
+      UserPoolId: !Ref rUserPool
+      PreSignUpLambdaArn: !GetAtt rPreSignUpFunction.Arn
+      PreAuthLambdaArn: !GetAtt rrPreAuthFunction.Arn
+      PreTokenLambdaArn: !GetAtt rrPreTokenGenerationFunction.Arn
+      PostConfirmationLambdaArn: !GetAtt rrPostConfirmationFunction.Arn
+      PostAuthLambdaArn: !GetAtt rrPostAuthFunction.Arn
+      Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PreSignUpFunction:
+  rPreSignUpFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${pprDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreSignUp"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rrUserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${ppVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${ppVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${ppVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpresignuplambda/WorkbenchPresignup.zip"
+        S3Key: !Sub "lambda-${ppLambdaArtifactVersion}-${pPrefix}/workbenchpresignuplambda/WorkbenchPresignup.zip"
       Environment:
         Variables:
-          QUEUE_URL: !Ref CleanupQueue
-          USER_TABLE_NAME: !Ref UserTable
+          QUEUE_URL: !Ref rrCleanupQueue
+          USER_TABLE_NAME: !Ref rrUserTable
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Tags:
@@ -352,13 +355,13 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PreAuthFunction:
+  rPreAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreAuth"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
@@ -373,23 +376,23 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpreauthlambda/WorkbenchPreAuth.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchpreauthlambda/WorkbenchPreAuth.zip"
       Environment:
         Variables:
-          USER_TABLE_NAME: !Ref UserTable
+          USER_TABLE_NAME: !Ref rUserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PreTokenGenerationFunction:
+  rPreTokenGenerationFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PreTokenGen"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
@@ -404,23 +407,23 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
       Environment:
         Variables:
-          USER_TABLE_NAME: !Ref UserTable
+          USER_TABLE_NAME: !Ref rUserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PostConfirmationFunction:
+  rPostConfirmationFunction:
     Type: AWS::Lambda::Function
     Properties: 
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostConfirm"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 300
       MemorySize: 1024
@@ -435,17 +438,17 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
       Environment:
         Variables:
-          USER_TABLE_NAME: !Ref UserTable
-          USERS_TABLE: !Ref UserTable
-          ROLE_TABLE_NAME: !Ref RolesTable
+          USER_TABLE_NAME: !Ref rUserTable
+          USERS_TABLE: !Ref rUserTable
+          ROLE_TABLE_NAME: !Ref rRolesTable
           DOMAIN: "ServiceWorkbench v2.0"
           SOURCE_EMAIL: "mayank.gupta@cloudwick.com"
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          WORKSPACES_TABLE_NAME: !Ref WorkspacesTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
+          WORKSPACES_TABLE_NAME: !Ref rWorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref rResourceAccessTable
 
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
@@ -455,12 +458,12 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PostAuthFunction:
+  rPostAuthFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-PostAuth"
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
       Timeout: 300
@@ -476,21 +479,21 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpostauthlambda/WorkbenchPostAuth.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchpostauthlambda/WorkbenchPostAuth.zip"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          USERS_TABLE: !Ref UserTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
+          USERS_TABLE: !Ref rUserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  UserPoolCleanUp:
+  rUserPoolCleanUp:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-Workbench-UserPool"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -505,22 +508,22 @@ Resources:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchuserpoolcleanuplambda/WorkbenchUserpoolCleanup.zip"
       Environment:
         Variables:
-          QUEUE_URL: !Ref CleanupQueue
+          QUEUE_URL: !Ref rCleanupQueue
           USER_POOL_ID: !Ref UserPool
-          USER_TABLE_NAME: !Ref UserTable
+          USER_TABLE_NAME: !Ref rUserTable
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  PreSignUpPermission:
+  rPreSignUpPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt PreSignUpFunction.Arn
@@ -528,46 +531,46 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
-  PreAuthPermission:
+  rPreAuthPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt PreAuthFunction.Arn
+      FunctionName: !GetAtt rPreAuthFunction.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
-  PreTokenPermission:
+  rPreTokenPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt PreTokenGenerationFunction.Arn
+      FunctionName: !GetAtt rPreTokenGenerationFunction.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
-  PostConfirmPermission:
+  rPostConfirmPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt PostConfirmationFunction.Arn
+      FunctionName: !GetAtt rPostConfirmationFunction.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
   
-  PostAuthPermission:
+  rPostAuthPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt PostAuthFunction.Arn
+      FunctionName: !GetAtt rPostAuthFunction.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
 # Event Source Mapping for Cleanup Queue
-  CleanupQueueEventSourceMapping:
+  rrCleanupQueueEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 1
       Enabled: true
-      EventSourceArn: !GetAtt CleanupQueue.Arn
-      FunctionName: !GetAtt UserPoolCleanUp.Arn
+      EventSourceArn: !GetAtt rCleanupQueue.Arn
+      FunctionName: !GetAtt rUserPoolCleanUp.Arn
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -575,10 +578,10 @@ Resources:
           Value: "ServiceWorkbench"
 
 # Main SQS queue with redrive policy
-  CleanupQueue:
+  rCleanupQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${pPrefix}-CleanupQueue"
+      QueueName: !Sub "${pPrefix}-rCleanupQueue"
       VisibilityTimeout: 65
       ReceiveMessageWaitTimeSeconds: 20
       DelaySeconds: 900
@@ -592,7 +595,7 @@ Resources:
           Value: "ServiceWorkbench"
 
   # IAM Role for the Custom Resource Lambda
-  CustomResourceLambdaExecutionRole:
+  rCustomResourceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -628,7 +631,7 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  BedrockAgentLookupTable:
+  rBedrockAgentLookupTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "${pPrefix}-BedrockAgentLookup-Table"
@@ -645,10 +648,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  BedrockAgentExecutionRole:
+  rBedrockAgentExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-BedrockAgentExecutionRole"
+      RoleName: !Sub "${pPrefix}-rBedrockAgentExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -670,10 +673,10 @@ Resources:
                   - lambda:InvokeFunction
                 Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
 
-  CustomResourceRole:
+  rCustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-BedrockCustomResourceRole"
+      RoleName: !Sub "${pPrefix}-BedrockrCustomResourceRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -707,35 +710,35 @@ Resources:
               - Effect: Allow
                 Action:
                   - iam:PassRole
-                Resource: !GetAtt BedrockAgentExecutionRole.Arn
+                Resource: !GetAtt rBedrockAgentExecutionRole.Arn
 
-  BedrockAgentCustomResource:
+  rBedrockAgentCustomResource:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${pPrefix}-AgentCustomResourceLambda"
       Runtime: python3.11
       Handler: AgentCustomResourceLambda.lambda_handler
-      Role: !GetAtt CustomResourceRole.Arn
+      Role: !GetAtt rCustomResourceRole.Arn
       Timeout: 900
       MemorySize: 512
       Environment:
         Variables:
           ENVIRONMENT: !Sub "${pPrefix}"
           AGENTS_TABLE_NAME: !Sub "${pPrefix}-BedrockAgentLookup-Table"
-          AGENT_EXECUTION_ROLE: !GetAtt BedrockAgentExecutionRole.Arn
+          AGENT_EXECUTION_ROLE: !GetAtt rBedrockAgentExecutionRole.Arn
           AWS_ACCOUNT_ID: !Ref AWS::AccountId
-          KNOWLEDGE_BASE_ID: !Ref VectorKnowledgeBase
+          KNOWLEDGE_BASE_ID: !Ref rVectorKnowledgeBase
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/agentcustomresourcelambda/AgentCustomResourceLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/agentcustomresourcelambda/AgentCustomResourceLambda.zip"
       Layers:
         - arn:aws:lambda:us-east-1:043309350924:layer:yaml-layer:1
 
-  CodeGenerationLambda:
+  rCodeGenerationLambda:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-CodeGenerationLambda"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rCodeGenerationLambda"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
       VpcConfig:
@@ -747,26 +750,26 @@ Resources:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
-      Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
+      Role: !GetAtt rArchitectureAgentAGLambdaRole.Arn
       Timeout: 300
       MemorySize: 1024
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/codegenerationlambda/CodeGenerationLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/codegenerationlambda/rCodeGenerationLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
 
-  BedrockAgentManager:
+  rBedrockAgentManager:
     Type: AWS::CloudFormation::CustomResource
     Properties:
-      ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
+      ServiceToken: !GetAtt rBedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      Changesetflag: '202425'
+      Changesetflag: "19-19-19"
 
-  UserExecutionRole:
+  rUserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -800,7 +803,7 @@ Resources:
                   - sqs:ReceiveMessage
                   - sqs:DeleteMessage
                   - sqs:GetQueueAttributes
-                Resource: !GetAtt CleanupQueue.Arn
+                Resource: !GetAtt rCleanupQueue.Arn
         
         - PolicyName: DynamoDBPolicies
           PolicyDocument:
@@ -862,16 +865,16 @@ Resources:
                   - ssm:PutParameter
                 Resource: "*"
       
-        - PolicyName: GlueJobPolicies
+        - PolicyName: rGlueJobPolicies
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: GlueJobAccess
+              - Sid: rGlueJobAccess
                 Effect: Allow
                 Action:
                   - glue:StartJobRun
                 Resource:
-                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${GlueJob}"
+                  - !Sub "arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${rGlueJob}"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -881,10 +884,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  RolesLambdaExecutionRole:
+  rRolesLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-RolesLambdaExecutionRole"
+      RoleName: !Sub "${pPrefix}-rRolesLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -912,10 +915,10 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
   
-  WorkspaceLambdaExecutionRole:
+  rWorkspaceLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-WorkspaceLambdaExecutionRole"
+      RoleName: !Sub "${pPrefix}-rWorkspaceLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -994,7 +997,7 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ChatLambdaRole:
+  rChatLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${pPrefix}-ChatLambdaExecutionRole"
@@ -1022,7 +1025,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - execute-api:ManageConnections
-                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWebSocketApi}/*"
         - PolicyName: DDBAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -1065,10 +1068,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  GlueJobRole:
+  rrGlueJobRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-GlueJobRole"
+      RoleName: !Sub "${pPrefix}-rrGlueJobRole"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -1106,8 +1109,8 @@ Resources:
                   - bedrock:GetIngestionJob
                   - bedrock:ListIngestionJobs
                 Resource:
-                  - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${VectorKnowledgeBase}"
-                  - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${AuroraKnowledgeBase}"
+                  - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${rVectorKnowledgeBase}"
+                  - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${rAuroraKnowledgeBase}"
         - PolicyName: CloudWatchAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -1145,10 +1148,10 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
  
 
-  AuroraDataSource:
+  rAuroraDataSource:
     Type: AWS::Bedrock::DataSource
     Properties:
-      KnowledgeBaseId: !Ref AuroraKnowledgeBase
+      KnowledgeBaseId: !Ref rAuroraKnowledgeBase
       Name: !Sub "${pPrefix}-Aurora-datasource"
       Description: 'Data source for DynamoDB synced data'
       DataSourceConfiguration:
@@ -1164,10 +1167,10 @@ Resources:
             MaxTokens: 300
             OverlapPercentage: 20
 
-  OpensearchDataSource:
+  rOpensearchDataSource:
     Type: AWS::Bedrock::DataSource
     Properties:
-      KnowledgeBaseId: !Ref VectorKnowledgeBase
+      KnowledgeBaseId: !Ref rVectorKnowledgeBase
       Name: !Sub "${pPrefix}-Opensearch-datasource"
       Description: "S3 data source for documents"
       DataSourceConfiguration:
@@ -1183,14 +1186,14 @@ Resources:
             MaxTokens: 300
             OverlapPercentage: 20
 
-  GlueJob:
+  rGlueJob:
     Type: AWS::Glue::Job
     Properties:
       Name: !Sub "${pPrefix}-Workbench-RAGSync"
-      Role: !GetAtt GlueJobRole.Arn
+      Role: !GetAtt rrGlueJobRole.Arn
       Command:
         Name: glueetl
-        ScriptLocation: !Sub "s3://service-workbench-artifacts/glue/ragsyncgluejob/RAGSyncGlueJob.py"
+        ScriptLocation: !Sub "s3://service-workbench-artifacts/glue/ragsyncgluejob/RAGSyncrGlueJob.py"
         PythonVersion: '3'
       DefaultArguments:
         '--job-language': 'python'
@@ -1199,10 +1202,10 @@ Resources:
         '--enable-continuous-cloudwatch-log': 'true'
         '--enable-continuous-log-filter': 'true'
         '--DYNAMODB_TABLE_PREFIX': !Sub "Workbench-${pPrefix}"
-        '--AURORA_KB_ID': !Ref AuroraKnowledgeBase
-        '--AURORA_DS_ID': !Ref AuroraDataSource
-        '--OPENSEARCH_KB_ID': !Ref VectorKnowledgeBase
-        '--OPENSEARCH_DS_ID': !Ref OpensearchDataSource
+        '--AURORA_KB_ID': !Ref rAuroraKnowledgeBase
+        '--AURORA_DS_ID': !Ref rAuroraDataSource
+        '--OPENSEARCH_KB_ID': !Ref rVectorKnowledgeBase
+        '--OPENSEARCH_DS_ID': !Ref rOpensearchDataSource
         '--OPENSEARCH_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
         '--OPENSEARCH_S3_PREFIX': !Ref pWebScrapDocumentsPrefix
         '--AURORA_S3_BUCKET': !Sub "${pPrefix}-service-workbench-misc"
@@ -1219,10 +1222,10 @@ Resources:
       Description: 'Sync DynamoDB tables to Knowledge Base via S3'
 
 
-  LambdaAuthorizerFunction:
+  rLambdaAuthorizerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-LambdaAuthorizer"
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
@@ -1237,14 +1240,14 @@ Resources:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Code:
         S3Bucket: "service-workbench-artifacts"
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchlambdaauthorizerlambda/WorkbenchLambdaAuthorizer.zip"
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
-          USERS_TABLE: !Ref UserTable
+          USERS_TABLE: !Ref rUserTable
           CLIENT_ID: !Ref UserPoolClient
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
@@ -1254,13 +1257,13 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench" 
 
-  WorkspacesAndSolutionsLambdaFunction:
+  rWorkspacesAndSolutionsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
       FunctionName: !Sub "${pPrefix}-workspacesandsolutions-lambda"
       Handler: WorkspacesAndSolutionsLambda.lambda_handler
-      Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
+      Role: !GetAtt rWorkspaceLambdaExecutionRole.Arn
       Runtime: python3.13
       VpcConfig:
         SubnetIds:
@@ -1273,20 +1276,20 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          SOLUTIONS_TABLE: !Ref SolutionsTable
-          TEMPLATES_TABLE: !Ref TemplatesTable
-          WORKSPACES_TABLE: !Ref WorkspacesTable
-          EXECUTIONS_TABLE: !Ref SolutionExecutionsTable
-          DATASOURCES_TABLE: !Ref DatasourcesTable
-          ROLES_TABLE: !Ref RolesTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
+          SOLUTIONS_TABLE: !Ref rSolutionsTable
+          TEMPLATES_TABLE: !Ref rTemplatesTable
+          WORKSPACES_TABLE: !Ref rWorkspacesTable
+          EXECUTIONS_TABLE: !Ref rSolutionExecutionsTable
+          DATASOURCES_TABLE: !Ref rDatasourcesTable
+          ROLES_TABLE: !Ref rRolesTable
+          RESOURCE_ACCESS_TABLE: !Ref rResourceAccessTable
           WORKSPACES_BUCKET: !ImportValue WorkspacesBucket
-          USERS_TABLE: !Ref UserTable
+          USERS_TABLE: !Ref rUserTable
           CHAT_TABLE: "Wokbench-chathistory"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workspacesandsolutionslambda/WorkspacesAndSolutionsLambda.zip"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Timeout: 900
@@ -1296,7 +1299,7 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
   
-  DatasourceBucket:
+  rDatasourceBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pPrefix}-datasource-bucket"
@@ -1320,10 +1323,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
   
-  DatasourceBucketPolicy:
+  rrDatasourceBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref DatasourceBucket
+      Bucket: !Ref rDatasourceBucket
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1331,33 +1334,33 @@ Resources:
             Effect: Allow
             Principal: "*"
             Action: "s3:GetObject"
-            Resource: !Sub "${DatasourceBucket.Arn}/*" 
+            Resource: !Sub "${rDatasourceBucket.Arn}/*" 
 
   # API Gateway
-  WorkbenchApi:
+  rWorkbenchApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub "${pPrefix}-${ApiName}"
+      Name: !Sub "${pPrefix}-${pApiName}"
       StageName: prod
       DefinitionUri:
         Bucket: !Ref pArtifactsBucketName
         Key: develop/swagger.yaml
       EndpointConfiguration: REGIONAL
       AlwaysDeploy: True
-      Description: !Sub "${DeploymentTrigger}"
+      Description: !Sub "${prDeploymentTrigger}"
 
-  WorkspaceLambdaInvokePermission:
+  rWorkspacerLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref WorkspacesAndSolutionsLambdaFunction
+      FunctionName: !Ref rWorkspacesAndSolutionsLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*/*/*'
 
-  UserTable:
+  rUserTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "Workbench-${pPrefix}-UserTable"
+      TableName: !Sub "Workbench-${pPrefix}-rUserTable"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: UserId
@@ -1383,10 +1386,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ActivityLogsTable:
+  rActivityLogsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "Workbench-${pPrefix}-ActivityLogsTable"
+      TableName: !Sub "Workbench-${pPrefix}-rActivityLogsTable"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: LogId
@@ -1412,10 +1415,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  WorkspacesTable:
+  rWorkspacesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-WorkspacesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rWorkspacesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -1445,10 +1448,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  SolutionsTable:
+  rSolutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-SolutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rSolutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: WorkspaceId
@@ -1469,10 +1472,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  DatasourcesTable:
+  rDatasourcesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-DatasourcesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rDatasourcesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: DatasourceId
@@ -1508,10 +1511,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
  
-  ResourceAccessTable:
+  rResourceAccessTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-ResourceAccessTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rResourceAccessTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -1539,10 +1542,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  SolutionExecutionsTable:
+  rSolutionExecutionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-SolutionExecutionsTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rSolutionExecutionsTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: SolutionId
@@ -1563,10 +1566,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
  
-  TemplatesTable:
+  rTemplatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-TemplatesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rTemplatesTable'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: SolutionId
@@ -1587,10 +1590,10 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  RolesTable:
+  rRolesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'Workbench-${pPrefix}-RolesTable'
+      TableName: !Sub 'Workbench-${pPrefix}-rRolesTable'
       AttributeDefinitions:
         - AttributeName: Role
           AttributeType: S
@@ -1607,33 +1610,33 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
  
-  RBACCustomResourceLambda:
+  rrRBACCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-RBACCustomResource"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rRBACCustomResource"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
+      Role: !GetAtt rCustomResourceLambdaExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/rbaccustomresource/rbac_custom_resource.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/rbaccustomresource/rbac_custom_resource.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
  
-  RBACCustomResource:
-    Type: Custom::RBACCustomResource
+  rRBACCustomResource:
+    Type: Custom::rRBACCustomResource
     DependsOn:
-      - RBACCustomResourceLambda
+      - rrRBACCustomResourceLambda
     Properties:
-      ServiceToken: !GetAtt RBACCustomResourceLambda.Arn
-      RolesTable: !Sub "Workbench-${pPrefix}-RolesTable"
+      ServiceToken: !GetAtt rrRBACCustomResourceLambda.Arn
+      rRolesTable: !Sub "Workbench-${pPrefix}-rRolesTable"
       Changesetflag: "2025-07-02"
       Tags:
         - Key: Name
@@ -1642,10 +1645,10 @@ Resources:
           Value: "ServiceWorkbench"
 
 # Lambda Roles
-  DatasourceLambdaRole:
+  rDatasourceLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-UserExecutionRole"
+      RoleName: !Sub "${pPrefix}-rUserExecutionRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1671,7 +1674,7 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: DatasourcesTableAccess
+              - Sid: rDatasourcesTableAccess
                 Effect: Allow
                 Action:
                   - dynamodb:PutItem
@@ -1681,12 +1684,12 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:Query
                 Resource: 
-                  - !GetAtt DatasourcesTable.Arn
-                  - !GetAtt ActivityLogsTable.Arn
-                  - !GetAtt RolesTable.Arn
-                  - !GetAtt ResourceAccessTable.Arn
-                  - !Sub "${DatasourcesTable.Arn}/index/CreatedBy-DatasourceName-index"
-                  - !Sub "${ResourceAccessTable.Arn}/index/AccessKey-Index"
+                  - !GetAtt rDatasourcesTable.Arn
+                  - !GetAtt rActivityLogsTable.Arn
+                  - !GetAtt rRolesTable.Arn
+                  - !GetAtt rResourceAccessTable.Arn
+                  - !Sub "${rDatasourcesTable.Arn}/index/CreatedBy-DatasourceName-index"
+                  - !Sub "${rResourceAccessTable.Arn}/index/AccessKey-Index"
 
         - PolicyName: S3Access
           PolicyDocument:
@@ -1700,9 +1703,9 @@ Resources:
                   - s3:DeleteObject
                   - s3:ListBucket
                 Resource:
-                  - !Sub arn:aws:s3:::${DatasourceBucket}
-                  - !Sub arn:aws:s3:::${DatasourceBucket}/*
-                  - !Sub arn:aws:s3:::${DatasourceBucket}/datasources/*
+                  - !Sub arn:aws:s3:::${rDatasourceBucket}
+                  - !Sub arn:aws:s3:::${rDatasourceBucket}/*
+                  - !Sub arn:aws:s3:::${rDatasourceBucket}/datasources/*
 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1714,10 +1717,10 @@ Resources:
         - Key: SWB-User
           Value: ServiceWorkbench
 
-  QueryParserExecutionRole:
+  rQueryParserExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-QueryParserExecutionRole"
+      RoleName: !Sub "${pPrefix}-rQueryParserExecutionRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1752,14 +1755,14 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:BatchGetItem
                 Resource:
-                  - !GetAtt DatasourcesTable.Arn
-                  - !GetAtt SolutionsTable.Arn
-                  - !GetAtt WorkspacesTable.Arn
-                  - !GetAtt ResourceAccessTable.Arn
-                  - !Sub "${DatasourcesTable.Arn}/index/DatasourceName-index"
-                  - !Sub "${SolutionsTable.Arn}/index/SolutionName-index"
-                  - !Sub "${WorkspacesTable.Arn}/index/WorkspaceName-index"
-                  - !Sub "${ResourceAccessTable.Arn}/index/AccessKey-Index"
+                  - !GetAtt rDatasourcesTable.Arn
+                  - !GetAtt rSolutionsTable.Arn
+                  - !GetAtt rWorkspacesTable.Arn
+                  - !GetAtt rResourceAccessTable.Arn
+                  - !Sub "${rDatasourcesTable.Arn}/index/DatasourceName-index"
+                  - !Sub "${rSolutionsTable.Arn}/index/SolutionName-index"
+                  - !Sub "${rWorkspacesTable.Arn}/index/WorkspaceName-index"
+                  - !Sub "${rResourceAccessTable.Arn}/index/AccessKey-Index"
         - PolicyName: S3Access
           PolicyDocument:
             Version: "2012-10-17"
@@ -1784,19 +1787,19 @@ Resources:
           Value: ServiceWorkbench
 
 # Lambdas
-  RolesLambdaFunction:
+  rRolesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-RolesLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rRolesLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt RolesLambdaExecutionRole.Arn
+      Role: !GetAtt rRolesLambdaExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Environment:
         Variables:
-          ROLES_TABLE: !Ref RolesTable
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          ROLES_TABLE: !Ref rRolesTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1810,29 +1813,29 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/roles/roles_lambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/roles/roles_lambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  UsersLambda:
+  rUsersLambda:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-UsersLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rUsersLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt UserExecutionRole.Arn
+      Role: !GetAtt rUserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       Environment:
         Variables:
-          USER_TABLE_NAME: !Ref UserTable
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
+          USER_TABLE_NAME: !Ref rUserTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
           MISC_BUCKET: !Ref MiscBucket
-          ROLES_TABLE: !Ref RolesTable
-          GLUE_JOB_NAME: !Ref GlueJob
+          ROLES_TABLE: !Ref rRolesTable
+          GLUE_JOB_NAME: !Ref rGlueJob
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1846,30 +1849,30 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchuserslambda/WorkbenchUsersLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchuserslambda/WorkbenchrUsersLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  DatasourcesLambdaFunction:
+  rDatasourcesLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-DatasourcesLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rDatasourcesLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt DatasourceLambdaRole.Arn
+      Role: !GetAtt rDatasourceLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
       Environment:
         Variables:
-          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
-          DATASOURCE_BUCKET: !Ref DatasourceBucket
-          ROLES_TABLE: !Ref RolesTable
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          USERS_TABLE: !Ref UserTable
+          DATASOURCE_TABLE_NAME: !Ref rDatasourcesTable
+          DATASOURCE_BUCKET: !Ref rDatasourceBucket
+          ROLES_TABLE: !Ref rRolesTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
+          RESOURCE_ACCESS_TABLE: !Ref rResourceAccessTable
+          USERS_TABLE: !Ref rUserTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1883,20 +1886,20 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchdatasourcelambda/WorkbenchDatasourceLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ChatLambdaFunction:
+  rChatLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Workspaces and Solutions Lambda Function"
-      FunctionName: !Sub "${pPrefix}-ChatLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Workspaces and Solutions Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rChatLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt ChatLambdaRole.Arn
+      Role: !GetAtt rChatLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
       VpcConfig:
@@ -1912,7 +1915,7 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchchatlambda/WorkbenchChat.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchchatlambda/WorkbenchChat.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
@@ -1920,27 +1923,27 @@ Resources:
           Value: "ServiceWorkbench"
       Environment:
         Variables:
-          LOOK_UP_TABLE: !Ref BedrockAgentLookupTable
-          # CHAT_TABLE: !Ref ChatHistoryTable
+          LOOK_UP_TABLE: !Ref rBedrockAgentLookupTable
+          # CHAT_TABLE: !Ref rChatHistoryTable
           CHAT_TABLE: "Wokbench-chathistory"
 
-  ShareLambdaFunction:
+  rShareLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Share Lambda Function"
-      FunctionName: !Sub "${pPrefix}-ShareLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Share Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rShareLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt WorkspaceLambdaExecutionRole.Arn
+      Role: !GetAtt rWorkspaceLambdaExecutionRole.Arn
       Runtime: python3.13
       Timeout: 600
       Environment:
         Variables:
-          ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
-          SOLUTIONS_TABLE: !Ref SolutionsTable
-          WORKSPACES_TABLE: !Ref WorkspacesTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
-          ROLES_TABLE: !Ref RolesTable
-          USER_TABLE_NAME: !Ref UserTable
+          ACTIVITY_LOGS_TABLE: !Ref rActivityLogsTable
+          SOLUTIONS_TABLE: !Ref rSolutionsTable
+          WORKSPACES_TABLE: !Ref rWorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref rResourceAccessTable
+          ROLES_TABLE: !Ref rRolesTable
+          USER_TABLE_NAME: !Ref rUserTable
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
@@ -1954,20 +1957,20 @@ Resources:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/sharelambda/ShareLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/sharelambda/ShareLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
   
-  QueryParserLambdaFunction:
+  rQueryParserLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Query Parser Lambda Function"
-      FunctionName: !Sub "${pPrefix}-QueryParserLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Query Parser Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rQueryParserLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt QueryParserExecutionRole.Arn
+      Role: !GetAtt rQueryParserExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       VpcConfig:
@@ -1981,24 +1984,24 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
-          SOLUTION_TABLE_NAME: !Ref SolutionsTable
-          WORKSPACE_TABLE_NAME: !Ref WorkspacesTable
-          RESOURCE_ACCESS_TABLE: !Ref ResourceAccessTable
+          DATASOURCE_TABLE_NAME: !Ref rDatasourcesTable
+          SOLUTION_TABLE_NAME: !Ref rSolutionsTable
+          WORKSPACE_TABLE_NAME: !Ref rWorkspacesTable
+          RESOURCE_ACCESS_TABLE: !Ref rResourceAccessTable
           SOLUTION_BUCKET_NAME: "develop-service-workbench-workspaces"
-          USERS_TABLE: !Ref UserTable
+          USERS_TABLE: !Ref rUserTable
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgent.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchqueryparseragentlambda/WorkbenchQueryParserAgent.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ArchitectureAgentAGLambdaRole:
+  rArchitectureAgentAGLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -2036,13 +2039,13 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ArchitectureAgentAGLambdaFunction:
+  rArchitectureAgentAGLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Architecture Agent AG Lambda Function"
+      Description: !Sub "${prDeploymentTrigger} - Architecture Agent AG Lambda Function"
       FunctionName: !Sub "${pPrefix}-architecture-generation-lambda"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
+      Role: !GetAtt rArchitectureAgentAGLambdaRole.Arn
       Runtime: python3.12
       Timeout: 900
       VpcConfig:
@@ -2057,20 +2060,20 @@ Resources:
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
-          SOLUTIONS_TABLE: !Ref "SolutionsTable"
+          SOLUTIONS_TABLE: !Ref "rSolutionsTable"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/architecutureagentag/ArchitectureAgentAG.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  CodeLambdaExecutionRole:
+  rCodeLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-CodeLambdaExecutionRole"
+      RoleName: !Sub "${pPrefix}-rCodeLambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2100,9 +2103,9 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                 Resource:
-                  - !GetAtt SolutionsTable.Arn
-                  - !GetAtt WorkspacesTable.Arn
-                  - !GetAtt UserTable.Arn
+                  - !GetAtt rSolutionsTable.Arn
+                  - !GetAtt rWorkspacesTable.Arn
+                  - !GetAtt rUserTable.Arn
         - PolicyName: CostExplorerAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -2118,13 +2121,13 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
-  CostLambdaFunction:
+  rCostLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: !Sub "${DeploymentTrigger} - Cost Lambda Function"
-      FunctionName: !Sub "${pPrefix}-CostLambdaFunction"
+      Description: !Sub "${prDeploymentTrigger} - Cost Lambda Function"
+      FunctionName: !Sub "${pPrefix}-rCostLambdaFunction"
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt CodeLambdaExecutionRole.Arn
+      Role: !GetAtt rCodeLambdaExecutionRole.Arn
       Runtime: python3.12
       Timeout: 900
       VpcConfig:
@@ -2138,87 +2141,87 @@ Resources:
               Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
-          SOLUTION_TABLE: !Ref "SolutionsTable"
-          WORKSPACE_TABLE: !Ref "WorkspacesTable"
-          USERS_TABLE: !Ref "UserTable"
+          SOLUTION_TABLE: !Ref "rSolutionsTable"
+          WORKSPACE_TABLE: !Ref "rWorkspacesTable"
+          USERS_TABLE: !Ref "rUserTable"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchcostlambda/WorkbenchCostLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/workbenchcostlambda/WorkbenchCostLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ArchitectureAgentAGLambdaPermission:
+  rArchitectureAgentAGLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ArchitectureAgentAGLambdaFunction
+      FunctionName: !Ref rArchitectureAgentAGLambdaFunction
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
-  CodeGeneartorAgentAGLambdaPermission:
+  rCodeGeneartorAgentAGLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref CodeGenerationLambda
+      FunctionName: !Ref rCodeGenerationLambda
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
-  CFTGeneartorAgentAGLambdaPermission:
+  rCFTGeneartorAgentAGLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref CFTGenerationAgentLambda
+      FunctionName: !Ref rCFTGenerationAgentLambda
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
 
 # Lambda Permission for API Gateway to invoke Roles Lambda
-  QueryParserLambdaFunctionInvokePermission:
+  rrQueryParserLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref QueryParserLambdaFunction
+      FunctionName: !Ref rQueryParserLambdaFunction
       Action: lambda:InvokeFunction
       Principal: bedrock.amazonaws.com
       SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*
 
-  RolesLambdaFunctionInvokePermission:
+  rrRolesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref RolesLambdaFunction
+      FunctionName: !Ref rRolesLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*/*/*
      
-  UsersLambdaFunctionInvokePermission:
+  rrUsersLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref UsersLambda
+      FunctionName: !Ref rUsersLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*/*/*
   
-  DatasourcesLambdaFunctionInvokePermission:
+  rrDatasourcesLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref DatasourcesLambdaFunction
+      FunctionName: !Ref rDatasourcesLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*/*/*
 
-  ShareLambdaFunctionInvokePermission:
+  rrShareLambdaFunctionInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ShareLambdaFunction
+      FunctionName: !Ref rShareLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*/*/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*/*/*
 
-  VectorKnowledgeBase:
+  rVectorKnowledgeBase:
     Type: AWS::Bedrock::KnowledgeBase
     Properties:
       Name: !Sub "${pPrefix}-KnowledgeBase"
@@ -2239,10 +2242,10 @@ Resources:
           VectorIndexName: !Sub "${pPrefix}_vector_index"
       KnowledgeBaseConfiguration:
         Type: VECTOR
-        VectorKnowledgeBaseConfiguration:
+        rVectorKnowledgeBaseConfiguration:
           EmbeddingModelArn: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
 
-  AuroraKnowledgeBase:
+  rAuroraKnowledgeBase:
     Type: AWS::Bedrock::KnowledgeBase
     Properties:
       Name: !Sub "${pPrefix}-AuroraKB"
@@ -2250,7 +2253,7 @@ Resources:
       RoleArn: !ImportValue "CustomResourceLambdaRoleARN"
       KnowledgeBaseConfiguration:
         Type: "VECTOR"
-        VectorKnowledgeBaseConfiguration:
+        rVectorKnowledgeBaseConfiguration:
           EmbeddingModelArn: "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
       StorageConfiguration:
         Type: "RDS"
@@ -2265,141 +2268,142 @@ Resources:
             MetadataField: "metadata"
             PrimaryKeyField: "id" 
 
-  WebSocketApi:
+  rWebSocketApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
       Name: !Sub ${pPrefix}-Workbench-WebSocket
       ProtocolType: WEBSOCKET
       RouteSelectionExpression: "$request.body.action"
 
-  IntegrationSendMessage:
+  rIntegrationSendMessage:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - {FunctionName: !Ref ChatLambdaFunction}
+        - {FunctionName: !Ref rChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
       PassthroughBehavior: WHEN_NO_MATCH
 
-  IntegrationConnect:
+  rIntegrationConnect:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - {FunctionName: !Ref ChatLambdaFunction}
+        - {FunctionName: !Ref rChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
       PassthroughBehavior: WHEN_NO_MATCH
 
-  IntegrationDisconnect:
+  rIntegrationDisconnect:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       IntegrationType: AWS_PROXY
       IntegrationUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - {FunctionName: !Ref ChatLambdaFunction}
+        - {FunctionName: !Ref rChatLambdaFunction}
       IntegrationMethod: POST
       ConnectionType: INTERNET
       PayloadFormatVersion: "1.0"
       PassthroughBehavior: WHEN_NO_MATCH
       
-  RouteConnect:
+  rRouteConnect:
     Type: AWS::ApiGatewayV2::Route
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       RouteKey: $connect
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref WebSocketAuthorizer
-      Target: !Join ["/", ["integrations", !Ref IntegrationConnect]]
+      AuthorizerId: !Ref rWebSocketAuthorizer
+      Target: !Join ["/", ["integrations", !Ref rIntegrationConnect]]
 
-  RouteDisconnect:
+  rRouteDisconnect:
     Type: AWS::ApiGatewayV2::Route
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       RouteKey: $disconnect
       AuthorizationType: NONE
-      Target: !Join ["/", ["integrations", !Ref IntegrationDisconnect]]
+      Target: !Join ["/", ["integrations", !Ref rIntegrationDisconnect]]
 
-  RouteSendMessage:
+  rRouteSendMessage:
     Type: AWS::ApiGatewayV2::Route
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
       RouteKey: sendMessage
       AuthorizationType: NONE
-      Target: !Join ["/", ["integrations", !Ref IntegrationSendMessage]]
+      Target: !Join ["/", ["integrations", !Ref rIntegrationSendMessage]]
 
 
-  Deployment:
-    Type: AWS::ApiGatewayV2::Deployment
+  rDeployment:
+    Type: AWS::ApiGatewayV2::rDeployment
     DependsOn:
-      - RouteConnect
-      - RouteDisconnect
-      - RouteSendMessage
+      - rRouteConnect
+      - rRouteDisconnect
+      - rRouteSendMessage
     Properties:
-      ApiId: !Ref WebSocketApi
+      ApiId: !Ref rWebSocketApi
   
-  WebSocketAuthorizer:
+  rWebSocketAuthorizer:
     Type: AWS::ApiGatewayV2::Authorizer
     Properties:
-      Name: !Sub "${pPrefix}-WebSocketAuthorizer"
-      ApiId: !Ref WebSocketApi
+      Name: !Sub "${pPrefix}-rWebSocketAuthorizer"
+      ApiId: !Ref rWebSocketApi
       AuthorizerType: REQUEST
       IdentitySource:
         - route.request.querystring.token
       AuthorizerUri: !Sub
         - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}/invocations
-        - {FunctionName: !Ref LambdaAuthorizerFunction}
+        - {FunctionName: !Ref rLambdaAuthorizerFunction}
 
-  WebSocketStage:
+  rWebSocketStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
-      StageName: !Ref pWebSocketStage
+      StageName: !Ref prWebSocketStage
       AutoDeploy: true
-      DeploymentId: !Ref Deployment
-      ApiId: !Ref WebSocketApi
+      rDeploymentId: !Ref rDeployment
+      ApiId: !Ref rWebSocketApi
       DefaultRouteSettings:
         DataTraceEnabled: false
         DetailedMetricsEnabled: false
         LoggingLevel: OFF
 
-  AuthorizerLambdaInvokePermission:
+  rAuthorizerrLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref LambdaAuthorizerFunction
+      FunctionName: !Ref rLambdaAuthorizerFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 
-        - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
-        - WebSocketApi: !Ref WebSocketApi
+        - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWebSocketApi}/*"
+        - rWebSocketApi: !Ref rWebSocketApi
 
-  LambdaInvokePermission:
+  rLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ChatLambdaFunction
+      FunctionName: !Ref rChatLambdaFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWebSocketApi}/*"
 
-  WorkbenchLambdaAuthorizerInvokePermission:
+  rWorkbenchLambdaAuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref LambdaAuthorizerFunction
+      FunctionName: !Ref rLambdaAuthorizerFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${rWorkbenchApi}/*    
 
-  CFTGenerationAgentLambdaRole:
+
+  rrCFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
+      RoleName: !Sub "${pPrefix}-rrCFTGenerationAgentLambdaRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -2490,30 +2494,30 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  CFTGenerationAgentLambda:
+  rCFTGenerationAgentLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${pPrefix}-CFTGenerationAgentLambda"
+      FunctionName: !Sub "${pPrefix}-rCFTGenerationAgentLambda"
       Runtime: python3.11
       Handler: lambda_function.lambda_handler
-      Role: !GetAtt CFTGenerationAgentLambdaRole.Arn
+      Role: !GetAtt rrCFTGenerationAgentLambdaRole.Arn
       Timeout: 900
       MemorySize: 512
       Environment:
         Variables:
           ENVIRONMENT: !Sub "${pPrefix}"
-          SOLUTIONS_TABLE: !Ref SolutionsTable
+          SOLUTIONS_TABLE: !Ref rSolutionsTable
           AWS_ACCOUNT_ID: !Ref AWS::AccountId
       Code:
         S3Bucket: !Ref pArtifactsBucketName
-        S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/cftgenerationagentlambda/CFTGenerationAgentLambda.zip"
+        S3Key: !Sub "lambda-${pLambdaArtifactVersion}-${pPrefix}/cftgenerationagentlambda/rCFTGenerationAgentLambda.zip"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  ChatHistoryTable:
+  rChatHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub 'Workbench-${pPrefix}-ChatHistory'
@@ -2543,7 +2547,7 @@ Resources:
         - Key: SWB-User
           Value: "ServiceWorkbench"
 
-  DailyMidnightScheduleRule:
+  rDailyMidnightScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub 'Workbench-${pPrefix}-AuroraEB'
@@ -2551,14 +2555,14 @@ Resources:
       ScheduleExpression: 'cron(0 0 ? * MON-SAT *)'
       State: DISABLED
       Targets:
-        - Arn: !GetAtt UsersLambda.Arn
+        - Arn: !GetAtt rUsersLambda.Arn
           Id: DailyMidnightLambdaTarget
           Input: !Sub |
             {
               "action": "app"
             }
 
-  SundayMidnightScheduleRule:
+  rSundayMidnightScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub 'Workbench-${pPrefix}-EB'
@@ -2566,72 +2570,72 @@ Resources:
       ScheduleExpression: 'cron(0 0 ? * SUN *)'
       State: DISABLED
       Targets:
-        - Arn: !GetAtt UsersLambda.Arn
+        - Arn: !GetAtt rUsersLambda.Arn
           Id: SundayMidnightLambdaTarget
           Input: !Sub |
             {
               "action": "docsapp"
             }
 
-  DailyLambdaInvokePermission:
+  DailyrLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref UsersLambda
+      FunctionName: !Ref rUsersLambda
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt DailyMidnightScheduleRule.Arn
+      SourceArn: !GetAtt rDailyMidnightScheduleRule.Arn
 
-  SundayLambdaInvokePermission:
+  SundayrLambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref UsersLambda
+      FunctionName: !Ref rUsersLambda
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt SundayMidnightScheduleRule.Arn
+      SourceArn: !GetAtt rSundayMidnightScheduleRule.Arn
 
 
 
 Outputs:
 
-  WorkspaceLambdaFunctionName:
+  oWorkspaceLambdaFunctionName:
     Description: Name of the Workspace Lambda function
-    Value: !Ref WorkspacesAndSolutionsLambdaFunction
-  ApiUrl:
+    Value: !Ref rWorkspacesAndSolutionsLambdaFunction
+  oApiUrl:
     Description: "Invoke URL for the deployed API"
-    Value: !Sub "https://${WorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  CloudfrontDistributionId:
+    Value: !Sub "https://${rWorkbenchApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  oCloudfrontDistributionId:
     Description: CloudFront distribution ID
-    Value: !GetAtt WebsiteDistribution.Id
+    Value: !GetAtt rWebsiteDistribution.Id
     Export:
       Name: !Sub "${pPrefix}-CloudFrontDistributionId"
 
-  CloudFrontDomainName:
+  oCloudFrontDomainName:
     Description: Domain name of the CloudFront distribution
-    Value: !GetAtt WebsiteDistribution.DomainName
+    Value: !GetAtt rWebsiteDistribution.DomainName
     Export:
       Name: !Sub "${pPrefix}-CloudFrontDomainName"
     
-  CognitoUserPoolId:
-    Value: !Ref UserPool
+  oCognitoUserPoolId:
+    Value: !Ref rUserPool
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolId"
 
-  CognitoAppClientId:
-    Value: !Ref UserPoolClient
+  oCognitoAppClientId:
+    Value: !Ref rUserPoolClient
     Export:
       Name: !Sub "${pPrefix}-CognitoAppClientId"
 
-  CognitoRegion:
+  oCognitoRegion:
     Value: !Ref "AWS::Region"
     Export:
       Name: !Sub "${pPrefix}-Region"
 
-  WebSocketApiUrl:
-    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${pWebSocketStage}"
+  oWebSocketApiUrl:
+    Value: !Sub "wss://${rWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${pWebSocketStage}"
     Export:
       Name: !Sub "${pPrefix}-WebSocketApiUrl"
     
-  CognitoUserPoolDomainURL:
+  oCognitoUserPoolDomainURL:
     Value: !Sub "${pPrefix}-${AWS::AccountId}-auth"
     Export:
       Name: !Sub "${pPrefix}-CognitoUserPoolDomainURL"
