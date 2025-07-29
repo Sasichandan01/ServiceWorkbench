@@ -7,27 +7,68 @@ from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 from Utils.utils import log_activity,return_response,paginate_list
 from boto3.dynamodb.conditions import Attr,Key
+import logging
+logger = logging.getLogger("ExecutionsLogger")
+logger.setLevel(logging.INFO)
 
 
 dynamodb = boto3.resource('dynamodb')
 lambda_client = boto3.client('lambda')
 sfn_client=boto3.client('stepfunctions')
 glue_client=boto3.client('glue')
-executions_table = dynamodb.Table(os.environ['EXECUTIONS_TABLE'])
-workspaces_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
-activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
-solutions_table = dynamodb.Table(os.environ['SOLUTIONS_TABLE'])
+try:
+    executions_table = dynamodb.Table(os.environ['EXECUTIONS_TABLE'])
+except Exception as e:
+    print(f"Error loading EXECUTIONS_TABLE env variable: {e}")
+    executions_table = None
+try:
+    workspaces_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
+except Exception as e:
+    print(f"Error loading WORKSPACES_TABLE env variable: {e}")
+    workspaces_table = None
+try:
+    activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+except Exception as e:
+    print(f"Error loading ACTIVITY_LOGS_TABLE env variable: {e}")
+    activity_logs_table = None
+try:
+    solutions_table = dynamodb.Table(os.environ['SOLUTIONS_TABLE'])
+except Exception as e:
+    print(f"Error loading SOLUTIONS_TABLE env variable: {e}")
+    solutions_table = None
 
 
 def current_time():
+    """
+    Returns the current UTC time as a formatted string.
+    Returns:
+        str: Current UTC time in '%Y-%m-%d %H:%M:%S.%f %z' format.
+    """
+    logger.info("Executions.current_time() called")
     return f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {datetime.now(timezone.utc).strftime('%z')}"
 
 def timestamp_str_to_ms(ts_str):
+    """
+    Converts a timestamp string to milliseconds since epoch.
+    Args:
+        ts_str: Timestamp string in '%Y-%m-%d %H:%M:%S.%f %z' format (str).
+    Returns:
+        int: Milliseconds since epoch.
+    """
+    logger.info("Executions.timestamp_str_to_ms() called")
     dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S.%f %z")
     return int(dt.timestamp() * 1000)
 
 def validate_path_parameters(params, required_keys):
-    """Validate that required path parameters exist and are not empty."""
+    """
+    Validates that required path parameters exist and are not empty.
+    Args:
+        params: Dictionary of parameters (dict).
+        required_keys: List of required keys (list).
+    Returns:
+        tuple: (bool, str) indicating validity and error message if any.
+    """
+    logger.info("Executions.validate_path_parameters() called")
     if not params:
         return False, "Missing path parameters"
     
@@ -37,7 +78,15 @@ def validate_path_parameters(params, required_keys):
     return True, ""
 
 def get_executions(event, context):
-    """Retrieve all executions for a solution."""
+    """
+    Retrieves all executions for a solution with pagination and filtering.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Paginated response of executions.
+    """
+    logger.info("Executions.get_executions() called")
     try:
 
         path_parameters = event.get('pathParameters', {})
@@ -89,7 +138,15 @@ def get_executions(event, context):
 
 
 def get_execution(event, context):
-    """Retrieve details of a specific execution."""
+    """
+    Retrieves details of a specific execution.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response containing execution details or error.
+    """
+    logger.info("Executions.get_execution() called")
     try:
        
         path_parameters = event.get('pathParameters', {})
@@ -99,11 +156,8 @@ def get_execution(event, context):
 
         execution_id = path_parameters['execution_id']
         solution_id = path_parameters['solution_id']
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
-        
-        auth = event.get("requestContext", {}).get("authorizer", {})
-        user_id = auth.get("user_id")
+
+
         
         response = executions_table.get_item(
             Key= {'SolutionId': solution_id, 'ExecutionId':execution_id}
@@ -120,7 +174,15 @@ def get_execution(event, context):
         return return_response(500,{"Error": str(e)})
 
 def start_execution(event, context):
-    """Start a new solution execution"""
+    """
+    Starts a new solution execution and triggers the appropriate resources.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response indicating success or failure of execution start.
+    """
+    logger.info("Executions.start_execution() called")
     try:
         # Extract parameters
         print(event)
@@ -239,7 +301,15 @@ def start_execution(event, context):
         return return_response(500, {"Error": str(e)})
 
 def process_execution(event, context):
-    """Poll resource statuses for up to 10 minutes"""
+    """
+    Polls resource statuses for up to 10 minutes and updates execution status.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with final execution status or error.
+    """
+    logger.info("Executions.process_execution() called")
     print(event)
     execution_id = event['execution_id']
     solution_id = event['solution_id']

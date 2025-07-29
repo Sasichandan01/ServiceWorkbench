@@ -11,6 +11,7 @@ import boto3
 import os
 from boto3.dynamodb.conditions import Key
 import logging
+import traceback
 
 LOGGER=logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -21,9 +22,25 @@ roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 chat_table = dynamodb.Table(os.environ.get('CHAT_TABLE'))
 
 def build_chat_pk(solution_id, user_id):
+    """
+    Builds a primary key for chat table entries.
+    Args:
+        solution_id: Unique identifier for the solution
+        user_id: Unique identifier for the user
+    Returns:
+        str: Formatted primary key string for chat table
+    """
     return f"{solution_id}#{user_id}#AIChat"
 
 def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
+    """
+    Reads multiple files from S3 bucket with given prefix and returns their contents.
+    Args:
+        bucket: S3 bucket name
+        prefix: S3 key prefix to filter files
+    Returns:
+        dict[str, str]: Dictionary mapping filenames to their content as strings
+    """
     result = {}
     try:
         response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
@@ -49,6 +66,15 @@ def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
 
 
 def get_chat_history(workspace_id, solution_id, user_id):
+    """
+    Retrieves chat history for a specific user and solution with associated S3 files.
+    Args:
+        workspace_id: Unique identifier for the workspace
+        solution_id: Unique identifier for the solution
+        user_id: Unique identifier for the user
+    Returns:
+        dict: HTTP response with status code 200 and list of chat messages with code files
+    """
     pk = build_chat_pk(solution_id, user_id)
     response = chat_table.query(
         KeyConditionExpression=Key('ChatId').eq(pk),
@@ -73,7 +99,7 @@ def get_chat_history(workspace_id, solution_id, user_id):
         }
         
         if s3_key:
-            print(f"Processing S3 key: {s3_key}")
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.get_chat_history, processing S3 key: {s3_key}")
             try:
                 bucket = "develop-service-workbench-workspaces"
                 
@@ -81,7 +107,7 @@ def get_chat_history(workspace_id, solution_id, user_id):
                 s3_files = read_multiple_s3_files(bucket, s3_key)
                 
                 if s3_files:
-                    print(f"Found S3 files: {list(s3_files.keys())}")
+                    LOGGER.info(f"IN WorkspacesAndSolutionsLambda.get_chat_history, found S3 files: {list(s3_files.keys())}")
                     
                     # Create code structure with metadata
                     code_response = {
@@ -106,7 +132,17 @@ def get_chat_history(workspace_id, solution_id, user_id):
         chat_list.append(item_data)
     
     return return_response(200, chat_list)
+
 def delete_chat_history(workspace_id, solution_id, user_id):
+    """
+    Deletes all chat history for a specific user and solution.
+    Args:
+        workspace_id: Unique identifier for the workspace
+        solution_id: Unique identifier for the solution
+        user_id: Unique identifier for the user
+    Returns:
+        dict: HTTP response with status code 200 and success message
+    """
     pk = build_chat_pk(solution_id, user_id)
     response = chat_table.query(
         KeyConditionExpression=Key('ChatId').eq(pk),
@@ -124,6 +160,13 @@ def delete_chat_history(workspace_id, solution_id, user_id):
     return return_response(200, {"Message": "All chat messages deleted"})
 
 def get_chat_trace(chat_id):
+    """
+    Retrieves trace information for a specific chat message.
+    Args:
+        chat_id: Unique identifier for the chat message
+    Returns:
+        dict: HTTP response with status code 200 and trace data, or 404 if not found
+    """
     # Query the GSI on MessageId
 
     response = chat_table.query(
@@ -145,8 +188,17 @@ def get_chat_trace(chat_id):
     return return_response(200, {"Trace": trace})
 
 def lambda_handler(event, context):
+    """
+    Main AWS Lambda handler that routes HTTP requests to appropriate service functions.
+    Args:
+        event: AWS Lambda event object containing HTTP request details
+        context: AWS Lambda context object with runtime information
+    Returns:
+        dict: HTTP response with status code and response body
+    """
     try:
-        print(event)
+        LOGGER.info("IN WorkspacesAndSolutionsLambda.lambda_handler, processing incoming event")
+        LOGGER.debug(f"IN WorkspacesAndSolutionsLambda.lambda_handler, event details: {event}")
 
         if event.get('action') == 'execution-poll':
             return process_execution(event, context)
@@ -159,6 +211,9 @@ def lambda_handler(event, context):
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
         role = auth.get("role")
+        
+        LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, processing request for resource: {resource}, method: {httpMethod}, user: {user_id}")
+        
         # valid, msg = is_user_action_valid(user_id, role, resource, httpMethod, roles_table)
         # if not valid:
         #     return return_response(403, {"Error": msg})
@@ -169,12 +224,14 @@ def lambda_handler(event, context):
         chat_id = path_params.get('chat_id', None)
 
         if resource == '/workspaces':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling workspaces endpoint with method: {httpMethod}")
             if httpMethod == 'POST':
                 return create_workspace(event, context)
             elif httpMethod == 'GET':
                 return get_workspaces(event, context)
 
         elif resource == '/workspaces/{workspace_id}':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling workspace endpoint for workspace_id: {workspace_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_workspace(event,context)
             elif httpMethod == 'PUT':
@@ -184,6 +241,7 @@ def lambda_handler(event, context):
                 return delete_workspace(event,context)
 
         elif resource == '/workspaces/{workspace_id}/solutions':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling solutions endpoint for workspace_id: {workspace_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return list_solutions(workspace_id, query_params,user_id)
             elif httpMethod == 'POST':
@@ -191,6 +249,7 @@ def lambda_handler(event, context):
                 return create_solution(workspace_id, body,user_id)
 
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling solution endpoint for workspace_id: {workspace_id}, solution_id: {solution_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_solution(workspace_id, solution_id, query_params,user_id)
             elif httpMethod == 'PUT':
@@ -200,16 +259,19 @@ def lambda_handler(event, context):
                 return delete_solution(workspace_id, solution_id,user_id)
 
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling executions endpoint for solution_id: {solution_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_executions(event, context)
             elif httpMethod == 'POST':
                 return start_execution(event, context)
 
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling specific execution endpoint for execution_id, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_execution(event, context)
         
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/scripts':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling scripts endpoint for solution_id: {solution_id}, method: {httpMethod}")
             base_prefix = f"workspaces/{workspace_id}/solutions/{solution_id}"
             if httpMethod == 'GET':
                 return handle_get(base_prefix,solution_id)
@@ -218,6 +280,7 @@ def lambda_handler(event, context):
                 return handle_post(base_prefix,body,solution_id, workspace_id ,user_id)
         
         elif resource== '/workspaces/{workspace_id}/solutions/{solution_id}/executions/{execution_id}/logs':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling execution logs endpoint for execution_id, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_execution_logs(event, context)
             elif httpMethod == 'POST':
@@ -225,11 +288,13 @@ def lambda_handler(event, context):
 
 
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling chat endpoint for solution_id: {solution_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_chat_history(workspace_id, solution_id, user_id)
             elif httpMethod == 'DELETE':
                 return delete_chat_history(workspace_id, solution_id, user_id)
         elif resource == '/workspaces/{workspace_id}/solutions/{solution_id}/chat/{chat_id}':
+            LOGGER.info(f"IN WorkspacesAndSolutionsLambda.lambda_handler, handling specific chat endpoint for chat_id: {chat_id}, method: {httpMethod}")
             if httpMethod == 'GET':
                 return get_chat_trace(chat_id)
 
@@ -242,7 +307,8 @@ def lambda_handler(event, context):
             if httpMethod == 'GET':
                 return get_chat_trace(chat_id)
 
+        LOGGER.warning(f"IN WorkspacesAndSolutionsLambda.lambda_handler, resource not found: {resource}")
         return return_response(404, {"Error": "Resource not found"})
     except Exception as e:
-        print(e)
+        LOGGER.error("Unhandled exception: %s\n%s", e, traceback.format_exc())
         return return_response(500, {"Error": "Internal Server Error"})

@@ -9,17 +9,41 @@ from Utils.utils import log_activity,return_response,paginate_list
 from FGAC.fgac import create_workspace_fgac, check_workspace_access
 import logging
 
-logger = logging.getLogger()
+logger = logging.getLogger("WorkspacesLogger")
 logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb')
-workspace_table=dynamodb.Table(os.environ['WORKSPACES_TABLE'])  
-activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])  
-resource_access_table= dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
-users_table=dynamodb.Table(os.environ['USERS_TABLE'])
+try:
+    workspace_table = dynamodb.Table(os.environ['WORKSPACES_TABLE'])
+except Exception as e:
+    print(f"Error loading WORKSPACES_TABLE env variable: {e}")
+    workspace_table = None
+try:
+    activity_logs_table = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+except Exception as e:
+    print(f"Error loading ACTIVITY_LOGS_TABLE env variable: {e}")
+    activity_logs_table = None
+try:
+    resource_access_table = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+except Exception as e:
+    print(f"Error loading RESOURCE_ACCESS_TABLE env variable: {e}")
+    resource_access_table = None
+try:
+    users_table = dynamodb.Table(os.environ['USERS_TABLE'])
+except Exception as e:
+    print(f"Error loading USERS_TABLE env variable: {e}")
+    users_table = None
 
-def create_workspace(event,context):
-    """Create a new workspace with the provided details."""
+def create_workspace(event, context):
+    """
+    Creates a new workspace with the provided details and assigns permissions.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with workspace creation status and ID.
+    """
+    logger.info("Workspaces.create_workspace() called")
     try:
         body =json.loads(event.get('body'))
         auth = event.get("requestContext", {}).get("authorizer", {})
@@ -91,7 +115,7 @@ def create_workspace(event,context):
                 
                 if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
                     create_workspace_fgac(resource_access_table, admin_user_id, "owner", workspace_id)
-                    logger.info(f"Granted owner permissions to ITAdmin user: {admin_user_id} for workspace: {workspace_id}")
+                    logger.info("Workspaces.create_workspace() Granted owner permissions to ITAdmin user: %s for workspace: %s", admin_user_id, workspace_id)
         except Exception as e:
             logger.error(f"Error granting ITAdmin permissions for workspace {workspace_id}: {e}")
             # Continue with workspace creation even if ITAdmin permission granting fails
@@ -104,7 +128,15 @@ def create_workspace(event,context):
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def update_workspace(event, context):
-    """Update the details or status of an existing workspace."""
+    """
+    Updates the details or status of an existing workspace.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with update status or error.
+    """
+    logger.info("Workspaces.update_workspace() called")
     try:
         path_params=event.get('pathParameters')
         workspace_id=path_params.get('workspace_id')
@@ -201,8 +233,16 @@ def update_workspace(event, context):
         logger.error("Error in update_workspace: %s", e)
         return return_response(500, {"Error": f"{e}"})
 
-def delete_workspace(event,context):
-    """Delete a workspace if the user has owner access and it is inactive."""
+def delete_workspace(event, context):
+    """
+    Deletes a workspace if the user has owner access and it is inactive.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with deletion status or error.
+    """
+    logger.info("Workspaces.delete_workspace() called")
     try:
         path_params=event.get('pathParameters')
         auth = event.get("requestContext", {}).get("authorizer", {})
@@ -248,8 +288,16 @@ def delete_workspace(event,context):
         logger.error("Error in delete_workspace: %s", e)
         return return_response(500, {"Error": f"Internal Server Error, {e}"})               
             
-def get_workspace(event,context):
-    """Retrieve details and users of a specific workspace."""
+def get_workspace(event, context):
+    """
+    Retrieves details and users of a specific workspace.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with workspace details and user list.
+    """
+    logger.info("Workspaces.get_workspace() called")
     try:
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
@@ -303,7 +351,15 @@ def get_workspace(event,context):
         return return_response(500, {"Error": f"Internal Server Error, {e}"})
 
 def get_workspaces(event, context):
-    """Retrieve a list of workspaces accessible to the user, with optional filtering and pagination."""
+    """
+    Retrieves a list of workspaces accessible to the user, with optional filtering and pagination.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Paginated response of workspaces.
+    """
+    logger.info("Workspaces.get_workspaces() called")
     try:
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")

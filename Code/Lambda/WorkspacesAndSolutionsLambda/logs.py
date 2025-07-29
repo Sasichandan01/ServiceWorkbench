@@ -9,7 +9,7 @@ from Utils.utils import log_activity,return_response,paginate_list
 from botocore.exceptions import ClientError
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb')
@@ -19,12 +19,36 @@ glue_client = boto3.client('glue')
 lambda_client = boto3.client('lambda')
 stepfunctions_client = boto3.client('stepfunctions')
 
-activity_logs_table = dynamodb.Table(os.environ.get('ACTIVITY_LOGS_TABLE'))
-executions_table = dynamodb.Table(os.environ.get('EXECUTIONS_TABLE'))
-solutions_table = dynamodb.Table(os.environ.get('SOLUTIONS_TABLE'))
-workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
+try:
+    activity_logs_table = dynamodb.Table(os.environ.get('ACTIVITY_LOGS_TABLE'))
+except Exception as e:
+    print(f"Error loading ACTIVITY_LOGS_TABLE env variable: {e}")
+    activity_logs_table = None
+try:
+    executions_table = dynamodb.Table(os.environ.get('EXECUTIONS_TABLE'))
+except Exception as e:
+    print(f"Error loading EXECUTIONS_TABLE env variable: {e}")
+    executions_table = None
+try:
+    solutions_table = dynamodb.Table(os.environ.get('SOLUTIONS_TABLE'))
+except Exception as e:
+    print(f"Error loading SOLUTIONS_TABLE env variable: {e}")
+    solutions_table = None
+try:
+    workspaces_bucket = os.environ.get('WORKSPACES_BUCKET')
+except Exception as e:
+    print(f"Error loading WORKSPACES_BUCKET env variable: {e}")
+    workspaces_bucket = None
 
 def convert_utc_to_ist_iso_format(time_str):
+    """
+    Converts a UTC time string to IST timezone as a datetime object.
+    Args:
+        time_str: UTC time string in '%Y-%m-%d %H:%M:%S.%f %z' format (str).
+    Returns:
+        datetime: Time converted to IST timezone.
+    """
+    logger.info("Logs.convert_utc_to_ist_iso_format() called")
     # Parse input string: "2025-07-26 17:53:26.818 +0000"
     dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f %z")
     # Convert to IST timezone
@@ -35,6 +59,14 @@ def convert_utc_to_ist_iso_format(time_str):
     return ist_time
     
 def format_to_ist(dt_utc: datetime) -> str:
+    """
+    Converts a UTC datetime object to IST formatted string.
+    Args:
+        dt_utc: UTC datetime object.
+    Returns:
+        str: IST formatted datetime string.
+    """
+    logger.info("Logs.format_to_ist() called")
     # Define IST timezone
     ist = timezone(timedelta(hours=5, minutes=30))
     
@@ -47,7 +79,16 @@ def format_to_ist(dt_utc: datetime) -> str:
 
 
 def update_execution_status(solution_id, execution_id, status):
-    """Update the log status for a given execution in the executions table."""
+    """
+    Updates the log status for a given execution in the executions table.
+    Args:
+        solution_id: Solution ID (str).
+        execution_id: Execution ID (str).
+        status: New status to set (str).
+    Returns:
+        None
+    """
+    logger.info("Logs.update_execution_status() called for solution_id=%s, execution_id=%s, status=%s", solution_id, execution_id, status)
     try:
         executions_table.update_item(
             Key={
@@ -63,8 +104,16 @@ def update_execution_status(solution_id, execution_id, status):
         logger.error(f"Error updating execution status: {str(e)}")
         raise
 
-def fetch_resources_for_solution(workspace_id,solution_id):
-    """Fetch resources for a given solution from the solutions table."""
+def fetch_resources_for_solution(workspace_id, solution_id):
+    """
+    Fetches resources for a given solution from the solutions table.
+    Args:
+        workspace_id: Workspace ID (str).
+        solution_id: Solution ID (str).
+    Returns:
+        list: List of resources for the solution.
+    """
+    logger.info("Logs.fetch_resources_for_solution() called for workspace_id=%s, solution_id=%s", workspace_id, solution_id)
     try:
         response = solutions_table.get_item(Key={'WorkspaceId':workspace_id,'SolutionId': solution_id})
         
@@ -74,7 +123,15 @@ def fetch_resources_for_solution(workspace_id,solution_id):
         raise
 
 def fetch_execution_details(solution_id, execution_id):
-    """Fetch execution details (start/end time) from executions table."""
+    """
+    Fetches execution details (start/end time) from executions table.
+    Args:
+        solution_id: Solution ID (str).
+        execution_id: Execution ID (str).
+    Returns:
+        dict: Execution details item.
+    """
+    logger.info("Logs.fetch_execution_details() called for solution_id=%s, execution_id=%s", solution_id, execution_id)
     try:
         response = executions_table.get_item(
             Key={'SolutionId': solution_id, 'ExecutionId': execution_id}
@@ -87,10 +144,15 @@ def fetch_execution_details(solution_id, execution_id):
 
 def fetch_logs_for_resource(resource, start_time, end_time):
     """
-    Fetch logs for a resource between start and end times.
-    Determines the resource type and fetches logs from CloudWatch or Glue accordingly.
-    Stores logs in a temp file and returns the file path.
+    Fetches logs for a resource between start and end times, stores in temp file, and returns file path.
+    Args:
+        resource: Resource dict or string.
+        start_time: Start time (datetime).
+        end_time: End time (datetime).
+    Returns:
+        str: Path to the temporary file containing logs.
     """
+    logger.info("Logs.fetch_logs_for_resource() called for resource=%s", resource)
     try:
         resource_type = resource.get('Type', '').lower() if isinstance(resource, dict) else str(resource).lower()
         resource_name = resource.get('ResourceId') if isinstance(resource, dict) else str(resource)
@@ -116,8 +178,15 @@ def fetch_logs_for_resource(resource, start_time, end_time):
 
 def merge_and_upload_logs(logs, s3_bucket, s3_key):
     """
-    Merge logs, store in temp file, and upload to S3. Return S3 path.
+    Merges logs, stores in temp file, uploads to S3, and returns S3 path.
+    Args:
+        logs: List of log strings (list).
+        s3_bucket: S3 bucket name (str).
+        s3_key: S3 key for the merged log file (str).
+    Returns:
+        str: S3 URI of the uploaded log file.
     """
+    logger.info("Logs.merge_and_upload_logs() called for s3_bucket=%s, s3_key=%s", s3_bucket, s3_key)
     try:
         combined_content = '\n'.join(logs)
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
@@ -133,8 +202,15 @@ def merge_and_upload_logs(logs, s3_bucket, s3_key):
 
 def fetch_glue_logs_by_time(job_name, start_time, end_time):
     """
-    Fetch Glue job logs for a given job name between start_time and end_time.
+    Fetches Glue job logs for a given job name between start_time and end_time.
+    Args:
+        job_name: Glue job name (str).
+        start_time: Start time (datetime).
+        end_time: End time (datetime).
+    Returns:
+        str: Logs content for the Glue job.
     """
+    logger.info("Logs.fetch_glue_logs_by_time() called for job_name=%s", job_name)
     try:
         response = glue_client.get_job_runs(JobName=job_name, MaxResults=50)
         
@@ -182,7 +258,16 @@ def fetch_glue_logs_by_time(job_name, start_time, end_time):
         return f"Error fetching Glue logs: {str(e)}"
 
 def fetch_lambda_logs_by_time(function_name, start_time, end_time):
-    """Fetch Lambda function logs from CloudWatch within specified time range."""
+    """
+    Fetches Lambda function logs from CloudWatch within specified time range.
+    Args:
+        function_name: Lambda function name (str).
+        start_time: Start time (datetime).
+        end_time: End time (datetime).
+    Returns:
+        str: Logs content for the Lambda function.
+    """
+    logger.info("Logs.fetch_lambda_logs_by_time() called for function_name=%s", function_name)
     try:
         log_group_name = f"/aws/lambda/{function_name}"
         
@@ -264,7 +349,17 @@ def fetch_lambda_logs_by_time(function_name, start_time, end_time):
 
 
 def fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time):
-    """Fetch log events from a specific log stream within time range."""
+    """
+    Fetches log events from a specific log stream within time range.
+    Args:
+        log_group_name: CloudWatch log group name (str).
+        stream_name: Log stream name (str).
+        start_time: Start time (datetime).
+        end_time: End time (datetime).
+    Returns:
+        str: Log content from the stream.
+    """
+    logger.info("Logs.fetch_cloudwatch_logs() called for log_group_name=%s, stream_name=%s", log_group_name, stream_name)
     try:
 
         start_time_ms = int(start_time.timestamp() * 1000)
@@ -315,7 +410,16 @@ def fetch_cloudwatch_logs(log_group_name, stream_name, start_time, end_time):
 
 
 def fetch_stepfunction_logs_by_time(state_machine_name, start_time, end_time):
-    """Fetch Step Function logs from CloudWatch for a specific time window."""
+    """
+    Fetches Step Function logs from CloudWatch for a specific time window.
+    Args:
+        state_machine_name: Name of the Step Function state machine (str).
+        start_time: Start time (datetime).
+        end_time: End time (datetime).
+    Returns:
+        str: Logs content for the Step Function.
+    """
+    logger.info("Logs.fetch_stepfunction_logs_by_time() called for state_machine_name=%s", state_machine_name)
     try:
         log_group_prefix = "/aws/vendedlogs/states/"
         logs_content = f"=== STEP FUNCTION LOGS: {state_machine_name} ===\nTime Range: {start_time} to {end_time}\n\n"
@@ -410,7 +514,15 @@ def fetch_cloudwatch_logs(log_group_name, log_stream_name, start_time, end_time)
         return f"Error fetching CloudWatch logs: {str(e)}"
 
 def process_log_collection(event, context):
-    """Main function to process log collection."""
+    """
+    Main function to process log collection for a solution execution and upload to S3.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with S3 location or error.
+    """
+    logger.info("Logs.process_log_collection() called")
     try:
         solution_id = event.get('solution_id')
         execution_id = event.get('execution_id')
@@ -478,7 +590,15 @@ def process_log_collection(event, context):
         return return_response(400, str(e))
 
 def get_execution_logs(event, context):
-    """Get presigned URL for execution logs."""
+    """
+    Gets a presigned URL for execution logs if available.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response with presigned URL or status message.
+    """
+    logger.info("Logs.get_execution_logs() called")
     try:
         path_parameters = event.get('pathParameters', {})
         workspace_id = path_parameters.get('workspace_id')
@@ -509,7 +629,15 @@ def get_execution_logs(event, context):
         return return_response(400, str(e))
 
 def generate_execution_logs(event, context):
-    """Trigger log generation process."""
+    """
+    Triggers the log generation process for a solution execution.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Response indicating log collection trigger status.
+    """
+    logger.info("Logs.generate_execution_logs() called")
     try:
         path_parameters = event.get('pathParameters', {})
         workspace_id = path_parameters.get('workspace_id')
