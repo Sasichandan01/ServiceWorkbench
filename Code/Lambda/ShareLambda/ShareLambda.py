@@ -43,14 +43,14 @@ def validate_user_exists(user_id):
             )
         else:
             response = USERS_TABLE.get_item(Key={'UserId': user_id})
-        LOGGER.debug(f"User validation response: {response}")
+        LOGGER.debug(f"In ShareLambda.py.validate_user_exists(), user validation response: {response}")
         return 'Item' in response or 'Items' in response
     except Exception as e:
-        LOGGER.error(f"Error validating user {user_id}: {e}")
+        LOGGER.error(f"In ShareLambda.py.validate_user_exists(), error validating user {user_id}: {e}")
         return False
 
 def lambda_handler(event, context):
-    LOGGER.info(f"Received event: {event}")
+    LOGGER.info(f"In ShareLambda.py.lambda_handler(), received event: {event}")
 
     resource = event.get('resource')
     path = event.get('path')
@@ -108,13 +108,13 @@ def get_access(event):
     else:
         return return_response(400, {'Message': f'Unsupported resource type: {resource_type}'})
 
-    LOGGER.info(f"Access key: {access_key}")
+    LOGGER.info(f"In ShareLambda.py.get_access(), access key: {access_key}")
 
     response = RESOURCE_ACCESS_TABLE.query(
         IndexName='AccessKey-Index',
         KeyConditionExpression=Key('AccessKey').eq(access_key)
     )
-    LOGGER.debug(f"Resource access query response: {response}")
+    LOGGER.debug(f"In ShareLambda.py.get_access(), resource access query response: {response}")
 
     items = response.get('Items', [])
     formatted_items = []
@@ -172,7 +172,7 @@ def share_resource(event):
     else:
         user_record = USERS_TABLE.get_item(Key={'UserId': user_id}).get('Item')
     
-    LOGGER.info(f"Processing user_id: {user_id}")
+    LOGGER.info(f"In ShareLambda.py.share_resource(), processing user_id: {user_id}")
 
     access_type = body['AccessType']
     resource_type = body['ResourceType'].upper()
@@ -193,7 +193,7 @@ def share_resource(event):
                 if workspace_item.get('WorkspaceType') == 'DEFAULT':
                     return return_response(400, {'Message': 'Cannot share default workspaces'})
         except Exception as e:
-            LOGGER.error(f"Error checking workspace type for {resource_id}: {e}")
+            LOGGER.error(f"In ShareLambda.py.share_resource(), error checking workspace type for {resource_id}: {e}")
             # Continue with sharing if we can't verify the workspace type
         
         access_key = f'WORKSPACE#{resource_id}'
@@ -327,7 +327,7 @@ def share_resource(event):
                     solutions_granted += 1
 
         except Exception as e:
-            LOGGER.error(f"Error granting solution access: {e}")
+            LOGGER.error(f"In ShareLambda.py.share_resource(), error granting solution access: {e}")
 
         msg = f"Access granted to workspace. {solutions_granted} solution(s) granted, {solutions_updated} updated, {solutions_skipped} skipped (higher permissions already exist)."
         return return_response(200, {'Message': msg})
@@ -346,7 +346,7 @@ def share_resource(event):
                     default_workspace_id = ws.get('WorkspaceId')
                     break
         except Exception as e:
-            LOGGER.error(f"Error looking up default workspace for user {user_id}: {e}")
+            LOGGER.error(f"In ShareLambda.py.share_resource(), error looking up default workspace for user {user_id}: {e}")
             
         if default_workspace_id and workspace_id != default_workspace_id:
             # Remove access from the original workspace and grant access only to default workspace
@@ -405,7 +405,7 @@ def revoke_access(event):
         dict: HTTP response with success message and status
     """
     body = json.loads(event['body'])
-    LOGGER.info("Processing revoke access request")
+    LOGGER.info("In ShareLambda.py.revoke_access(), processing revoke access request")
 
     required_keys = ['Username', 'ResourceType', 'ResourceId']
     if not all(k in body for k in required_keys):
@@ -439,14 +439,14 @@ def revoke_access(event):
     else:
         return return_response(400, {'Message': f'Unsupported resource type: {resource_type}'})
     
-    LOGGER.info(f"Revoke access key: {access_key}")
+    LOGGER.info(f"In ShareLambda.py.revoke_access(), revoke access key: {access_key}")
 
     response = RESOURCE_ACCESS_TABLE.query(
         IndexName='AccessKey-Index',
         KeyConditionExpression=Key('AccessKey').eq(access_key)
     )
 
-    LOGGER.debug(f"Revoke access query response: {response}")
+    LOGGER.debug(f"In ShareLambda.py.revoke_access(), revoke access query response: {response}")
     
     items = [
         item for item in response.get('Items', [])
@@ -482,14 +482,14 @@ def revoke_access(event):
                     KeyConditionExpression=Key('AccessKey').eq(solution_access_key)
                 )
 
-                LOGGER.debug(f"Solution access query response: {solution_response}")
+                LOGGER.debug(f"In ShareLambda.py.revoke_access(), solution access query response: {solution_response}")
 
                 items = [
                     item for item in solution_response.get('Items', [])
                     if item['Id'].startswith(f"{user_id}#")
                 ]
 
-                LOGGER.debug(f"Solution access items to revoke: {items}")
+                LOGGER.debug(f"In ShareLambda.py.revoke_access(), solution access items to revoke: {items}")
                 
                 for solution_access_item in items:
                     solution_key = {
@@ -511,7 +511,7 @@ def revoke_access(event):
                         )
         
         except Exception as e:
-            LOGGER.error(f"Error revoking access to solutions in workspace {workspace_id}: {e}")
+            LOGGER.error(f"In ShareLambda.py.revoke_access(), error revoking access to solutions in workspace {workspace_id}: {e}")
             # Continue with workspace access revocation even if solution access revocation fails
 
     if ACTIVITY_LOGS_TABLE:
@@ -570,7 +570,7 @@ def list_activity_logs(event, context):
                 )
                 logs = response.get('Items', [])
             except Exception as e:
-                print(f"Error querying activity logs by user: {e}")
+                LOGGER.error(f"In ShareLambda.py.list_activity_logs(), error querying activity logs by user: {e}")
                 return return_response(500, {"Error": f"Internal Server Error, {e}"})
         else:
             # Query DynamoDB for logs matching resource_type and resource_id
@@ -607,5 +607,5 @@ def list_activity_logs(event, context):
         )
         return paginated
     except Exception as e:
-        LOGGER.error(f"Error in list_activity_logs: {e}")
+        LOGGER.error(f"In ShareLambda.py.list_activity_logs(), error in list_activity_logs: {e}")
         return return_response(500, {"Error": f"Internal Server Error, {e}"})

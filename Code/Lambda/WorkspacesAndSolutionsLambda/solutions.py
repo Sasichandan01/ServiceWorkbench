@@ -101,18 +101,18 @@ def list_solutions(workspace_id, params, user_id):
         FilterExpression=Attr('Id').begins_with(f"{user_id}#"),
         ProjectionExpression='AccessKey'
     )
-    LOGGER.debug(f"Resource access response: {resource_access_response}")
+    LOGGER.debug(f"In solutions.py.list_solutions(), resource access response: {resource_access_response}")
     
     solution_ids = []
     for item in resource_access_response.get('Items', []):
         access_key = item.get('AccessKey', '')
-        LOGGER.debug(f"Processing access key: {access_key}")
+        LOGGER.debug(f"In solutions.py.list_solutions(), processing access key: {access_key}")
         if access_key.startswith(f'SOLUTION#{workspace_id}#'):
             solution_id = access_key.split('#')[2]
-            LOGGER.debug(f"Found solution ID: {solution_id}")
+            LOGGER.debug(f"In solutions.py.list_solutions(), found solution ID: {solution_id}")
             solution_ids.append(solution_id)
             
-    LOGGER.debug(f"Solution IDs found: {solution_ids}")
+    LOGGER.debug(f"In solutions.py.list_solutions(), solution IDs found: {solution_ids}")
     
     items = []
     for solution_id in solution_ids:
@@ -123,12 +123,12 @@ def list_solutions(workspace_id, params, user_id):
         if item:
             items.append(item)
 
-    LOGGER.debug(f"Items before filtering: {items}")
+    LOGGER.debug(f"In solutions.py.list_solutions(), items before filtering: {items}")
 
     if filter_by:
         items = [item for item in items if filter_by in item.get('SolutionName', '').lower()]
 
-    LOGGER.debug(f"Items after filtering: {items}")
+    LOGGER.debug(f"In solutions.py.list_solutions(), items after filtering: {items}")
 
     solutions = [{
         "SolutionId": item.get("SolutionId"),
@@ -253,9 +253,9 @@ def create_solution(workspace_id, body, user_id):
             
             if 'ITAdmin' in user_roles and admin_user_id and admin_user_id != user_id:  # Don't duplicate for creator
                 create_solution_fgac(RESOURCE_ACCESS_TABLE, admin_user_id, "owner", workspace_id, solution_id)
-                LOGGER.info(f"Granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
+                LOGGER.info(f"In solutions.py.create_solution(), granted owner permissions to ITAdmin user: {admin_user_id} for solution: {solution_id}")
     except Exception as e:
-        LOGGER.error(f"Error granting ITAdmin permissions for solution {solution_id}: {e}")
+        LOGGER.error(f"In solutions.py.create_solution(), error granting ITAdmin permissions for solution {solution_id}: {e}")
         # Continue with solution creation even if ITAdmin permission granting fails
 
     body = {
@@ -349,7 +349,7 @@ def get_solution(workspace_id, solution_id, params, user_id):
                         "CreationTime": perm.get("CreationTime", "")
                     })
     except Exception as e:
-        LOGGER.error(f"Error fetching users for solution {solution_id}: {e}")
+        LOGGER.error(f"In solutions.py.get_solution(), error fetching users for solution {solution_id}: {e}")
     item["Users"] = users
     return return_response(200,item)
 
@@ -552,7 +552,7 @@ def delete_solution(workspace_id, solution_id, user_id):
         for item in permission_items:
             RESOURCE_ACCESS_TABLE.delete_item(Key={'Id': item['Id'], 'AccessKey': item['AccessKey']})
     except Exception as e:
-        LOGGER.error(f"Error deleting solution permissions: {e}")
+        LOGGER.error(f"In solutions.py.delete_solution(), error deleting solution permissions: {e}")
 
     SOLUTIONS_TABLE.delete_item(Key=key)
 

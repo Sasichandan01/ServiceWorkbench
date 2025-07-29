@@ -27,11 +27,6 @@ def send_response(event, context, response_status, response_data=None, physical_
     """
     Send response to CloudFormation for custom resource.
     
-    Description:
-        Sends a response back to CloudFormation to indicate the success or failure
-        of the custom resource operation. This is required for CloudFormation to
-        track the status of the custom resource.
-    
     Key Steps:
         1. Prepare response body with status, reason, and data
         2. Convert response to JSON format
@@ -50,7 +45,7 @@ def send_response(event, context, response_status, response_data=None, physical_
     Returns:
         None: Sends HTTP response to CloudFormation
     """
-    LOGGER.info(f"Sending response to CloudFormation - Status: {response_status}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.send_response(), sending response to CloudFormation - Status: {response_status}")
     
     if response_data is None:
         response_data = {}
@@ -82,19 +77,13 @@ def send_response(event, context, response_status, response_data=None, physical_
         http = urllib3.PoolManager()
         response = http.request('PUT', event['ResponseURL'], 
                               headers=headers, body=json_response_body)
-        LOGGER.info(f"CloudFormation response sent successfully - Status code: {response.status}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.send_response(), CloudFormation response sent successfully - Status code: {response.status}")
     except Exception as e:
-        LOGGER.error(f"send_response failed executing http.request(): {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.send_response(), failed executing http.request(): {e}")
 
 def substitute_env_vars(obj):
     """
     Recursively substitute environment variables in the config dict.
-    
-    Description:
-        Traverses through a configuration object (dict, list, or string) and
-        replaces environment variable placeholders with their actual values.
-        Currently supports substitution of ${KNOWLEDGE_BASE_ID} with the
-        KNOWLEDGE_BASE_ID environment variable.
     
     Key Steps:
         1. Check if object is a dictionary and recursively process each value
@@ -115,7 +104,7 @@ def substitute_env_vars(obj):
     elif isinstance(obj, str):
         if obj == "${KNOWLEDGE_BASE_ID}":
             substituted_value = os.environ.get("KNOWLEDGE_BASE_ID", obj)
-            LOGGER.debug(f"Substituted {obj} with {substituted_value}")
+            LOGGER.debug(f"In AgentCustomResourceLambda.py.substitute_env_vars(), substituted {obj} with {substituted_value}")
             return substituted_value
         return obj
     else:
@@ -124,11 +113,6 @@ def substitute_env_vars(obj):
 def load_system_agents_config() -> List[Dict]:
     """
     Loads system agents configuration from the agents.yaml file.
-    
-    Description:
-        Reads and parses the agents.yaml configuration file to load the system
-        agent definitions. The configuration is processed to substitute environment
-        variables and ensure proper structure for agent creation/management.
     
     Key Steps:
         1. Open and read the agents.yaml file
@@ -143,44 +127,39 @@ def load_system_agents_config() -> List[Dict]:
     Returns:
         List[Dict]: List of agent configuration dictionaries ready for processing
     """
-    LOGGER.info("Loading system agents configuration from agents.yaml")
+    LOGGER.info("In AgentCustomResourceLambda.py.load_system_agents_config(), loading system agents configuration from agents.yaml")
     try:
         with open("agents.yaml", 'r', encoding='utf-8') as stream:
             config_data = yaml.safe_load(stream)
-            LOGGER.debug(f"Raw config loaded: {config_data}")
+            LOGGER.debug(f"In AgentCustomResourceLambda.py.load_system_agents_config(), raw config loaded: {config_data}")
             
             config_data = substitute_env_vars(config_data)
-            LOGGER.info(f"Processed config with environment substitutions: {config_data}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.load_system_agents_config(), processed config with environment substitutions: {config_data}")
             
             # Ensure we return a list
             if isinstance(config_data, list):
-                LOGGER.info(f"Loaded {len(config_data)} agent configurations")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.load_system_agents_config(), loaded {len(config_data)} agent configurations")
                 return config_data
             elif isinstance(config_data, dict):
-                LOGGER.info("Loaded single agent configuration")
+                LOGGER.info("In AgentCustomResourceLambda.py.load_system_agents_config(), loaded single agent configuration")
                 return [config_data]  # Single agent config
             else:
-                LOGGER.error("Invalid YAML structure: expected list or dict")
+                LOGGER.error("In AgentCustomResourceLambda.py.load_system_agents_config(), invalid YAML structure: expected list or dict")
                 raise ValueError("Invalid YAML structure: expected list or dict")
                 
     except FileNotFoundError:
-        LOGGER.error("agents.yaml file not found")
+        LOGGER.error("In AgentCustomResourceLambda.py.load_system_agents_config(), agents.yaml file not found")
         raise
     except yaml.YAMLError as e:
-        LOGGER.error(f"YAML parsing error: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.load_system_agents_config(), YAML parsing error: {e}")
         raise
     except Exception as e:
-        LOGGER.error(f"Error loading config: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.load_system_agents_config(), error loading config: {e}")
         raise
 
 def get_agent_metadata(agent_name: str) -> Optional[Dict]:
     """
     Retrieves agent metadata from DynamoDB lookup table.
-    
-    Description:
-        Queries the AGENTS_TABLE in DynamoDB to retrieve metadata for a specific
-        agent. This includes information like agent ID, version, alias ID, and
-        other configuration details needed for agent management operations.
     
     Key Steps:
         1. Query DynamoDB table using agent name as key
@@ -194,7 +173,7 @@ def get_agent_metadata(agent_name: str) -> Optional[Dict]:
     Returns:
         Optional[Dict]: Agent metadata dictionary if found, None otherwise
     """
-    LOGGER.info(f"Retrieving agent metadata for: {agent_name}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.get_agent_metadata(), retrieving agent metadata for: {agent_name}")
     try:
         response = DYNAMODB_CLIENT.get_item(
             TableName=AGENTS_TABLE_NAME,
@@ -211,23 +190,18 @@ def get_agent_metadata(agent_name: str) -> Optional[Dict]:
                     item[key] = value['S']
                 elif 'N' in value:
                     item[key] = value['N']
-            LOGGER.info(f"Found agent metadata: {item}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.get_agent_metadata(), found agent metadata: {item}")
             return item
-        LOGGER.info(f"No agent metadata found for: {agent_name}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.get_agent_metadata(), no agent metadata found for: {agent_name}")
         return None
     except Exception as e:
-        LOGGER.error(f"Error getting agent metadata for {agent_name}: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.get_agent_metadata(), error getting agent metadata for {agent_name}: {e}")
         return None
 
 def create_system_agent_metadata(agent_name: str, agent_version: str, agent_alias_id: str, 
                                 action_group_id: str, agent_config: Dict, bedrock_agent_id: str):
     """
     Creates system agent metadata in the AGENTS_TABLE.
-    
-    Description:
-        Stores agent metadata in the DynamoDB AGENTS_TABLE for tracking and
-        management purposes. This metadata includes agent identifiers, versions,
-        and configuration details needed for future operations.
     
     Key Steps:
         1. Prepare metadata item with all required fields
@@ -246,7 +220,7 @@ def create_system_agent_metadata(agent_name: str, agent_version: str, agent_alia
     Returns:
         None: Creates metadata entry in DynamoDB
     """
-    LOGGER.info(f"Creating system agent metadata for: {agent_name}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.create_system_agent_metadata(), creating system agent metadata for: {agent_name}")
     try:
         item = {
             'AgentId': {'S': agent_name},
@@ -258,27 +232,21 @@ def create_system_agent_metadata(agent_name: str, agent_version: str, agent_alia
             'Description': {'S': agent_config.get('Description', '')}
         }
         
-        LOGGER.debug(f"Metadata item to create: {item}")
+        LOGGER.debug(f"In AgentCustomResourceLambda.py.create_system_agent_metadata(), metadata item to create: {item}")
         
         DYNAMODB_CLIENT.put_item(
             TableName=AGENTS_TABLE_NAME,
             Item=item
         )
-        LOGGER.info(f"Successfully created metadata for agent: {agent_name}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_system_agent_metadata(), successfully created metadata for agent: {agent_name}")
         
     except Exception as e:
-        LOGGER.error(f"Error creating agent metadata for {agent_name}: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.create_system_agent_metadata(), error creating agent metadata for {agent_name}: {e}")
         raise
 
 def update_system_agent_metadata(agent_name: str, new_agent_version: str):
     """
     Updates system agent metadata in the AGENTS_TABLE.
-    
-    Description:
-        Updates the agent version in the DynamoDB AGENTS_TABLE for an existing
-        agent. This is typically called after an agent has been updated and
-        a new version has been created.
-    
     Key Steps:
         1. Prepare update expression for agent version
         2. Execute DynamoDB update operation
@@ -291,7 +259,7 @@ def update_system_agent_metadata(agent_name: str, new_agent_version: str):
     Returns:
         None: Updates metadata entry in DynamoDB
     """
-    LOGGER.info(f"Updating agent version for {agent_name} to {new_agent_version}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.update_system_agent_metadata(), updating agent version for {agent_name} to {new_agent_version}")
     try:
         DYNAMODB_CLIENT.update_item(
             TableName=AGENTS_TABLE_NAME,
@@ -303,20 +271,15 @@ def update_system_agent_metadata(agent_name: str, new_agent_version: str):
                 ':av': {'S': new_agent_version}
             }
         )
-        LOGGER.info(f"Successfully updated agent version for {agent_name} to {new_agent_version}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.update_system_agent_metadata(), successfully updated agent version for {agent_name} to {new_agent_version}")
         
     except Exception as e:
-        LOGGER.error(f"Error updating agent metadata for {agent_name}: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.update_system_agent_metadata(), error updating agent metadata for {agent_name}: {e}")
         raise
 
 def delete_system_agent_metadata(agent_name: str):
     """
     Deletes system agent metadata from the AGENTS_TABLE.
-    
-    Description:
-        Removes agent metadata from the DynamoDB AGENTS_TABLE. This is typically
-        called during cleanup operations when an agent is being deleted or when
-        metadata needs to be purged.
     
     Key Steps:
         1. Prepare delete operation with agent name as key
@@ -329,7 +292,7 @@ def delete_system_agent_metadata(agent_name: str):
     Returns:
         None: Removes metadata entry from DynamoDB
     """
-    LOGGER.info(f"Deleting system agent metadata for: {agent_name}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.delete_system_agent_metadata(), deleting system agent metadata for: {agent_name}")
     try:
         DYNAMODB_CLIENT.delete_item(
             TableName=AGENTS_TABLE_NAME,
@@ -337,20 +300,15 @@ def delete_system_agent_metadata(agent_name: str):
                 'AgentId': {'S': agent_name}
             }
         )
-        LOGGER.info(f"Successfully deleted metadata for agent: {agent_name}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.delete_system_agent_metadata(), successfully deleted metadata for agent: {agent_name}")
         
     except Exception as e:
-        LOGGER.error(f"Error deleting agent metadata for {agent_name}: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.delete_system_agent_metadata(), error deleting agent metadata for {agent_name}: {e}")
         raise
 
 def wait_for_agent_status(bedrock_agent_id: str, target_status: str, max_retries: int = 10) -> bool:
     """
     Wait for agent to reach target status with exponential backoff.
-    
-    Description:
-        Polls the Bedrock agent status until it reaches the target status or
-        fails. Uses exponential backoff to avoid overwhelming the API and
-        handles transient errors gracefully.
     
     Key Steps:
         1. Poll agent status using Bedrock API
@@ -367,43 +325,38 @@ def wait_for_agent_status(bedrock_agent_id: str, target_status: str, max_retries
     Returns:
         bool: True if target status is reached, raises exception otherwise
     """
-    LOGGER.info(f"Waiting for agent {bedrock_agent_id} to reach status: {target_status}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), waiting for agent {bedrock_agent_id} to reach status: {target_status}")
     retry_count = 0
     while retry_count < max_retries:
         try:
             agent_response = BEDROCK_AGENTS_CLIENT.get_agent(agentId=bedrock_agent_id)
             current_status = agent_response["agent"]["agentStatus"]
             
-            LOGGER.info(f"Agent {bedrock_agent_id} status: {current_status} (attempt {retry_count + 1}/{max_retries})")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), agent {bedrock_agent_id} status: {current_status} (attempt {retry_count + 1}/{max_retries})")
             
             if current_status == target_status:
-                LOGGER.info(f"Agent {bedrock_agent_id} successfully reached target status: {target_status}")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), agent {bedrock_agent_id} successfully reached target status: {target_status}")
                 return True
             elif current_status == "FAILED":
-                LOGGER.error(f"Agent {bedrock_agent_id} reached FAILED status")
+                LOGGER.error(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), agent {bedrock_agent_id} reached FAILED status")
                 raise Exception(f"Agent reached FAILED status")
             
             retry_count += 1
             wait_time = min(2 ** retry_count, 30)  # Exponential backoff with max 30s
-            LOGGER.debug(f"Waiting {wait_time} seconds before next status check")
+            LOGGER.debug(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), waiting {wait_time} seconds before next status check")
             time.sleep(wait_time)
             
         except ClientError as e:
-            LOGGER.warning(f"Error checking agent status for {bedrock_agent_id}: {e}")
+            LOGGER.warning(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), error checking agent status for {bedrock_agent_id}: {e}")
             retry_count += 1
             time.sleep(5)
     
-    LOGGER.error(f"Agent {bedrock_agent_id} did not reach {target_status} status within {max_retries} retries")
+    LOGGER.error(f"In AgentCustomResourceLambda.py.wait_for_agent_status(), agent {bedrock_agent_id} did not reach {target_status} status within {max_retries} retries")
     raise Exception(f"Agent {bedrock_agent_id} did not reach {target_status} status within {max_retries} retries")
 
 def wait_for_alias_status(bedrock_agent_id: str, agent_alias_id: str, target_status: str, max_retries: int = 10) -> str:
     """
     Wait for agent alias to reach target status and return the agent version.
-    
-    Description:
-        Polls the Bedrock agent alias status until it reaches the target status
-        and returns the associated agent version. This is used to ensure the
-        alias is ready for use and to get the correct version information.
     
     Key Steps:
         1. Poll agent alias status using Bedrock API
@@ -422,7 +375,7 @@ def wait_for_alias_status(bedrock_agent_id: str, agent_alias_id: str, target_sta
     Returns:
         str: Agent version associated with the alias
     """
-    LOGGER.info(f"Waiting for agent alias {agent_alias_id} to reach status: {target_status}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), waiting for agent alias {agent_alias_id} to reach status: {target_status}")
     retry_count = 0
     while retry_count < max_retries:
         try:
@@ -432,41 +385,36 @@ def wait_for_alias_status(bedrock_agent_id: str, agent_alias_id: str, target_sta
             )
             current_status = alias_response["agentAlias"]["agentAliasStatus"]
             
-            LOGGER.info(f"Agent alias {agent_alias_id} status: {current_status} (attempt {retry_count + 1}/{max_retries})")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), agent alias {agent_alias_id} status: {current_status} (attempt {retry_count + 1}/{max_retries})")
             
             if current_status == target_status:
                 routing_config = alias_response["agentAlias"].get("routingConfiguration", [])
                 if routing_config:
                     agent_version = routing_config[0]["agentVersion"]
-                    LOGGER.info(f"Agent alias {agent_alias_id} successfully reached target status. Agent version: {agent_version}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), agent alias {agent_alias_id} successfully reached target status. Agent version: {agent_version}")
                     return agent_version
-                LOGGER.info(f"Agent alias {agent_alias_id} successfully reached target status. Using default version: 1")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), agent alias {agent_alias_id} successfully reached target status. Using default version: 1")
                 return "1"  # Default version
             elif current_status == "FAILED":
-                LOGGER.error(f"Agent alias {agent_alias_id} reached FAILED status")
+                LOGGER.error(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), agent alias {agent_alias_id} reached FAILED status")
                 raise Exception(f"Agent alias reached FAILED status")
             
             retry_count += 1
             wait_time = min(2 ** retry_count, 30)
-            LOGGER.debug(f"Waiting {wait_time} seconds before next alias status check")
+            LOGGER.debug(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), waiting {wait_time} seconds before next alias status check")
             time.sleep(wait_time)
             
         except ClientError as e:
-            LOGGER.warning(f"Error checking alias status for {agent_alias_id}: {e}")
+            LOGGER.warning(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), error checking alias status for {agent_alias_id}: {e}")
             retry_count += 1
             time.sleep(5)
     
-    LOGGER.error(f"Agent alias {agent_alias_id} did not reach {target_status} status within {max_retries} retries")
+    LOGGER.error(f"In AgentCustomResourceLambda.py.wait_for_alias_status(), agent alias {agent_alias_id} did not reach {target_status} status within {max_retries} retries")
     raise Exception(f"Agent alias {agent_alias_id} did not reach {target_status} status within {max_retries} retries")
 
 def associate_knowledge_bases(bedrock_agent_id: str, knowledge_bases: List[Dict]):
     """
     Associate knowledge bases with the agent.
-    
-    Description:
-        Associates one or more knowledge bases with a Bedrock agent. This allows
-        the agent to access and use the knowledge stored in these bases during
-        conversations. Handles both new associations and existing ones gracefully.
     
     Key Steps:
         1. Validate knowledge bases list is not empty
@@ -484,19 +432,19 @@ def associate_knowledge_bases(bedrock_agent_id: str, knowledge_bases: List[Dict]
         None: Associates knowledge bases with the agent
     """
     if not knowledge_bases:
-        LOGGER.info("No knowledge bases to associate")
+        LOGGER.info("In AgentCustomResourceLambda.py.associate_knowledge_bases(), no knowledge bases to associate")
         return
     
-    LOGGER.info(f"Associating {len(knowledge_bases)} knowledge bases with agent {bedrock_agent_id}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), associating {len(knowledge_bases)} knowledge bases with agent {bedrock_agent_id}")
     
     for kb in knowledge_bases:
         try:
             kb_id = kb.get("KnowledgeBaseId")
             if not kb_id:
-                LOGGER.warning(f"Skipping knowledge base without ID: {kb}")
+                LOGGER.warning(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), skipping knowledge base without ID: {kb}")
                 continue
                 
-            LOGGER.info(f"Associating knowledge base {kb_id} with agent {bedrock_agent_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), associating knowledge base {kb_id} with agent {bedrock_agent_id}")
             
             BEDROCK_AGENTS_CLIENT.associate_agent_knowledge_base(
                 agentId=bedrock_agent_id,
@@ -505,26 +453,20 @@ def associate_knowledge_bases(bedrock_agent_id: str, knowledge_bases: List[Dict]
                 description=kb.get("Description", ""),
                 knowledgeBaseState="ENABLED"
             )
-            LOGGER.info(f"Successfully associated knowledge base {kb_id} with agent {bedrock_agent_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), successfully associated knowledge base {kb_id} with agent {bedrock_agent_id}")
             
         except ClientError as e:
             error_code = e.response['Error']['Code']
             if error_code == 'ConflictException':
-                LOGGER.info(f"Knowledge base {kb_id} already associated with agent {bedrock_agent_id}")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), knowledge base {kb_id} already associated with agent {bedrock_agent_id}")
             else:
-                LOGGER.error(f"Failed to associate knowledge base {kb_id}: {e}")
+                LOGGER.error(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), failed to associate knowledge base {kb_id}: {e}")
         except Exception as e:
-            LOGGER.error(f"Unexpected error associating knowledge base {kb_id}: {e}")
+            LOGGER.error(f"In AgentCustomResourceLambda.py.associate_knowledge_bases(), unexpected error associating knowledge base {kb_id}: {e}")
 
 def associate_agent_collaborators(bedrock_agent_id: str, agent_collaboration: str, agent_collaborators: List[Dict]):
     """
     Associate agent collaborators for multi-agent collaboration.
-    
-    Description:
-        Sets up multi-agent collaboration by associating other agents as
-        collaborators with a supervisor agent. This enables complex workflows
-        where multiple agents can work together. Only processes collaborators
-        when the agent collaboration type is 'SUPERVISOR'.
     
     Key Steps:
         1. Validate collaboration type is 'SUPERVISOR'
@@ -543,19 +485,19 @@ def associate_agent_collaborators(bedrock_agent_id: str, agent_collaboration: st
         None: Associates collaborators with the supervisor agent
     """
     if agent_collaboration != "SUPERVISOR" or not agent_collaborators:
-        LOGGER.info(f"Skipping collaborator association - agent_collaboration: {agent_collaboration}, collaborators: {len(agent_collaborators) if agent_collaborators else 0}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), skipping collaborator association - agent_collaboration: {agent_collaboration}, collaborators: {len(agent_collaborators) if agent_collaborators else 0}")
         return
 
-    LOGGER.info(f"Setting up multi-agent collaboration for supervisor agent {bedrock_agent_id}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), setting up multi-agent collaboration for supervisor agent {bedrock_agent_id}")
     
     for collaborator in agent_collaborators:
         try:
             collaborator_name = collaborator.get("CollaboratorName")
             if not collaborator_name:
-                LOGGER.warning(f"Skipping collaborator without name: {collaborator}")
+                LOGGER.warning(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), skipping collaborator without name: {collaborator}")
                 continue
             
-            LOGGER.info(f"Processing collaborator: {collaborator_name}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), processing collaborator: {collaborator_name}")
             
             # Get the alias ARN for the collaborator
             agent_descriptor = collaborator.get("AgentDescriptor", {})
@@ -567,22 +509,22 @@ def associate_agent_collaborators(bedrock_agent_id: str, agent_collaboration: st
                 alias_arn = agent_descriptor.get("aliasArn")
             
             if not alias_arn or alias_arn == "xyz":  # Skip placeholder ARNs
-                LOGGER.info(f"Resolving alias ARN for collaborator {collaborator_name}")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), resolving alias ARN for collaborator {collaborator_name}")
                 # Try to resolve the alias ARN from the lookup table
                 resolved_arn = get_agent_alias_arn(f"{ENVIRONMENT}-{collaborator_name}")
                 if resolved_arn:
                     alias_arn = resolved_arn
-                    LOGGER.info(f"Resolved alias ARN for {collaborator_name}: {alias_arn}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), resolved alias ARN for {collaborator_name}: {alias_arn}")
                     # Update the AgentDescriptor with the resolved ARN
                     if isinstance(agent_descriptor, list) and agent_descriptor:
                         agent_descriptor[0]["aliasArn"] = alias_arn
                     elif isinstance(agent_descriptor, dict):
                         agent_descriptor["aliasArn"] = alias_arn
                 else:
-                    LOGGER.warning(f"Skipping collaborator {collaborator_name} - no valid alias ARN even after lookup")
+                    LOGGER.warning(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), skipping collaborator {collaborator_name} - no valid alias ARN even after lookup")
                     continue
 
-            LOGGER.info(f"Associating collaborator {collaborator_name} with agent {bedrock_agent_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), associating collaborator {collaborator_name} with agent {bedrock_agent_id}")
             response = BEDROCK_AGENTS_CLIENT.associate_agent_collaborator(
                 agentDescriptor=agent_descriptor,
                 agentId=bedrock_agent_id,
@@ -592,23 +534,17 @@ def associate_agent_collaborators(bedrock_agent_id: str, agent_collaboration: st
                 relayConversationHistory=collaborator.get("RelayConversationHistory")
             )
 
-            LOGGER.info(f"Successfully associated collaborator {collaborator_name} with ARN {alias_arn}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), successfully associated collaborator {collaborator_name} with ARN {alias_arn}")
             
             
             
         except Exception as e:
-            LOGGER.error(f"Error associating collaborator {collaborator_name}: {e}")
+            LOGGER.error(f"In AgentCustomResourceLambda.py.associate_agent_collaborators(), error associating collaborator {collaborator_name}: {e}")
 
 def prepare_bedrock_agent(action: str, bedrock_agent_id: str, agent_name: str, 
                          agent_alias_id: str = None, agent_version: str = None) -> Tuple[str, str]:
     """
     Prepares the Bedrock agent and manages aliases.
-    
-    Description:
-        Prepares a Bedrock agent for use and manages its aliases. This involves
-        calling the prepare_agent API and then either creating a new alias or
-        updating an existing one. The function waits for the agent and alias
-        to reach the 'PREPARED' status before returning.
     
     Key Steps:
         1. Call prepare_agent API for the Bedrock agent
@@ -628,30 +564,30 @@ def prepare_bedrock_agent(action: str, bedrock_agent_id: str, agent_name: str,
     Returns:
         Tuple[str, str]: (agent_alias_id, agent_version)
     """
-    LOGGER.info(f"Preparing agent {bedrock_agent_id} with action: {action}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), preparing agent {bedrock_agent_id} with action: {action}")
     
     # Prepare the agent
-    LOGGER.info(f"Calling prepare_agent for {bedrock_agent_id}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), calling prepare_agent for {bedrock_agent_id}")
     BEDROCK_AGENTS_CLIENT.prepare_agent(agentId=bedrock_agent_id)
     
     # Wait for agent to be prepared
     wait_for_agent_status(bedrock_agent_id, "PREPARED")
     
     if action == "create":
-        LOGGER.info(f"Creating new agent alias for {agent_name}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), creating new agent alias for {agent_name}")
         # Create new alias
         alias_response = BEDROCK_AGENTS_CLIENT.create_agent_alias(
             agentId=bedrock_agent_id,
             agentAliasName=agent_name
         )
         agent_alias_id = alias_response["agentAlias"]["agentAliasId"]
-        LOGGER.info(f"Created agent alias: {agent_alias_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), created agent alias: {agent_alias_id}")
         
         # Wait for alias to be ready and get version
         agent_version = wait_for_alias_status(bedrock_agent_id, agent_alias_id, "PREPARED")
         
     else:  # update
-        LOGGER.info(f"Updating existing agent alias: {agent_alias_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), updating existing agent alias: {agent_alias_id}")
         # Update existing alias
         BEDROCK_AGENTS_CLIENT.update_agent_alias(
             agentId=bedrock_agent_id,
@@ -662,19 +598,13 @@ def prepare_bedrock_agent(action: str, bedrock_agent_id: str, agent_name: str,
         # Wait for alias to be updated and get new version
         agent_version = wait_for_alias_status(bedrock_agent_id, agent_alias_id, "PREPARED")
     
-    LOGGER.info(f"Agent preparation completed - Alias ID: {agent_alias_id}, Version: {agent_version}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.prepare_bedrock_agent(), agent preparation completed - Alias ID: {agent_alias_id}, Version: {agent_version}")
     
     return agent_alias_id, agent_version
 
 def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_arn: str) -> Tuple[str, str, str, str]:
     """
     Creates or updates a Bedrock agent with all its components.
-    
-    Description:
-        Orchestrates the complete creation or update of a Bedrock agent including
-        all its components: the agent itself, action groups, knowledge base
-        associations, and multi-agent collaboration setup. This is the main
-        function that handles the full agent lifecycle.
     
     Key Steps:
         1. Prepare agent parameters and create/update the agent
@@ -692,7 +622,7 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
     Returns:
         Tuple[str, str, str, str]: (bedrock_agent_id, agent_alias_id, action_group_id, agent_version)
     """
-    LOGGER.info(f"Starting {action} operation for agent: {input_body['AgentName']}")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), starting {action} operation for agent: {input_body['AgentName']}")
     
     # Prepare base agent parameters
     agent_params = {
@@ -705,36 +635,36 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
         "agentCollaboration": input_body.get("AgentCollaboration", "DISABLED")
     }
     
-    LOGGER.debug(f"Agent parameters: {agent_params}")
+    LOGGER.debug(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), agent parameters: {agent_params}")
     
     # Step 1: Create or update the agent
     if action == "create":
-        LOGGER.info(f"Creating new Bedrock agent: {input_body['AgentName']}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), creating new Bedrock agent: {input_body['AgentName']}")
         create_agent_response = BEDROCK_AGENTS_CLIENT.create_agent(**agent_params)
         bedrock_agent_id = create_agent_response["agent"]["agentId"]
-        LOGGER.info(f"Created agent with ID: {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), created agent with ID: {bedrock_agent_id}")
     else:  # update
         bedrock_agent_id = input_body["ReferenceId"]
         agent_params["agentId"] = bedrock_agent_id
-        LOGGER.info(f"Updating existing Bedrock agent: {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), updating existing Bedrock agent: {bedrock_agent_id}")
         BEDROCK_AGENTS_CLIENT.update_agent(**agent_params)
-        LOGGER.info(f"Updated agent with ID: {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), updated agent with ID: {bedrock_agent_id}")
     
     # Wait for agent creation/update to propagate through AWS
-    LOGGER.info("Waiting 5 seconds for agent creation/update to propagate")
+    LOGGER.info("In AgentCustomResourceLambda.py.create_update_bedrock_agent(), waiting 5 seconds for agent creation/update to propagate")
     time.sleep(5)
     
     # Step 2: Create/update action group if Lambda is specified
     action_group_id = None
     if lambda_function_arn and input_body.get("Tools"):
-        LOGGER.info(f"Setting up action group for agent {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), setting up action group for agent {bedrock_agent_id}")
        
        # Remove ENVIRONMENT prefix from agent name for action group name
         original_agent_name = input_body["AgentName"]
         if ENVIRONMENT and original_agent_name.startswith(f"{ENVIRONMENT}-"):
             original_agent_name = original_agent_name[len(ENVIRONMENT)+1:]
         action_group_name = f"{original_agent_name}-ag"
-        LOGGER.info(f"Action group name: {action_group_name}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), action group name: {action_group_name}")
 
         function_schema = {"functions": []}
         
@@ -755,7 +685,7 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
                 }
             function_schema["functions"].append(function)
         
-        LOGGER.debug(f"Function schema: {function_schema}")
+        LOGGER.debug(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), function schema: {function_schema}")
         action_group_params = {
             "agentId": bedrock_agent_id,
             "actionGroupName": action_group_name,
@@ -768,20 +698,20 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
             "functionSchema": function_schema
         }
 
-        LOGGER.debug(f"Action group parameters: {action_group_params}")
+        LOGGER.debug(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), action group parameters: {action_group_params}")
         
         if action == "create":
-            LOGGER.info(f"Creating action group: {action_group_name}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), creating action group: {action_group_name}")
             create_action_group_response = BEDROCK_AGENTS_CLIENT.create_agent_action_group(**action_group_params)
             action_group_id = create_action_group_response["agentActionGroup"]["actionGroupId"]
-            LOGGER.info(f"Created action group with ID: {action_group_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), created action group with ID: {action_group_id}")
         else:  # update
-            LOGGER.info(f"Updating action group: {input_body['ActionGroupId']}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), updating action group: {input_body['ActionGroupId']}")
             action_group_params.pop("description", None)
             action_group_params["actionGroupId"] = input_body["ActionGroupId"]
             BEDROCK_AGENTS_CLIENT.update_agent_action_group(**action_group_params)
             action_group_id = input_body["ActionGroupId"]
-            LOGGER.info(f"Updated action group with ID: {action_group_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), updated action group with ID: {action_group_id}")
         
     
     # Step 3: Associate knowledge bases
@@ -795,25 +725,20 @@ def create_update_bedrock_agent(action: str, input_body: Dict, lambda_function_a
     
     # Step 5: Prepare the agent and create/update alias
     if action == "create":
-        LOGGER.info("Preparing agent and creating alias")
+        LOGGER.info("In AgentCustomResourceLambda.py.create_update_bedrock_agent(), preparing agent and creating alias")
         agent_alias_id, agent_version = prepare_bedrock_agent(action, bedrock_agent_id, input_body["AgentName"])
-        LOGGER.info(f"Agent creation completed - Agent ID: {bedrock_agent_id}, Alias ID: {agent_alias_id}, Action Group ID: {action_group_id}, Version: {agent_version}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), agent creation completed - Agent ID: {bedrock_agent_id}, Alias ID: {agent_alias_id}, Action Group ID: {action_group_id}, Version: {agent_version}")
         return bedrock_agent_id, agent_alias_id, action_group_id or "", agent_version
     else:  # update
-        LOGGER.info("Preparing agent and updating alias")
+        LOGGER.info("In AgentCustomResourceLambda.py.create_update_bedrock_agent(), preparing agent and updating alias")
         _, agent_version = prepare_bedrock_agent(action, bedrock_agent_id, input_body["AgentName"], 
                                                 input_body["AgentAliasId"], input_body["AgentVersion"])
-        LOGGER.info(f"Agent update completed - Agent ID: {bedrock_agent_id}, Alias ID: {input_body['AgentAliasId']}, Action Group ID: {action_group_id or input_body['ActionGroupId']}, Version: {agent_version}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.create_update_bedrock_agent(), agent update completed - Agent ID: {bedrock_agent_id}, Alias ID: {input_body['AgentAliasId']}, Action Group ID: {action_group_id or input_body['ActionGroupId']}, Version: {agent_version}")
         return bedrock_agent_id, input_body["AgentAliasId"], action_group_id or input_body["ActionGroupId"], agent_version
 
 def delete_bedrock_agent(agent_item: Dict):
     """
     Deletes a Bedrock agent and its components.
-    
-    Description:
-        Performs a complete cleanup of a Bedrock agent by deleting its alias
-        first and then the agent itself. This ensures proper cleanup of all
-        resources associated with the agent and prevents orphaned resources.
     
     Key Steps:
         1. Extract agent ID and alias ID from metadata
@@ -833,48 +758,43 @@ def delete_bedrock_agent(agent_item: Dict):
         bedrock_agent_id = agent_item["ReferenceId"]
         agent_alias_id = agent_item["AgentAliasId"]
         
-        LOGGER.info(f"Deleting Bedrock agent {bedrock_agent_id} with alias {agent_alias_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), deleting Bedrock agent {bedrock_agent_id} with alias {agent_alias_id}")
         
         # Delete agent alias first
         try:
-            LOGGER.info(f"Deleting agent alias: {agent_alias_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), deleting agent alias: {agent_alias_id}")
             BEDROCK_AGENTS_CLIENT.delete_agent_alias(
                 agentId=bedrock_agent_id,
                 agentAliasId=agent_alias_id
             )
-            LOGGER.info(f"Successfully deleted agent alias: {agent_alias_id}")
+            LOGGER.info(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), successfully deleted agent alias: {agent_alias_id}")
         except ClientError as e:
             if e.response['Error']['Code'] != 'ResourceNotFoundException':
-                LOGGER.warning(f"Could not delete agent alias {agent_alias_id}: {e}")
+                LOGGER.warning(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), could not delete agent alias {agent_alias_id}: {e}")
         
         # Wait a bit before deleting the agent
-        LOGGER.info("Waiting 2 seconds before deleting the agent")
+        LOGGER.info("In AgentCustomResourceLambda.py.delete_bedrock_agent(), waiting 2 seconds before deleting the agent")
         time.sleep(2)
         
         # Delete the agent
-        LOGGER.info(f"Deleting Bedrock agent: {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), deleting Bedrock agent: {bedrock_agent_id}")
         BEDROCK_AGENTS_CLIENT.delete_agent(
             agentId=bedrock_agent_id,
             skipResourceInUseCheck=True
         )
-        LOGGER.info(f"Successfully deleted Bedrock agent: {bedrock_agent_id}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), successfully deleted Bedrock agent: {bedrock_agent_id}")
         
     except ClientError as e:
         if e.response['Error']['Code'] != 'ResourceNotFoundException':
-            LOGGER.error(f"Error deleting Bedrock agent {bedrock_agent_id}: {e}")
+            LOGGER.error(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), error deleting Bedrock agent {bedrock_agent_id}: {e}")
             raise
     except Exception as e:
-        LOGGER.error(f"Unexpected error deleting Bedrock agent {bedrock_agent_id}: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.delete_bedrock_agent(), unexpected error deleting Bedrock agent {bedrock_agent_id}: {e}")
         raise
 
 def get_agent_alias_arn(agent_name: str) -> Optional[str]:
     """
     Fetches the agent's metadata from DynamoDB and returns the AliasArn if available.
-    
-    Description:
-        Retrieves agent metadata from DynamoDB and constructs the full alias ARN
-        using the agent's ReferenceId and AgentAliasId. This is used for
-        multi-agent collaboration to resolve agent references.
     
     Key Steps:
         1. Retrieve agent metadata from DynamoDB
@@ -888,25 +808,18 @@ def get_agent_alias_arn(agent_name: str) -> Optional[str]:
     Returns:
         Optional[str]: Full alias ARN if agent exists, None otherwise
     """
-    LOGGER.debug(f"Getting agent alias ARN for: {agent_name}")
+    LOGGER.debug(f"In AgentCustomResourceLambda.py.get_agent_alias_arn(), getting agent alias ARN for: {agent_name}")
     agent_metadata = get_agent_metadata(agent_name)
     if agent_metadata and 'AgentAliasId' in agent_metadata and 'ReferenceId' in agent_metadata:
         alias_arn = f"arn:aws:bedrock:{AWS_REGION}:{ACCOUNT_ID}:agent-alias/{agent_metadata['ReferenceId']}/{agent_metadata['AgentAliasId']}"
-        LOGGER.debug(f"Resolved alias ARN for {agent_name}: {alias_arn}")
+        LOGGER.debug(f"In AgentCustomResourceLambda.py.get_agent_alias_arn(), resolved alias ARN for {agent_name}: {alias_arn}")
         return alias_arn
-    LOGGER.debug(f"No alias ARN found for agent: {agent_name}")
+    LOGGER.debug(f"In AgentCustomResourceLambda.py.get_agent_alias_arn(), no alias ARN found for agent: {agent_name}")
     return None
 
 def resolve_collaborator_arns(agent_config: Dict):
     """
     Resolve collaborator ARNs from agent names.
-    
-    Description:
-        Processes the AgentCollaborators configuration and resolves alias ARNs
-        for each collaborator. This is done by looking up the collaborator's
-        metadata in DynamoDB and constructing the full alias ARN. The resolved
-        ARNs are then updated in the agent configuration for use during
-        association.
     
     Key Steps:
         1. Check if AgentCollaborators exist in configuration
@@ -923,19 +836,19 @@ def resolve_collaborator_arns(agent_config: Dict):
         None: Updates the agent_config with resolved ARNs
     """
     if "AgentCollaborators" not in agent_config:
-        LOGGER.debug("No AgentCollaborators found in agent config")
+        LOGGER.debug("In AgentCustomResourceLambda.py.resolve_collaborator_arns(), no AgentCollaborators found in agent config")
         return
     
-    LOGGER.info(f"Resolving collaborator ARNs for {len(agent_config['AgentCollaborators'])} collaborators")
+    LOGGER.info(f"In AgentCustomResourceLambda.py.resolve_collaborator_arns(), resolving collaborator ARNs for {len(agent_config['AgentCollaborators'])} collaborators")
     
     for collaborator in agent_config["AgentCollaborators"]:
         if "CollaboratorName" in collaborator:
             collaborator_agent_name = f"{ENVIRONMENT}-{collaborator['CollaboratorName']}"
-            LOGGER.debug(f"Resolving ARN for collaborator: {collaborator_agent_name}")
+            LOGGER.debug(f"In AgentCustomResourceLambda.py.resolve_collaborator_arns(), resolving ARN for collaborator: {collaborator_agent_name}")
             alias_arn = get_agent_alias_arn(collaborator_agent_name)
             
             if alias_arn:
-                LOGGER.info(f"Resolved ARN for collaborator {collaborator['CollaboratorName']}: {alias_arn}")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.resolve_collaborator_arns(), resolved ARN for collaborator {collaborator['CollaboratorName']}: {alias_arn}")
                 # Update AgentDescriptor with resolved ARN
                 if "AgentDescriptor" in collaborator:
                     if isinstance(collaborator["AgentDescriptor"], list):
@@ -944,25 +857,25 @@ def resolve_collaborator_arns(agent_config: Dict):
                     elif isinstance(collaborator["AgentDescriptor"], dict):
                         collaborator["AgentDescriptor"]["aliasArn"] = alias_arn
             else:
-                LOGGER.warning(f"Could not resolve ARN for collaborator {collaborator_agent_name}")
+                LOGGER.warning(f"In AgentCustomResourceLambda.py.resolve_collaborator_arns(), could not resolve ARN for collaborator {collaborator_agent_name}")
 
 def lambda_handler(event, context):
     
-    LOGGER.info("Starting AgentCustomResourceLambda execution")
+    LOGGER.info("In AgentCustomResourceLambda.py.lambda_handler(), starting AgentCustomResourceLambda execution")
     try:
         request_type = event.get('RequestType', 'Create')
-        LOGGER.info(f"Request Type: {request_type}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), request type: {request_type}")
         
         # Handle DELETE requests - clean up all agents
         if request_type == 'Delete':
-            LOGGER.info("Processing DELETE request")
+            LOGGER.info("In AgentCustomResourceLambda.py.lambda_handler(), processing DELETE request")
             try:
                 # Load agent configs and delete each one
                 system_agents_configs = load_system_agents_config()
                 
                 for agent_config in system_agents_configs:
                     agent_name = f"{ENVIRONMENT}-{agent_config['AgentName']}"
-                    LOGGER.info(f"Processing deletion for agent: {agent_name}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), processing deletion for agent: {agent_name}")
                     
                     # Get existing agent metadata
                     agent_item = get_agent_metadata(agent_name)
@@ -974,13 +887,13 @@ def lambda_handler(event, context):
                         # Delete metadata from DynamoDB
                         delete_system_agent_metadata(agent_name)
                     else:
-                        LOGGER.warning(f"No metadata found for agent {agent_name} during deletion")
+                        LOGGER.warning(f"In AgentCustomResourceLambda.py.lambda_handler(), no metadata found for agent {agent_name} during deletion")
                 
-                LOGGER.info("Successfully completed agent deletion")
+                LOGGER.info("In AgentCustomResourceLambda.py.lambda_handler(), successfully completed agent deletion")
                 send_response(event, context, 'SUCCESS', {'Message': 'Agents deleted successfully'})
                 
             except Exception as e:
-                LOGGER.error(f"Error during delete operation: {e}")
+                LOGGER.error(f"In AgentCustomResourceLambda.py.lambda_handler(), error during delete operation: {e}")
                 send_response(event, context, 'FAILED', {}, reason=str(e))
             return
         
@@ -990,7 +903,7 @@ def lambda_handler(event, context):
         created_agents = []
         updated_agents = []
         
-        LOGGER.info(f"Processing {len(system_agents_configs)} agent configurations")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), processing {len(system_agents_configs)} agent configurations")
         
         # Process each agent configuration
         for agent_config in system_agents_configs:
@@ -999,7 +912,7 @@ def lambda_handler(event, context):
                 original_agent_name = agent_config['AgentName']
                 agent_name = f"{ENVIRONMENT}-{original_agent_name}"
                 agent_config["AgentName"] = agent_name
-                LOGGER.info(f"Processing agent: {agent_name}")
+                LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), processing agent: {agent_name}")
                 
                 # Prepare Lambda ARN if specified
                 lambda_arn = None
@@ -1007,7 +920,7 @@ def lambda_handler(event, context):
                 if lambda_name:
                     lambda_name = f"{ENVIRONMENT}-{lambda_name}"
                     lambda_arn = f"arn:aws:lambda:{AWS_REGION}:{ACCOUNT_ID}:function:{lambda_name}"
-                    LOGGER.info(f"Using Lambda ARN: {lambda_arn}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), using Lambda ARN: {lambda_arn}")
                 
                 # Normalize knowledge bases configuration
                 if 'KnowledgeBase' in agent_config:
@@ -1016,11 +929,11 @@ def lambda_handler(event, context):
                         agent_config['KnowledgeBases'] = kb
                     else:
                         agent_config['KnowledgeBases'] = [kb]
-                    LOGGER.debug(f"Normalized knowledge base configuration: {agent_config['KnowledgeBases']}")
+                    LOGGER.debug(f"In AgentCustomResourceLambda.py.lambda_handler(), normalized knowledge base configuration: {agent_config['KnowledgeBases']}")
                 elif 'KnowledgeBases' in agent_config:
                     if not isinstance(agent_config['KnowledgeBases'], list):
                         agent_config['KnowledgeBases'] = [agent_config['KnowledgeBases']]
-                    LOGGER.debug(f"Normalized knowledge bases configuration: {agent_config['KnowledgeBases']}")
+                    LOGGER.debug(f"In AgentCustomResourceLambda.py.lambda_handler(), normalized knowledge bases configuration: {agent_config['KnowledgeBases']}")
                 
                 # Resolve collaborator ARNs for multi-agent collaboration
                 resolve_collaborator_arns(agent_config)
@@ -1030,7 +943,7 @@ def lambda_handler(event, context):
                 
                 if not agent_item:
                     # Create new agent
-                    LOGGER.info(f"Creating new agent: {agent_name}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), creating new agent: {agent_name}")
                     
                     bedrock_agent_id, agent_alias_id, action_group_id, agent_version = create_update_bedrock_agent(
                         "create", agent_config, lambda_arn)
@@ -1040,11 +953,11 @@ def lambda_handler(event, context):
                                                 action_group_id, agent_config, bedrock_agent_id)
                     
                     created_agents.append(original_agent_name)
-                    LOGGER.info(f"Successfully created agent: {original_agent_name}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), successfully created agent: {original_agent_name}")
                     
                 else:
                     # Update existing agent
-                    LOGGER.info(f"Updating existing agent: {agent_name}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), updating existing agent: {agent_name}")
                     
                     # Prepare agent config with existing metadata
                     agent_config["AgentVersion"] = agent_item["AgentVersion"]
@@ -1059,10 +972,10 @@ def lambda_handler(event, context):
                     update_system_agent_metadata(agent_name, new_agent_version)
                     
                     updated_agents.append(original_agent_name)
-                    LOGGER.info(f"Successfully updated agent: {original_agent_name}")
+                    LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), successfully updated agent: {original_agent_name}")
                     
             except Exception as e:
-                LOGGER.error(f"Error processing agent {agent_config.get('AgentName', 'unknown')}: {e}")
+                LOGGER.error(f"In AgentCustomResourceLambda.py.lambda_handler(), error processing agent {agent_config.get('AgentName', 'unknown')}: {e}")
                 # Continue with other agents instead of failing completely
                 continue
         
@@ -1073,11 +986,11 @@ def lambda_handler(event, context):
             'UpdatedAgents': updated_agents
         }
         
-        LOGGER.info(f"Lambda execution completed successfully - Created: {len(created_agents)}, Updated: {len(updated_agents)}")
+        LOGGER.info(f"In AgentCustomResourceLambda.py.lambda_handler(), lambda execution completed successfully - Created: {len(created_agents)}, Updated: {len(updated_agents)}")
         send_response(event, context, 'SUCCESS', response_data)
         
     except Exception as e:
-        LOGGER.error(f"Critical error in lambda_handler: {e}")
+        LOGGER.error(f"In AgentCustomResourceLambda.py.lambda_handler(), critical error in lambda_handler: {e}")
         import traceback
         traceback.print_exc()
         send_response(event, context, 'FAILED', {}, reason=str(e))

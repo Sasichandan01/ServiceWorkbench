@@ -10,14 +10,7 @@ LOGGER.setLevel(logging.INFO)
 http = urllib3.PoolManager()
 
 
-def send_cfn_response(
-    event: Dict[str, Any],
-    context: Any,
-    status: str,
-    data: Optional[Dict[str, Any]] = None,
-    physical_id: Optional[str] = None,
-    reason: Optional[str] = None
-) -> None:
+def send_cfn_response(event: Dict[str, Any], context: Any, status: str, data: Optional[Dict[str, Any]] = None, physical_id: Optional[str] = None, reason: Optional[str] = None) -> None:
     """
     Send a response to CloudFormation for a custom resource request.
 
@@ -48,25 +41,11 @@ def send_cfn_response(
     }
 
     try:
-        LOGGER.info(
-            "IN %s.send_cfn_response, Sending CloudFormation response: %s",
-            __name__, response_body
-        )
+        LOGGER.info("IN custom_resource.send_cfn_response: Sending CloudFormation response: %s", response_body)
         encoded_body = json.dumps(response_body).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        resp = http.request(
-            "PUT",
-            event["ResponseURL"],
-            body=encoded_body,
-            headers=headers
-        )
-        LOGGER.info(
-            "IN %s.send_cfn_response, CloudFormation response sent with status %s",
-            __name__, resp.status
-        )
+        resp = http.request("PUT", event["ResponseURL"], body=encoded_body, headers=headers)
+        LOGGER.info("IN custom_resource.send_cfn_response: CloudFormation response sent with status %s", resp.status)
     except Exception as e:
-        LOGGER.exception(
-            "IN %s.send_cfn_response, Failed to send CloudFormation response: %s",
-            __name__, e
-        )
+        LOGGER.exception("IN custom_resource.send_cfn_response: Failed to send CloudFormation response: %s", e)
         raise
