@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2, Pause } from "lucide-react";
+import { Moon, Sun, Save, FileText, Plus, Trash2, Folder, FolderPlus, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Search, X, MessageSquare, Send, Maximize, Minimize, Loader2, Pause, Trash } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Collapsible,
@@ -27,6 +27,7 @@ import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-yaml';
 import { ApiClient } from '@/lib/apiClient';
 import { createWebSocketClient } from '@/lib/websocketClient';
+import { ChatService } from '@/services/chatService';
 
 // Add new types for folder/file structure
 interface ScriptFile {
@@ -1097,6 +1098,37 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
     sendMessage();
   };
 
+  const handleClearChat = async () => {
+    try {
+      // Call the API to clear chat history
+      await ChatService.clearChatHistory(workspaceId, solutionId);
+      
+      // Clear local chat messages and reset to initial state
+      setChatMessages([
+        { id: 1, role: "assistant", content: "Hello! I'm here to help you with your code. Ask me anything!" }
+      ]);
+      
+      // Clear current thinking and generation state
+      setCurrentThinking([]);
+      currentThinkingRef.current = [];
+      setIsGenerating(false);
+      
+      // Clear file context
+      setSelectedFileContext([]);
+      
+      toast({
+        title: 'Chat Cleared',
+        description: 'Chat history has been cleared successfully.'
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to clear chat history.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Calculate line numbers based on content
   const lines = activeFile?.content.split('\n') || [''];
   const lineCount = lines.length;
@@ -1461,14 +1493,25 @@ const CodeEditor = ({ workspaceId, solutionId, preloadedCodeFiles }: CodeEditorP
             <div className={`px-4 py-3 ${isDarkMode ? 'border-b border-[#3c3c3c]' : 'border-b border-gray-300'}`}>
               <div className="flex items-center justify-between">
                 <h3 className={`text-sm font-medium ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-700'}`}>AI Assistant</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowChat(false)}
-                  className={`h-5 w-5 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearChat}
+                    className={`h-5 w-5 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc] hover:text-red-400' : 'hover:bg-gray-200 hover:text-red-600'}`}
+                    title="Clear chat history"
+                  >
+                    <Trash className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowChat(false)}
+                    className={`h-5 w-5 p-0 ${isDarkMode ? 'hover:bg-[#2a2d2e] text-[#cccccc]' : 'hover:bg-gray-200'}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
             

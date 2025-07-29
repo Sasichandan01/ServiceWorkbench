@@ -110,6 +110,10 @@ const WorkspaceDetails = () => {
     isError: workspaceError,
     refetch: refetchWorkspace
   } = useGetWorkspaceQuery(id!);
+  
+  // Get the actual users array for counting
+  const apiUsers = Array.isArray(data?.Users) ? data.Users : [];
+  
   const workspace = data ? {
     id: data.WorkspaceId,
     name: data.WorkspaceName,
@@ -117,7 +121,7 @@ const WorkspaceDetails = () => {
     status: data.WorkspaceStatus,
     owner: data.CreatedBy,
     created: data.CreationTime,
-    members: data.Users?.Pagination?.TotalCount || 0,
+    members: apiUsers.length, // Use actual users array length instead of pagination count
     solutions: 0, // update if needed
     dataSources: 0, // update if needed
     monthlyCost: monthlyCost,
@@ -196,7 +200,6 @@ const WorkspaceDetails = () => {
   }, [id]);
 
   // Filter and paginate users
-  const apiUsers = Array.isArray(data?.Users) ? data.Users : [];
   const filteredApiUsers = apiUsers.filter(user =>
     user.Username.toLowerCase().includes(usersSearch.toLowerCase()) ||
     user.Email.toLowerCase().includes(usersSearch.toLowerCase()) ||
@@ -887,7 +890,7 @@ const WorkspaceDetails = () => {
                                         <Button variant="destructive" onClick={async () => {
                                           try {
                                             await deleteShareResource({
-                                              Username: user.Username,
+                                              Username: user.Email,
                                               ResourceType: 'workspace',
                                               ResourceId: id!,
                                             }).unwrap();

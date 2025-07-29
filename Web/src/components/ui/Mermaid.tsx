@@ -12,16 +12,21 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
 
   useEffect(() => {
     let diagram = chart;
+    console.log('Original chart:', chart);
+    
     if (diagram.includes("\\n")) {
       diagram = diagram.replace(/\\n/g, "\n");
+      console.log('Replaced escaped newlines');
     }
     
+    console.log('Processed diagram:', diagram);
     setError(null); // Clear previous errors
     
     mermaid.initialize({ startOnLoad: false });
     mermaid
       .render(idRef.current, diagram)
       .then(({ svg }) => {
+        console.log('Mermaid rendered successfully');
         setSvg(svg);
         setError(null);
         // Hide any divs with id starting with 'dmermaid-'
@@ -32,6 +37,7 @@ const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
         }, 0);
       })
       .catch((err) => {
+        console.error('Mermaid rendering error:', err);
         const errorMessage = err?.message || err || "Unknown diagram error";
         setError(errorMessage);
         setSvg(""); // Clear SVG on error

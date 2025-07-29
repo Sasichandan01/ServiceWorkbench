@@ -296,7 +296,7 @@ const DataSourceDetails = () => {
                                     <Button variant="destructive" onClick={async () => {
                                       try {
                                         await deleteShareResource({
-                                          Username: user.Username,
+                                          Username: user.Email,
                                           ResourceType: 'datasource',
                                           ResourceId: dataSource.Datasource.DatasourceId,
                                         }).unwrap();

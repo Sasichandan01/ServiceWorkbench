@@ -57,21 +57,21 @@ const SolutionTabs = ({
             <span>Overview</span>
           </TabsTrigger>
           {!isNewSolution && (
+            <TabsTrigger value="architecture" className="flex items-center space-x-2">
+              <Network className="w-4 h-4" />
+              <span>Architecture</span>
+            </TabsTrigger>
+          )}
+          {!isNewSolution && (
             <TabsTrigger value="codes" className="flex items-center space-x-2">
               <Code className="w-4 h-4" />
-              <span>Codes</span>
+              <span>Code</span>
             </TabsTrigger>
           )}
           {!isNewSolution && (
             <TabsTrigger value="runs" className="flex items-center space-x-2">
               <Play className="w-4 h-4" />
               <span>Runs</span>
-            </TabsTrigger>
-          )}
-          {!isNewSolution && (
-            <TabsTrigger value="architecture" className="flex items-center space-x-2">
-              <Network className="w-4 h-4" />
-              <span>Architecture</span>
             </TabsTrigger>
           )}
           <TabsTrigger value="datasources" className="flex items-center space-x-2">
