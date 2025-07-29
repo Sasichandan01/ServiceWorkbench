@@ -314,7 +314,7 @@ Resources:
       PreTokenLambdaArn: !GetAtt PreTokenGenerationFunction.Arn
       PostConfirmationLambdaArn: !GetAtt PostConfirmationFunction.Arn
       PostAuthLambdaArn: !GetAtt PostAuthFunction.Arn
-      Changesetflag: "2025-07-02"
+      Changesetflag: "202502"
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
