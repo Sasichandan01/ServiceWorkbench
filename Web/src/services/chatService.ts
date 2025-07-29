@@ -7,6 +7,8 @@ export interface ChatMessage {
   MessageId: string;
   Sender: string;
   Trace: string[];
+  S3Key?: string; // Add S3Key to the interface
+  Code?: CodePayload; // Add Code field to the interface
 }
 
 export interface ChatHistoryResponse {
@@ -15,6 +17,13 @@ export interface ChatHistoryResponse {
     Count: number;
     TotalCount: number;
     NextAvailable: boolean;
+  };
+}
+
+export interface CodePayload {
+  [filename: string]: string;
+  Metadata: {
+    IsCode: boolean;
   };
 }
 
@@ -81,5 +90,16 @@ export class ChatService {
     const endpoint = `/workspaces/${workspaceId}/solutions/${solutionId}/chat/${messageId}`;
     const response = await ApiClient.get(endpoint);
     return this.handleResponse<ChatMessage>(response);
+  }
+
+  // New method to fetch code from S3
+  static async fetchCodeFromS3(
+    workspaceId: string,
+    solutionId: string,
+    s3Key: string
+  ): Promise<CodePayload> {
+    const endpoint = `/workspaces/${workspaceId}/solutions/${solutionId}/s3-code`;
+    const response = await ApiClient.post(endpoint, { s3Key });
+    return this.handleResponse<CodePayload>(response);
   }
 } 

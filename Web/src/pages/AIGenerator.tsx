@@ -369,9 +369,19 @@ const AIGenerator = () => {
             return null;
           }
           
+          // Check if message has code content
+          let content: string | object = chatMsg.Message;
+          if (chatMsg.Code && chatMsg.Code.Metadata && chatMsg.Code.Metadata.IsCode === true) {
+            // If message has code, combine the text message with the code object
+            content = {
+              text: chatMsg.Message,
+              ...chatMsg.Code // Spread the code object to include Metadata and code files
+            };
+          }
+          
           return {
             id: chatMsg.MessageId, // Use the actual MessageId string from API
-            content: chatMsg.Message,
+            content: content,
             sender: (chatMsg.Sender.toLowerCase() === 'user' ? 'user' : 'ai') as "user" | "ai",
             timestamp: new Date(chatMsg.TimeStamp).toLocaleTimeString(),
             chatId: chatMsg.ChatId, // Store the original chat ID
@@ -1204,81 +1214,93 @@ const AIGenerator = () => {
                                   hasMetadata(contentObj) &&
                                   contentObj.Metadata.IsCode === true
                                 ) {
-                                  const keys = Object.keys(contentObj).filter((k) => k !== "Metadata");
-                                  if (keys.length > 0) {
-                                    return (
-                                      <div className="space-y-4">
-                                        {keys.map((filename: string) => {
-                                          const codeContent = contentObj[filename];
-                                          
-                                          // Detect language from filename
-                                          const getLanguageFromFilename = (filename: string): string => {
-                                            const ext = filename.split('.').pop()?.toLowerCase();
-                                            switch (ext) {
-                                              case 'py': return 'python';
-                                              case 'js': return 'javascript';
-                                              case 'ts': return 'typescript';
-                                              case 'json': return 'json';
-                                              case 'sh': return 'bash';
-                                              case 'yml':
-                                              case 'yaml': return 'yaml';
-                                              case 'sql': return 'sql';
-                                              default: return 'text';
-                                            }
-                                          };
+                                  const keys = Object.keys(contentObj).filter((k) => k !== "Metadata" && k !== "text");
+                                  const textMessage = contentObj.text || "";
+                                  
+                                  return (
+                                    <div className="space-y-4">
+                                      {/* Show text message if it exists */}
+                                      {textMessage && (
+                                        <div className="mb-4">
+                                          <p className="leading-relaxed whitespace-pre-wrap">{textMessage}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Show code blocks */}
+                                      {keys.length > 0 && (
+                                        <div className="space-y-4">
+                                          {keys.map((filename: string) => {
+                                            const codeContent = contentObj[filename];
+                                            
+                                            // Detect language from filename
+                                            const getLanguageFromFilename = (filename: string): string => {
+                                              const ext = filename.split('.').pop()?.toLowerCase();
+                                              switch (ext) {
+                                                case 'py': return 'python';
+                                                case 'js': return 'javascript';
+                                                case 'ts': return 'typescript';
+                                                case 'json': return 'json';
+                                                case 'sh': return 'bash';
+                                                case 'yml':
+                                                case 'yaml': return 'yaml';
+                                                case 'sql': return 'sql';
+                                                default: return 'text';
+                                              }
+                                            };
 
-                                          const language = getLanguageFromFilename(filename);
-                                          const codeId = `code-${filename}`;
-                                          
-                                          // Apply syntax highlighting
-                                          let highlightedCode = codeContent;
-                                          try {
-                                            if (Prism.languages[language]) {
-                                              highlightedCode = Prism.highlight(codeContent, Prism.languages[language], language);
+                                            const language = getLanguageFromFilename(filename);
+                                            const codeId = `code-${filename}`;
+                                            
+                                            // Apply syntax highlighting
+                                            let highlightedCode = codeContent;
+                                            try {
+                                              if (Prism.languages[language]) {
+                                                highlightedCode = Prism.highlight(codeContent, Prism.languages[language], language);
+                                              }
+                                            } catch (error) {
+                                              console.warn(`Failed to highlight ${language} code:`, error);
                                             }
-                                          } catch (error) {
-                                            console.warn(`Failed to highlight ${language} code:`, error);
-                                          }
 
-                                          return (
-                                            <div key={filename} className="group">
-                                              <div className="bg-[#2d2d2d] border border-[#404040] rounded-lg overflow-hidden shadow-sm">
-                                                {/* Header - ChatGPT style */}
-                                                <div className="flex items-center justify-between bg-[#343434] px-4 py-3 border-b border-[#404040]">
-                                                  <div className="flex items-center">
-                                                    <span className="text-sm font-medium text-[#e5e5e5]">{filename}</span>
+                                            return (
+                                              <div key={filename} className="group">
+                                                <div className="bg-[#2d2d2d] border border-[#404040] rounded-lg overflow-hidden shadow-sm">
+                                                  {/* Header - ChatGPT style */}
+                                                  <div className="flex items-center justify-between bg-[#343434] px-4 py-3 border-b border-[#404040]">
+                                                    <div className="flex items-center">
+                                                      <span className="text-sm font-medium text-[#e5e5e5]">{filename}</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-auto px-3 py-1.5 text-[#e5e5e5] hover:bg-[#404040] transition-colors text-sm"
+                                                        onClick={() => {
+                                                          navigator.clipboard.writeText(codeContent);
+                                                        }}
+                                                      >
+                                                        <Copy className="w-4 h-4 mr-1" />
+                                                        Copy
+                                                      </Button>
+                                                    </div>
                                                   </div>
-                                                  <div className="flex items-center space-x-2">
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      className="h-auto px-3 py-1.5 text-[#e5e5e5] hover:bg-[#404040] transition-colors text-sm"
-                                                      onClick={() => {
-                                                        navigator.clipboard.writeText(codeContent);
-                                                      }}
-                                                    >
-                                                      <Copy className="w-4 h-4 mr-1" />
-                                                      Copy
-                                                    </Button>
+                                                  
+                                                  {/* Code content */}
+                                                  <div className="relative bg-[#1e1e1e]">
+                                                    <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
+                                                      <code 
+                                                        className={`language-${language} block whitespace-pre syntax-dark`}
+                                                        dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                                                      />
+                                                    </pre>
                                                   </div>
-                                                </div>
-                                                
-                                                {/* Code content */}
-                                                <div className="relative bg-[#1e1e1e]">
-                                                  <pre className="p-4 overflow-x-auto text-sm font-mono text-[#e5e5e5] leading-relaxed">
-                                                    <code 
-                                                      className={`language-${language} block whitespace-pre syntax-dark`}
-                                                      dangerouslySetInnerHTML={{ __html: highlightedCode }}
-                                                    />
-                                                  </pre>
                                                 </div>
                                               </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  }
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
                                 }
                                 // Check if it's a structured solution object
                                 console.log('Checking if contentObj is structured solution:', contentObj);
