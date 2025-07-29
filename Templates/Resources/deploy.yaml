@@ -12,16 +12,13 @@ Parameters:
     Type: String
     Description: S3 path version folder for Lambda artifacts
   
-  # GlueArtifactVersion:
-  #   Type: String
-  #   Description: S3 path version folder for Glue artifacts
 
   ApiName:
     Type: String
     Default: WorkbenchAPI
     Description: Name of the API Gateway API
 
-  VPCPrefix:
+  pVPCPrefix:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
@@ -286,12 +283,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt CustomResourceLambdaExecutionRole.Arn
       Timeout: 300
       MemorySize: 1024
@@ -334,12 +331,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpresignuplambda/WorkbenchPresignup.zip"
@@ -368,12 +365,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpreauthlambda/WorkbenchPreAuth.zip"
@@ -399,12 +396,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpretokengenerationlambda/WorkbenchPreTokengeneration.zip"
@@ -430,12 +427,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpostconfirmationlambda/WorkbenchPostConfirmation.zip"
@@ -471,12 +468,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Code:
         S3Bucket: !Ref pArtifactsBucketName
         S3Key: !Sub "lambda-${LambdaArtifactVersion}-${pPrefix}/workbenchpostauthlambda/WorkbenchPostAuth.zip"
@@ -502,12 +499,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: !Ref pArtifactsBucketName
@@ -744,12 +741,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt ArchitectureAgentAGLambdaRole.Arn
       Timeout: 300
       MemorySize: 1024
@@ -1234,12 +1231,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Role: !GetAtt UserExecutionRole.Arn
       Code:
         S3Bucket: "service-workbench-artifacts"
@@ -1268,12 +1265,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
           ACTIVITY_LOGS_TABLE: !Ref ActivityLogsTable
@@ -1803,12 +1800,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1839,12 +1836,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1876,12 +1873,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1905,12 +1902,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1947,12 +1944,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Layers:
         - !ImportValue ServiceWorkbenchLambdaLayer
       Code:
@@ -1976,12 +1973,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
           DATASOURCE_TABLE_NAME: !Ref DatasourcesTable
@@ -2051,12 +2048,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
           WORKSPACES_BUCKET: !ImportValue "WorkspacesBucket"
@@ -2133,12 +2130,12 @@ Resources:
       VpcConfig:
         SubnetIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-1-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-1-ID"
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Private-Subnet-2-ID"
+              Fn::Sub: "${pVPCPrefix}-Private-Subnet-2-ID"
         SecurityGroupIds:
           - Fn::ImportValue:
-              Fn::Sub: "${VPCPrefix}-Lambda-SG-ID"
+              Fn::Sub: "${pVPCPrefix}-Lambda-SG-ID"
       Environment:
         Variables:
           SOLUTION_TABLE: !Ref "SolutionsTable"

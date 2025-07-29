@@ -12,12 +12,12 @@ Parameters:
     Default: "service-workbench-artifacts"
     Description: Name of the S3 bucket for artifacts
   
-  VPCCidr:
+  pVPCCidr:
     Type: String
     Default: 10.0.0.0/16
     Description: CIDR block for the VPC
   
-  VPCPrefix:
+  pVPCPrefix:
     Type: String
     Default: WorkbenchVPC
     Description: Environment name prefix for VPC resources
@@ -30,7 +30,7 @@ Parameters:
 Resources:
 
   # VPC Resources
-  VPC:
+  rVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VPCCidr
@@ -38,169 +38,169 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-VPC
+          Value: !Sub ${pVPCPrefix}-VPC
 
-  InternetGateway:
+  rInternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-IGW
+          Value: !Sub ${pVPCPrefix}-IGW
 
-  InternetGatewayAttachment:
+  rInternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref VPC
+      InternetGatewayId: !Ref rInternetGateway
+      VpcId: !Ref rVPC
 
-  PublicSubnet1:
+  rPublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       AvailabilityZone: !Select [0, !GetAZs '']
       CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ1
+          Value: !Sub ${pVPCPrefix}-Public-Subnet-AZ1
 
-  PublicSubnet2:
+  rPublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       AvailabilityZone: !Select [1, !GetAZs '']
       CidrBlock: 10.0.2.0/24
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Subnet-AZ2
+          Value: !Sub ${pVPCPrefix}-Public-Subnet-AZ2
 
-  PrivateSubnet1:
+  rPrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       AvailabilityZone: !Select [0, !GetAZs '']
       CidrBlock: 10.0.3.0/24
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ1
+          Value: !Sub ${pVPCPrefix}-Private-Subnet-AZ1
 
-  PrivateSubnet2:
+  rPrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       AvailabilityZone: !Select [1, !GetAZs '']
       CidrBlock: 10.0.4.0/24
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Subnet-AZ2
+          Value: !Sub ${pVPCPrefix}-Private-Subnet-AZ2
 
-  NatGatewayEIP:
+  rNatGatewayEIP:
     Type: AWS::EC2::EIP
-    DependsOn: InternetGatewayAttachment
+    DependsOn: rInternetGatewayAttachment
     Properties:
       Domain: vpc
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-NAT-EIP
+          Value: !Sub ${pVPCPrefix}-NAT-EIP
 
-  NatGateway:
+  rNatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt NatGatewayEIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
+      AllocationId: !GetAtt rNatGatewayEIP.AllocationId
+      SubnetId: !Ref rPublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-NAT-Gateway
+          Value: !Sub ${pVPCPrefix}-NAT-Gateway
 
-  PublicRouteTable:
+  rPublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-Routes
+          Value: !Sub ${pVPCPrefix}-Public-Routes
 
-  DefaultPublicRoute:
+  rDefaultPublicRoute:
     Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
+    DependsOn: rInternetGatewayAttachment
     Properties:
-      RouteTableId: !Ref PublicRouteTable
+      RouteTableId: !Ref rPublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+      GatewayId: !Ref rInternetGateway
 
-  PublicSubnet1RouteTableAssociation:
+  rPublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref rPublicRouteTable
+      SubnetId: !Ref rPublicSubnet1
 
-  PublicSubnet2RouteTableAssociation:
+  rPublicSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref rPublicRouteTable
+      SubnetId: !Ref rPublicSubnet2
 
-  PrivateRouteTable:
+  rPrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-Routes
+          Value: !Sub ${pVPCPrefix}-Private-Routes
 
-  DefaultPrivateRoute:
+  rDefaultPrivateRoute:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref rPrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
+      NatGatewayId: !Ref rNatGateway
 
-  PrivateSubnet1RouteTableAssociation:
+  rPrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref rPrivateRouteTable
+      SubnetId: !Ref rPrivateSubnet1
 
-  PrivateSubnet2RouteTableAssociation:
+  rPrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref rPrivateRouteTable
+      SubnetId: !Ref rPrivateSubnet2
 
-  PublicNACL:
+  rPublicNACL:
     Type: AWS::EC2::NetworkAcl
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Public-NACL
+          Value: !Sub ${pVPCPrefix}-Public-NACL
 
-  PrivateNACL:
+  rPrivateNACL:
     Type: AWS::EC2::NetworkAcl
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Private-NACL
+          Value: !Sub ${pVPCPrefix}-Private-NACL
 
   # Public NACL Rules
-  PublicNACLInboundAll:
+  rPublicNACLInboundAll:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PublicNACL
+      NetworkAclId: !Ref rPublicNACL
       RuleNumber: 100
       Protocol: -1
       RuleAction: allow
       Egress: false
       CidrBlock: 0.0.0.0/0
 
-  PublicNACLOutboundAll:
+  rPublicNACLOutboundAll:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PublicNACL
+      NetworkAclId: !Ref rPublicNACL
       RuleNumber: 100
       Protocol: -1
       RuleAction: allow
@@ -208,10 +208,10 @@ Resources:
       CidrBlock: 0.0.0.0/0
 
   # Private NACL Rules
-  PrivateNACLInboundHTTPS:
+  rPrivateNACLInboundHTTPS:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 100
       Protocol: 6
       RuleAction: allow
@@ -221,10 +221,10 @@ Resources:
         From: 443
         To: 443
 
-  PrivateNACLInboundHTTP:
+  rPrivateNACLInboundHTTP:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 101
       Protocol: 6
       RuleAction: allow
@@ -234,10 +234,10 @@ Resources:
         From: 80
         To: 80
 
-  PrivateNACLInboundEphemeral:
+  rPrivateNACLInboundEphemeral:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 110
       Protocol: 6
       RuleAction: allow
@@ -247,20 +247,20 @@ Resources:
         From: 1024
         To: 65535
 
-  PrivateNACLInboundVPCTraffic:
+  rPrivateNACLInboundVPCTraffic:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 120
       Protocol: -1
       RuleAction: allow
       Egress: false
       CidrBlock: !Ref VPCCidr
 
-  PrivateNACLOutboundHTTPS:
+  rPrivateNACLOutboundHTTPS:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 100
       Protocol: 6
       RuleAction: allow
@@ -270,10 +270,10 @@ Resources:
         From: 443
         To: 443
 
-  PrivateNACLOutboundHTTP:
+  rPrivateNACLOutboundHTTP:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 101
       Protocol: 6
       RuleAction: allow
@@ -283,10 +283,10 @@ Resources:
         From: 80
         To: 80
  
-  PrivateNACLOutboundEphemeral:
+  rPrivateNACLOutboundEphemeral:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 110
       Protocol: 6
       RuleAction: allow
@@ -296,10 +296,10 @@ Resources:
         From: 1024
         To: 65535
 
-  PrivateNACLOutboundVPCTraffic:
+  rPrivateNACLOutboundVPCTraffic:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      NetworkAclId: !Ref PrivateNACL
+      NetworkAclId: !Ref rPrivateNACL
       RuleNumber: 120
       Protocol: -1
       RuleAction: allow
@@ -307,36 +307,36 @@ Resources:
       CidrBlock: !Ref VPCCidr
         
   # NACL Subnet Associations
-  AssociatePrivateNACLSubnet1:
+  rAssociatePrivateNACLSubnet1:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      SubnetId: !Ref PrivateSubnet1
-      NetworkAclId: !Ref PrivateNACL
+      SubnetId: !Ref rPrivateSubnet1
+      NetworkAclId: !Ref rPrivateNACL
 
-  AssociatePrivateNACLSubnet2:
+  rAssociatePrivateNACLSubnet2:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      SubnetId: !Ref PrivateSubnet2
-      NetworkAclId: !Ref PrivateNACL
+      SubnetId: !Ref rPrivateSubnet2
+      NetworkAclId: !Ref rPrivateNACL
 
-  AssociatePublicNACLSubnet1:
+  rAssociatePublicNACLSubnet1:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      SubnetId: !Ref PublicSubnet1
-      NetworkAclId: !Ref PublicNACL
+      SubnetId: !Ref rPublicSubnet1
+      NetworkAclId: !Ref rPublicNACL
 
-  AssociatePublicNACLSubnet2:
+  rAssociatePublicNACLSubnet2:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      SubnetId: !Ref PublicSubnet2
-      NetworkAclId: !Ref PublicNACL
+      SubnetId: !Ref rPublicSubnet2
+      NetworkAclId: !Ref rPublicNACL
 
   # Security Groups
-  LambdaSecurityGroup:
+  rLambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for VPC Lambdas
-      GroupName: !Sub ${VPCPrefix}-Lambda-SG
+      GroupName: !Sub ${pVPCPrefix}-Lambda-SG
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -356,14 +356,14 @@ Resources:
           Description: HTTP to internet
       Tags: 
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Lambda-SG
-      VpcId: !Ref VPC
+          Value: !Sub ${pVPCPrefix}-Lambda-SG
+      VpcId: !Ref rVPC
 
-  EndpointSecurityGroup:
+  rEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for VPC Endpoints
-      GroupName: !Sub ${VPCPrefix}-Endpoint-SG
+      GroupName: !Sub ${pVPCPrefix}-Endpoint-SG
       SecurityGroupEgress: 
         - IpProtocol: tcp
           FromPort: 443
@@ -374,40 +374,40 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          SourceSecurityGroupId: !Ref rLambdaSecurityGroup
           Description: HTTPS from Lambda SG
       Tags: 
         - Key: Name
-          Value: !Sub ${VPCPrefix}-Endpoint-SG
-      VpcId: !Ref VPC  
+          Value: !Sub ${pVPCPrefix}-Endpoint-SG
+      VpcId: !Ref rVPC  
 
   # VPC Endpoints
-  S3Endpoint:
+  rS3Endpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       RouteTableIds:
-        - !Ref PrivateRouteTable
+        - !Ref rPrivateRouteTable
       ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-S3-Endpoint
+          Value: !Sub ${pVPCPrefix}-S3-Endpoint
 
-  DynamoDBEndpoint:
+  rDynamoDBEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref rVPC
       RouteTableIds:
-        - !Ref PrivateRouteTable
+        - !Ref rPrivateRouteTable
       ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: !Sub ${VPCPrefix}-DynamoDB-Endpoint
+          Value: !Sub ${pVPCPrefix}-DynamoDB-Endpoint
 
   # S3 bucket for artifacts
-  WebsiteBucket:
+  rWebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-website"
@@ -425,7 +425,7 @@ Resources:
           Value: "WorkbenchV2"
 
   # S3 bucket for logs
-  LogsBucket:
+  rLogsBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-logs"
@@ -445,7 +445,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  WorkspacesBucket:
+  rWorkspacesBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${pApplicationPrefix}-service-workbench-workspaces"
@@ -466,7 +466,7 @@ Resources:
           Value: "WorkbenchV2"
 
 
-  ServiceWorkbenchLambdaLayer:
+  rServiceWorkbenchLambdaLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: "ServiceWorkbenchLambdaLayer"
@@ -477,7 +477,7 @@ Resources:
       CompatibleRuntimes:
         - python3.12
 
-  OpenSearchDB:
+  rOpenSearchDB:
     Type: AWS::OpenSearchService::Domain
     Properties:
       DomainName: !Sub "${pApplicationPrefix}-opensearchdb"
@@ -518,7 +518,7 @@ Resources:
         Enabled: true
         InternalUserDatabaseEnabled: false
         MasterUserOptions:
-          MasterUserARN: !GetAtt RAGCustomResourceLambdaRole.Arn
+          MasterUserARN: !GetAtt rRAGCustomResourceLambdaRole.Arn
       OffPeakWindowOptions:
         Enabled: true
         OffPeakWindow: 
@@ -532,7 +532,7 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  RAGCustomResourceLambdaRole:
+  rRAGCustomResourceLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambdaRole"
@@ -571,12 +571,12 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  RAGCustomResourcePolicy:
+  rRAGCustomResourcePolicy:
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: ClusterAccessPolicy
       Roles:
-        - !Ref RAGCustomResourceLambdaRole
+        - !Ref rRAGCustomResourceLambdaRole
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -588,7 +588,7 @@ Resources:
               - es:ESHttpDelete
               - es:ESHttpHead
             Resource:
-              - !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${OpenSearchDB}/*"
+              - !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${rOpenSearchDB}/*"
           - Effect: Allow
             Action:
               - rds-data:ExecuteStatement
@@ -597,25 +597,25 @@ Resources:
               - rds-data:CommitTransaction
               - rds-data:RollbackTransaction
             Resource:
-              - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+              - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${rAuroraDBCluster}"
           - Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
             Resource:
-              - !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+              - !GetAtt rAuroraDBCluster.MasterUserSecret.SecretArn
           - Effect: Allow
             Action: s3:*
             Resource: "*"
             
 
-  RAGCustomResourceLambda:
+  rRAGCustomResourceLambda:
     Type: AWS::Lambda::Function
     Properties:
       Handler: lambda_function.lambda_handler
       Runtime: python3.12
       FunctionName: !Sub "${pApplicationPrefix}-RAGCustomResourceLambda"
       Timeout: 900
-      Role: !GetAtt RAGCustomResourceLambdaRole.Arn
+      Role: !GetAtt rRAGCustomResourceLambdaRole.Arn
       Environment:
         Variables:
           REGION: !Ref AWS::Region
@@ -624,28 +624,28 @@ Resources:
         S3Key: lambda/ragcustomresourcelambda/rag_custom_resource_lambda.zip
       VpcConfig:
         SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
+          - !Ref rPrivateSubnet1
+          - !Ref rPrivateSubnet2
         SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
+          - !Ref rLambdaSecurityGroup
       Layers:
-        - !Ref ServiceWorkbenchLambdaLayer
+        - !Ref rServiceWorkbenchLambdaLayer
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
-  AuroraSubnetGroup:
+  rAuroraSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: "Private Subnets for Aurora DB"
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !Ref rPrivateSubnet1
+        - !Ref rPrivateSubnet2
       Tags:
         - Key: Name
           Value: "WorkbenchV2"
 
-  AuroraDBCluster:
+  rAuroraDBCluster:
     Type: AWS::RDS::DBCluster
     Properties:
       AutoMinorVersionUpgrade: false
@@ -661,9 +661,9 @@ Resources:
       EngineVersion: 15.4
       MasterUsername: postgres
       ManageMasterUserPassword: true
-      DBSubnetGroupName: !Ref AuroraSubnetGroup
+      DBSubnetGroupName: !Ref rAuroraSubnetGroup
       VpcSecurityGroupIds:
-        - !Ref EndpointSecurityGroup
+        - !Ref rEndpointSecurityGroup
       NetworkType: IPV4
       StorageType: aurora
       PerformanceInsightsEnabled: true
@@ -676,11 +676,11 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  AuroraDBInstance:
+  rAuroraDBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: !Sub "${pApplicationPrefix}-auroradbclusterinstance"
-      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBClusterIdentifier: !Ref rAuroraDBCluster
       DBInstanceClass: db.serverless
       Engine: aurora-postgresql
       EnablePerformanceInsights: true
@@ -690,156 +690,156 @@ Resources:
         - Key: Name
           Value: "WorkbenchV2"
 
-  OpenSearchClusterCustomResource:
+  rOpenSearchClusterCustomResource:
     Type: "AWS::CloudFormation::CustomResource"
     Properties:
-      ServiceToken: !GetAtt RAGCustomResourceLambda.Arn
+      ServiceToken: !GetAtt rRAGCustomResourceLambda.Arn
       changesetflag: '25'
-      OS_ENDPOINT: !GetAtt OpenSearchDB.DomainEndpoint
-      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+      OS_ENDPOINT: !GetAtt rOpenSearchDB.DomainEndpoint
+      ClusterARN: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${rAuroraDBCluster}"
       DatabaseName: !Ref pDatabaseName
-      SecretARN: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+      SecretARN: !GetAtt rAuroraDBCluster.MasterUserSecret.SecretArn
 
 Outputs:
-  VPCId:
+  oVPCId:
     Description: VPC ID
-    Value: !Ref VPC
+    Value: !Ref rVPC
     Export:
-      Name: !Sub ${VPCPrefix}-VPC-ID
+      Name: !Sub ${pVPCPrefix}-VPC-ID
 
-  VPCCidr:
+  oVPCCidr:
     Description: VPC CIDR Block
-    Value: !Ref VPCCidr
+    Value: !Ref pVPCCidr
     Export:
-      Name: !Sub ${VPCPrefix}-VPC-CIDR
+      Name: !Sub ${pVPCPrefix}-VPC-CIDR
 
-  PublicSubnet1Id:
+  oPublicSubnet1Id:
     Description: Public Subnet 1 ID
-    Value: !Ref PublicSubnet1
+    Value: !Ref rPublicSubnet1
     Export:
-      Name: !Sub ${VPCPrefix}-Public-Subnet-1-ID
+      Name: !Sub ${pVPCPrefix}-Public-Subnet-1-ID
 
-  PublicSubnet2Id:
+  oPublicSubnet2Id:
     Description: Public Subnet 2 ID
-    Value: !Ref PublicSubnet2
+    Value: !Ref rPublicSubnet2
     Export:
-      Name: !Sub ${VPCPrefix}-Public-Subnet-2-ID
+      Name: !Sub ${pVPCPrefix}-Public-Subnet-2-ID
 
-  PrivateSubnet1Id:
+  oPrivateSubnet1Id:
     Description: Private Subnet 1 ID
-    Value: !Ref PrivateSubnet1
+    Value: !Ref rPrivateSubnet1
     Export:
-      Name: !Sub ${VPCPrefix}-Private-Subnet-1-ID
+      Name: !Sub ${pVPCPrefix}-Private-Subnet-1-ID
 
-  PrivateSubnet2Id:
+  oPrivateSubnet2Id:
     Description: Private Subnet 2 ID
-    Value: !Ref PrivateSubnet2
+    Value: !Ref rPrivateSubnet2
     Export:
-      Name: !Sub ${VPCPrefix}-Private-Subnet-2-ID
+      Name: !Sub ${pVPCPrefix}-Private-Subnet-2-ID
 
-  LambdaSecurityGroupId:
+  oLambdaSecurityGroupId:
     Description: Lambda Security Group ID
-    Value: !Ref LambdaSecurityGroup
+    Value: !Ref rLambdaSecurityGroup
     Export:
-      Name: !Sub ${VPCPrefix}-Lambda-SG-ID
+      Name: !Sub ${pVPCPrefix}-Lambda-SG-ID
 
-  EndpointSecurityGroupId:
+  oEndpointSecurityGroupId:
     Description: Endpoint Security Group ID
-    Value: !Ref EndpointSecurityGroup
+    Value: !Ref rEndpointSecurityGroup
     Export:
-      Name: !Sub ${VPCPrefix}-Endpoint-SG-ID
+      Name: !Sub ${pVPCPrefix}-Endpoint-SG-ID
 
-  NATGatewayId:
+  oNATGatewayId:
     Description: NAT Gateway ID
-    Value: !Ref NatGateway
+    Value: !Ref rNatGateway
     Export:
-      Name: !Sub ${VPCPrefix}-NAT-Gateway-ID
+      Name: !Sub ${pVPCPrefix}-NAT-Gateway-ID
 
-  WebsiteBucketName:
+  oWebsiteBucketName:
     Description: Website bucket name
-    Value: !Ref WebsiteBucket
+    Value: !Ref rWebsiteBucket
     Export:
       Name: "WebsiteBucketName"
 
-  WebsiteBucketArn:
+  oWebsiteBucketArn:
     Description: Website bucket ARN
-    Value: !GetAtt WebsiteBucket.Arn
+    Value: !GetAtt rWebsiteBucket.Arn
     Export:
       Name: "WebsiteBucketArn"
 
-  WebsiteBucketRegionalDomainName:
+  oWebsiteBucketRegionalDomainName:
     Description: Website bucket regional domain name
-    Value: !GetAtt WebsiteBucket.RegionalDomainName
+    Value: !GetAtt rWebsiteBucket.RegionalDomainName
     Export:
       Name: "WebsiteBucketRegionalDomainName"
 
-  LogsBucketDomainName:
+  oLogsBucketDomainName:
     Description: Logs bucket domain name
-    Value: !GetAtt LogsBucket.DomainName
+    Value: !GetAtt rLogsBucket.DomainName
     Export:
       Name: "LogsBucketDomainName"
 
-  LogsBucketName:
+  oLogsBucketName:
     Description: Name of the logs S3 bucket
-    Value: !Ref LogsBucket
+    Value: !Ref rLogsBucket
     Export:
       Name: "LogsBucketName"
 
-  LogsBucketArn:
+  oLogsBucketArn:
     Description: Logs bucket ARN
-    Value: !GetAtt LogsBucket.Arn
+    Value: !GetAtt rLogsBucket.Arn
     Export:
       Name: "LogsBucketArn"
 
-  WorkspacesBucketName:
+  oWorkspacesBucketName:
     Description: Name of workspaces S3 bucket
-    Value: !Ref WorkspacesBucket
+    Value: !Ref rWorkspacesBucket
     Export:
       Name: "WorkspacesBucket"
   
-  WorkspacesBucketArn:
+  oWorkspacesBucketArn:
     Description: Workspaces bucket ARN
-    Value: !GetAtt WorkspacesBucket.Arn
+    Value: !GetAtt rWorkspacesBucket.Arn
     Export:
       Name: "WorkspacesBucketArn"
 
-  ServiceWorkbenchLambdaLayer:
+  oServiceWorkbenchLambdaLayer:
     Description: Name of the service workbench lambda layer
-    Value: !Ref ServiceWorkbenchLambdaLayer
+    Value: !Ref rServiceWorkbenchLambdaLayer
     Export:
       Name: "ServiceWorkbenchLambdaLayer"
 
-  OpenSearchDBEndpoint:
-    Value: !GetAtt OpenSearchDB.DomainEndpoint
+  oOpenSearchDBEndpoint:
+    Value: !GetAtt rOpenSearchDB.DomainEndpoint
     Description: The endpoint of the OpenSearch cluster
     Export:
       Name: "OpenSearchEndpoint"
 
-  OpenSearchDBArn:
-    Value: !GetAtt OpenSearchDB.Arn
+  oOpenSearchDBArn:
+    Value: !GetAtt rOpenSearchDB.Arn
     Description: The ARN of the OpenSearch cluster
     Export:
       Name: "OpenSearchDBArn"
 
-  RAGCustomResourceLambdaRole:
-    Value: !GetAtt RAGCustomResourceLambdaRole.Arn
+  oRAGCustomResourceLambdaRole:
+    Value: !GetAtt rRAGCustomResourceLambdaRole.Arn
     Description: The ARN of the custom resource lambda role
     Export:
       Name: "CustomResourceLambdaRoleARN"
 
-  AuroraDBClusterARN:
-    Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBCluster}"
+  oAuroraDBClusterARN:
+    Value: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${rAuroraDBCluster}"
     Description: The ARN of the Aurora DB cluster
     Export:
       Name: "AuroraDBClusterARN"
 
-  AuroraDBClusterSecret:
-    Value: !GetAtt AuroraDBCluster.MasterUserSecret.SecretArn
+  oAuroraDBClusterSecret:
+    Value: !GetAtt rAuroraDBCluster.MasterUserSecret.SecretArn
     Description: The secret ARN for the Aurora DB cluster
     Export:
       Name: "AuroraDBSecretARN"
 
-  AuroraDBName:
+  oAuroraDBName:
     Value: !Ref pDatabaseName
     Description: The name of the database
     Export:
