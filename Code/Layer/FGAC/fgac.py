@@ -42,7 +42,7 @@ def get_user_id_from_email(email):
             return items[0].get('UserId')
         return None
     except Exception as e:
-        LOGGER.error(f"Error retrieving user ID for email {email}: {e}")
+        LOGGER.error(f"In fgac.py.get_user_id_from_email(), error retrieving user ID for email {email}: {e}")
         return None
 
 def create_workspace_fgac(table, user_id, access_type, workspace_id):
@@ -139,7 +139,7 @@ def check_workspace_access(table, user_id, workspace_id):
             return None  # User not found
 
     access_key = f"WORKSPACE#{workspace_id}"
-    LOGGER.info(f"Checking access for user {user_id} to workspace {workspace_id} with access key {access_key}")
+    LOGGER.info(f"In fgac.py.check_workspace_access(), checking access for user {user_id} to workspace {workspace_id} with access key {access_key}")
     
     # Query the table to find the access record for this user and workspace
     try:
@@ -152,7 +152,7 @@ def check_workspace_access(table, user_id, workspace_id):
                 ':user_id': f"{user_id}#"
             }
         )
-        LOGGER.info(f"Query response: {response}")
+        LOGGER.info(f"In fgac.py.check_workspace_access(), query response: {response}")
         
         items = response.get('Items', [])
         
@@ -172,7 +172,7 @@ def check_workspace_access(table, user_id, workspace_id):
         return None
         
     except Exception as e:
-        LOGGER.error(f"Error checking workspace access: {str(e)}")
+        LOGGER.error(f"In fgac.py.check_workspace_access(), error checking workspace access: {str(e)}")
         return None
 
 def check_solution_access(table, user_id, workspace_id, solution_id):
@@ -235,7 +235,7 @@ def check_solution_access(table, user_id, workspace_id, solution_id):
         return None
         
     except Exception as e:
-        LOGGER.error(f"Error checking solution access: {str(e)}")
+        LOGGER.error(f"In fgac.py.check_solution_access(), error checking solution access: {str(e)}")
         return None
 
 def check_datasource_access(table, user_id, datasource_id):
@@ -295,5 +295,5 @@ def check_datasource_access(table, user_id, datasource_id):
         return None
         
     except Exception as e:
-        LOGGER.error(f"Error checking datasource access: {str(e)}")
+        LOGGER.error(f"In fgac.py.check_datasource_access(), error checking datasource access: {str(e)}")
         return None
