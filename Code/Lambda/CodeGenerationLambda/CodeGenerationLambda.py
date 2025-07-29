@@ -5,11 +5,27 @@ import os
 import tempfile
 import zipfile
 import datetime
+import logging
 from botocore.exceptions import ClientError
+
+logger = logging.getLogger("CodeGenerationLambdaLogger")
+logger.setLevel(logging.INFO)
 
 s3_client = boto3.client('s3')
 
-def build_agent_response(event, text,code_result,function):
+
+def build_agent_response(event, text, code_result, function):
+    """
+    Builds a response object for the agent with the provided message and metadata.
+    Args:
+        event: The original event dict triggering the function.
+        text: The message or body to include in the response (str).
+        code_result: Status/result of code generation (str).
+        function: Name of the function being executed (str).
+    Returns:
+        dict: Formatted response object for the agent.
+    """
+    logger.info("CodeGenerationLambda.build_agent_response() called")
     body={
         "body": text,
         "<codegenerated>":code_result,
@@ -34,12 +50,16 @@ def build_agent_response(event, text,code_result,function):
 
 def parse_solution_output_for_archiving(solution_output_string):
     """
-    Enhanced parser to handle multiple instances of each service type with filename attributes.
-    Returns a list of dictionaries for all code artifacts found.
+    Parses the solution output string to extract code artifacts for Glue, Lambda, and Step Functions.
+    Args:
+        solution_output_string: The string containing solution output with code blocks (str).
+    Returns:
+        list: List of dictionaries, each representing a code artifact with metadata.
     """
+    logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() called")
     artifacts_to_archive = []
     
-    print(f"Parsing solution output of length: {len(solution_output_string)}")
+    logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Parsing solution output of length: %s", len(solution_output_string))
     
     # Enhanced regex patterns to find all instances with filename attributes
     glue_pattern = r'<glue\s+filename=["\']([^"\']+)["\']>(.*?)</glue>'
@@ -60,8 +80,8 @@ def parse_solution_output_for_archiving(solution_output_string):
     glue_matches.extend(re.findall(r'<glue_job\s+filename=["\']([^"\']+)["\']>(.*?)</glue_job>', solution_output_string, re.DOTALL))
     stepfunction_matches.extend(re.findall(r'<step_function\s+filename=["\']([^"\']+)["\']>(.*?)</step_function>', solution_output_string, re.DOTALL))
     
-    print(f"Found {len(glue_matches)} Glue jobs with filenames, {len(lambda_matches)} Lambda functions with filenames, {len(stepfunction_matches)} Step Functions with filenames")
-    print(f"Found {len(legacy_glue)} legacy Glue jobs, {len(legacy_lambda)} legacy Lambda functions, {len(legacy_stepfunction)} legacy Step Functions")
+    logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Found %s Glue jobs with filenames, %s Lambda functions with filenames, %s Step Functions with filenames", len(glue_matches), len(lambda_matches), len(stepfunction_matches))
+    logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Found %s legacy Glue jobs, %s legacy Lambda functions, %s legacy Step Functions", len(legacy_glue), len(legacy_lambda), len(legacy_stepfunction))
 
     def extract_code_content(block_content):
         """Extract code content from various possible tag formats"""
@@ -121,7 +141,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(glue_block)
         metadata = extract_metadata(glue_block)
         
-        print(f"Processing Glue Job #{i} with filename '{filename}', code length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Glue Job #%s with filename '%s', code length: %s", i, filename, len(code_content))
         
         if code_content:
             clean_filename = validate_and_clean_filename(filename, 'glue', i)
@@ -145,7 +165,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(lambda_block)
         metadata = extract_metadata(lambda_block)
         
-        print(f"Processing Lambda Function #{i} with filename '{filename}', code length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Lambda Function #%s with filename '%s', code length: %s", i, filename, len(code_content))
         
         if code_content:
             clean_filename = validate_and_clean_filename(filename, 'lambda', i)
@@ -169,7 +189,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(step_block)
         metadata = extract_metadata(step_block)
         
-        print(f"Processing Step Function #{i} with filename '{filename}', definition length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Step Function #%s with filename '%s', definition length: %s", i, filename, len(code_content))
         
         if code_content:
             # Validate ASL JSON before adding
@@ -191,8 +211,8 @@ def parse_solution_output_for_archiving(solution_output_string):
                     "has_filename_attribute": True
                 })
             except json.JSONDecodeError as e:
-                print(f"Warning: Step Function #{i} with filename '{filename}' contains invalid JSON: {str(e)}")
-                print(f"Content preview: {code_content[:200]}...")
+                logger.error("CodeGenerationLambda.parse_solution_output_for_archiving() Warning: Step Function #%s with filename '%s' contains invalid JSON: %s", i, filename, str(e))
+                logger.error("CodeGenerationLambda.parse_solution_output_for_archiving() Content preview: %s...", code_content[:200])
                 
                 clean_filename = validate_and_clean_filename(filename, 'stepfunctions', i)
                 # Add _invalid suffix to indicate JSON validation error
@@ -219,7 +239,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(glue_block)
         metadata = extract_metadata(glue_block)
         
-        print(f"Processing Legacy Glue Job #{i}, code length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Legacy Glue Job #%s, code length: %s", i, len(code_content))
         
         if code_content:
             job_name = metadata.get('name', metadata.get('function_name', f'glue_job_{i}'))
@@ -243,7 +263,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(lambda_block)
         metadata = extract_metadata(lambda_block)
         
-        print(f"Processing Legacy Lambda Function #{i}, code length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Legacy Lambda Function #%s, code length: %s", i, len(code_content))
         
         if code_content:
             func_name = metadata.get('name', metadata.get('function_name', f'lambda_function_{i}'))
@@ -267,7 +287,7 @@ def parse_solution_output_for_archiving(solution_output_string):
         reqs_content = extract_requirements(step_block)
         metadata = extract_metadata(step_block)
         
-        print(f"Processing Legacy Step Function #{i}, definition length: {len(code_content)}")
+        logger.info("CodeGenerationLambda.parse_solution_output_for_archiving() Processing Legacy Step Function #%s, definition length: %s", i, len(code_content))
         
         if code_content:
             try:
@@ -288,7 +308,7 @@ def parse_solution_output_for_archiving(solution_output_string):
                     "has_filename_attribute": False
                 })
             except json.JSONDecodeError as e:
-                print(f"Warning: Legacy Step Function #{i} contains invalid JSON: {str(e)}")
+                logger.error("CodeGenerationLambda.parse_solution_output_for_archiving() Warning: Legacy Step Function #%s contains invalid JSON: %s", i, str(e))
                 
                 sf_name = metadata.get('name', metadata.get('function_name', f'step_function_{i}_invalid'))
                 safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', sf_name)
@@ -310,8 +330,16 @@ def parse_solution_output_for_archiving(solution_output_string):
 
 def create_individual_zips(artifacts_to_archive, bucket_name, base_zip_key_prefix, timestamp):
     """
-    Create separate zip files for each individual artifact containing ONLY the code file.
+    Creates and uploads individual zip files for each code artifact to S3.
+    Args:
+        artifacts_to_archive: List of artifact dicts to archive (list).
+        bucket_name: Name of the S3 bucket (str).
+        base_zip_key_prefix: S3 key prefix for storing zips (str).
+        timestamp: Timestamp string for uniqueness (str).
+    Returns:
+        list: List of dicts with info about each uploaded zip file.
     """
+    logger.info("CodeGenerationLambda.create_individual_zips() called")
     individual_zips_info = []
     
     for artifact in artifacts_to_archive:
@@ -352,14 +380,22 @@ def create_individual_zips(artifacts_to_archive, bucket_name, base_zip_key_prefi
             }
             
             individual_zips_info.append(zip_info)
-            print(f"Created individual zip: {s3_zip_path_full}")
+            logger.info("CodeGenerationLambda.create_individual_zips() Created individual zip: %s", s3_zip_path_full)
     
     return individual_zips_info
 
 def upload_individual_files(artifacts_to_archive, bucket_name, base_key_prefix, timestamp):
     """
-    Upload each code file individually as separate files in S3 (no requirements.txt).
+    Uploads each code file individually as a separate file in S3 (no requirements.txt).
+    Args:
+        artifacts_to_archive: List of artifact dicts to upload (list).
+        bucket_name: Name of the S3 bucket (str).
+        base_key_prefix: S3 key prefix for storing files (str).
+        timestamp: Timestamp string for uniqueness (str).
+    Returns:
+        list: List of dicts with info about each uploaded file.
     """
+    logger.info("CodeGenerationLambda.upload_individual_files() called")
     individual_files_info = []
     
     # Create separate folders for each service type
@@ -398,15 +434,21 @@ def upload_individual_files(artifacts_to_archive, bucket_name, base_key_prefix, 
         }
         
         individual_files_info.append(file_info)
-        print(f"Uploaded individual file: {file_info['s3_path']}")
+        logger.info("CodeGenerationLambda.upload_individual_files() Uploaded individual file: %s", file_info['s3_path'])
     
     return individual_files_info
 
 def fetch_or_create_memory(bucket, key, summary):
     """
-    Fetches memory.json from S3 if exists, otherwise creates a new one.
-    Adds or updates the 'Code' field with the provided summary.
+    Fetches memory.json from S3 if it exists, or creates a new one, and updates the 'Code' field.
+    Args:
+        bucket: Name of the S3 bucket (str).
+        key: S3 key for the memory file (str).
+        summary: Summary content to store under 'Code' (str).
+    Returns:
+        dict: The updated memory dictionary.
     """
+    logger.info("CodeGenerationLambda.fetch_or_create_memory() called")
     try:
         resp = s3_client.get_object(Bucket=bucket, Key=key)
         memory = json.loads(resp['Body'].read().decode('utf-8'))
@@ -432,7 +474,17 @@ def fetch_or_create_memory(bucket, key, summary):
 
 
 def validate_input_parameters(parameters, action_function):
-    """Validate all required parameters exist"""
+    """
+    Validates that all required parameters exist for the specified action function.
+    Args:
+        parameters: List of parameter dicts with 'name' and 'value' (list).
+        action_function: Name of the function to validate for (str).
+    Returns:
+        dict: Dictionary of validated parameters.
+    Raises:
+        ValueError: If required parameters are missing or function name is invalid.
+    """
+    logger.info("CodeGenerationLambda.validate_input_parameters() called")
     required_params = {
         'WorkspaceId': None,
         'SolutionId': None,
@@ -461,6 +513,15 @@ def validate_input_parameters(parameters, action_function):
 
 
 def lambda_handler(event, context):
+    """
+    Lambda entry point for handling code artifact storage and memory updates in S3.
+    Args:
+        event: Lambda event dict (dict).
+        context: Lambda context object.
+    Returns:
+        dict: Agent response object indicating success or failure.
+    """
+    logger.info("CodeGenerationLambda.lambda_handler() called")
     print(event)
 
     try:
