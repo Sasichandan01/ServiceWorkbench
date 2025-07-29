@@ -1,6 +1,6 @@
 {
   "ITAdmin": ["users.fullaccess", "roles.fullaccess","workspaces.fullaccess","solutions.fullaccess","executions.fullaccess","datasources.fullaccess","lambda.fullaccess","glue.fullaccess","stepfunctions.fullaccess","s3.fullaccess","dynamodb.fullaccess"],
-  "Default": ["users.view","solutions.view","workspaces.view","datasources.view"],
-  "Analyst": ["solutions.manage","workspaces.manage","datasources.manage","users.view","datasources.fullaccess","lambda.manage","glue.manage","stepfunctions.manage","executions.manage","s3.manage","dynamodb.manage"],
-  "Developer": ["solutions.manage","workspaces.manage","datasources.manage","users.view","datasources.fullaccess","lambda.manage","glue.manage","stepfunctions.manage","executions.manage","s3.manage","dynamodb.manage"]
+  "Default": ["users.view","solutions.view","workspaces.view","datasources.view","roles.view"],
+  "Analyst": ["solutions.manage","workspaces.manage","datasources.manage","users.view","roles.view","datasources.fullaccess","lambda.manage","glue.manage","stepfunctions.manage","executions.manage","s3.manage","dynamodb.manage"],
+  "Developer": ["solutions.manage","workspaces.manage","datasources.manage","users.view","roles.view","datasources.fullaccess","lambda.manage","glue.manage","stepfunctions.manage","executions.manage","s3.manage","dynamodb.manage"]
 }
