@@ -767,7 +767,7 @@ Resources:
       ServiceToken: !GetAtt BedrockAgentCustomResource.Arn 
       Environment: !Sub "${pPrefix}"
       Version: "1.0"
-      Changesetflag: '2024'
+      Changesetflag: '202425'
 
   UserExecutionRole:
     Type: AWS::IAM::Role
@@ -1060,7 +1060,6 @@ Resources:
                     - "${BucketArn}/*"
                     - {BucketArn: !ImportValue WorkspacesBucketArn}
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Tags:
@@ -2400,23 +2399,6 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkbenchApi}/*    
 
-  # CFTGenerationAgentLambdaRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: !Sub "${pPrefix}-CFTGenerationAgentLambdaRole"
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: lambda.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     ManagedPolicyArns:
-  #       - arn:aws:iam::aws:policy/AdministratorAccess
-  #     Tags:
-  #       - Key: Name
-  #         Value: "WorkbenchV2"
-
   CFTGenerationAgentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2504,7 +2486,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        - arn:aws:iam::aws:policy/AdministratorAccess
     
       Tags:
         - Key: Name

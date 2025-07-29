@@ -16,7 +16,20 @@ time=str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
 def get_user_id_from_email(email):
     """
-    Retrieves a user's ID from their email address.
+    Retrieves a user's ID from their email address using the EmailIndex.
+    
+    Key Steps:
+        1. Query USERS_TABLE using EmailIndex with the provided email
+        2. Extract user items from the query response
+        3. Return the UserId from the first matching item
+        4. Handle exceptions and log errors appropriately
+        5. Return None if no user found or on error
+    
+    Parameters:
+        email (str): Email address to look up user ID for
+    
+    Returns:
+        str or None: User ID if found, None if not found or on error
     """
     try:
         response = USERS_TABLE.query(
@@ -32,23 +45,78 @@ def get_user_id_from_email(email):
         LOGGER.error(f"Error retrieving user ID for email {email}: {e}")
         return None
 
-def create_workspace_fgac(table,user_id,access_type,workspace_id):
-    user_access_type=f"{user_id}#{access_type}"
-    access_key=f"WORKSPACE#{workspace_id}"
+def create_workspace_fgac(table, user_id, access_type, workspace_id):
+    """
+    Creates fine-grained access control entry for a user's workspace access.
+    
+    Key Steps:
+        1. Build user access type string combining user ID and access type
+        2. Build access key for workspace resource
+        3. Create DynamoDB item with access control information
+        4. Store creation timestamp with the access entry
+    
+    Parameters:
+        table: DynamoDB table object for resource access
+        user_id (str): ID of the user to grant access to
+        access_type (str): Type of access (read_only, editor, owner)
+        workspace_id (str): ID of the workspace to grant access to
+    
+    Returns:
+        None: Function creates the access entry in DynamoDB
+    """
+    user_access_type = f"{user_id}#{access_type}"
+    access_key = f"WORKSPACE#{workspace_id}"
 
-    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key,"CreationTime":time})
+    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key, "CreationTime": time})
 
-def create_solution_fgac(table,user_id,access_type,workspace_id,solution_id):
-    user_access_type=f"{user_id}#{access_type}"
-    access_key=f"SOLUTION#{workspace_id}#{solution_id}"
+def create_solution_fgac(table, user_id, access_type, workspace_id, solution_id):
+    """
+    Creates fine-grained access control entry for a user's solution access.
+    
+    Key Steps:
+        1. Build user access type string combining user ID and access type
+        2. Build access key for solution resource within workspace
+        3. Create DynamoDB item with access control information
+        4. Store creation timestamp with the access entry
+    
+    Parameters:
+        table: DynamoDB table object for resource access
+        user_id (str): ID of the user to grant access to
+        access_type (str): Type of access (read_only, editor, owner)
+        workspace_id (str): ID of the workspace containing the solution
+        solution_id (str): ID of the solution to grant access to
+    
+    Returns:
+        None: Function creates the access entry in DynamoDB
+    """
+    user_access_type = f"{user_id}#{access_type}"
+    access_key = f"SOLUTION#{workspace_id}#{solution_id}"
 
-    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key,"CreationTime":time})
+    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key, "CreationTime": time})
 
-def create_datasource_fgac(table,user_id,access_type,datasource_id):
-    user_access_type=f"{user_id}#{access_type}"
-    access_key=f"DATASOURCE#{datasource_id}"
+def create_datasource_fgac(table, user_id, access_type, datasource_id):
+    """
+    Creates fine-grained access control entry for a user's datasource access.
+    
+    Key Steps:
+        1. Build user access type string combining user ID and access type
+        2. Build access key for datasource resource
+        3. Create DynamoDB item with access control information
+        4. Store creation timestamp with the access entry
+    
+    Parameters:
+        table: DynamoDB table object for resource access
+        user_id (str): ID of the user to grant access to
+        access_type (str): Type of access (read_only, editor, owner)
+        datasource_id (str): ID of the datasource to grant access to
+    
+    Returns:
+        None: Function creates the access entry in DynamoDB
+    """
+    user_access_type = f"{user_id}#{access_type}"
+    access_key = f"DATASOURCE#{datasource_id}"
 
-    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key,"CreationTime":time})
+    table.put_item(Item={"Id": user_access_type, "AccessKey": access_key, "CreationTime": time})
 
 def check_workspace_access(table, user_id, workspace_id):
     """
@@ -109,17 +177,25 @@ def check_workspace_access(table, user_id, workspace_id):
 
 def check_solution_access(table, user_id, workspace_id, solution_id):
     """
-    Check what type of access a user has to a specific solution within a workspace.
-    Assumes only one permission per user per resource.
+    Checks what type of access a user has to a specific solution within a workspace.
     
-    Args:
-        table: DynamoDB table object
-        user_id: The user ID or email to check access for
-        workspace_id: The workspace ID that contains the solution
-        solution_id: The solution ID to check access to
-        
+    Key Steps:
+        1. Check if user_id is an email and resolve to actual user ID if needed
+        2. Build access key for solution resource within workspace
+        3. Query DynamoDB table using AccessKey-Index
+        4. Filter results to find user's access record
+        5. Extract access type from the Id field
+        6. Return access type or None if no access found
+        7. Handle exceptions and log errors appropriately
+    
+    Parameters:
+        table: DynamoDB table object for resource access
+        user_id (str): User ID or email to check access for
+        workspace_id (str): ID of the workspace containing the solution
+        solution_id (str): ID of the solution to check access to
+    
     Returns:
-        str: The access type (read_only, editor, owner) or None if no access found
+        str or None: Access type (read_only, editor, owner) or None if no access found
     """
     # If user_id is an email, get the actual user ID
     if '@' in user_id:
@@ -164,16 +240,24 @@ def check_solution_access(table, user_id, workspace_id, solution_id):
 
 def check_datasource_access(table, user_id, datasource_id):
     """
-    Check what type of access a user has to a specific datasource.
-    Assumes only one permission per user per resource.
+    Checks what type of access a user has to a specific datasource.
     
-    Args:
-        table: DynamoDB table object
-        user_id: The user ID or email to check access for
-        datasource_id: The datasource ID to check access to
-        
+    Key Steps:
+        1. Check if user_id is an email and resolve to actual user ID if needed
+        2. Build access key for datasource resource
+        3. Query DynamoDB table using AccessKey-Index
+        4. Filter results to find user's access record
+        5. Extract access type from the Id field
+        6. Return access type or None if no access found
+        7. Handle exceptions and log errors appropriately
+    
+    Parameters:
+        table: DynamoDB table object for resource access
+        user_id (str): User ID or email to check access for
+        datasource_id (str): ID of the datasource to check access to
+    
     Returns:
-        str: The access type (read_only, editor, owner) or None if no access found
+        str or None: Access type (read_only, editor, owner) or None if no access found
     """
     # If user_id is an email, get the actual user ID
     if '@' in user_id:
