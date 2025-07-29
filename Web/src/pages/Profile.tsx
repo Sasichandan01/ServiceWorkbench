@@ -3,9 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Save, User } from "lucide-react";
 import PersonalInfo from "@/components/profile/PersonalInfo";
-import SecuritySettings from "@/components/profile/SecuritySettings";
-import NotificationSettings from "@/components/profile/NotificationSettings";
-import AccountOverview from "@/components/profile/AccountOverview";
 import RecentActivity from "@/components/profile/RecentActivity";
 import UserProfileDialog from "@/components/admin/UserProfileDialog";
 import { useAppSelector } from "@/hooks/useAppSelector";
@@ -112,19 +109,9 @@ const Profile = () => {
                 setLoading(false);
               }
             }} />
-            {/* Two Column Layout for Security and Notifications */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="flex">
-                <SecuritySettings />
-              </div>
-              <div className="flex">
-                <NotificationSettings />
-              </div>
-            </div>
           </div>
           {/* Right Sidebar */}
           <div className="space-y-6">
-            <AccountOverview user={user || {}} />
             <RecentActivity userId={user?.UserId || user?.username || ""} />
           </div>
         </div>
