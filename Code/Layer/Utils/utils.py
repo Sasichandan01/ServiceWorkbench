@@ -27,7 +27,7 @@ def decimal_default(obj: Any) -> Any:
     Raises:
         TypeError: if obj is not Decimal
     """
-    LOGGER.info("IN %s.decimal_default, serializing object of type %s", __name__, type(obj).__name__)
+    LOGGER.info("IN utils.decimal_default: serializing object of type %s", type(obj).__name__)
     if isinstance(obj, Decimal):
         return float(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
@@ -49,7 +49,7 @@ def return_response(status_code: int, body: Any) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: full HTTP response dict
     """
-    LOGGER.info("IN %s.return_response, status=%d, body keys=%s", __name__, status_code, getattr(body, 'keys', lambda: body)())
+    LOGGER.info("IN utils.return_response: status=%d, body keys=%s", status_code, getattr(body, 'keys', lambda: body)())
     return {
         "statusCode": status_code,
         "headers": {
@@ -62,15 +62,7 @@ def return_response(status_code: int, body: Any) -> Dict[str, Any]:
     }
 
 
-def paginate_list(
-    name: str,
-    data: Any,
-    valid_keys: list,
-    offset: int = 1,
-    limit: int = 10,
-    sort_by: Optional[str] = None,
-    sort_order: str = "asc"
-) -> Dict[str, Any]:
+def paginate_list(name: str, data: Any, valid_keys: list, offset: int = 1, limit: int = 10, sort_by: Optional[str] = None, sort_order: str = "asc") -> Dict[str, Any]:
     """
     Paginate and optionally sort a list of dicts in a standard response.
 
@@ -92,10 +84,7 @@ def paginate_list(
     Returns:
         Dict[str, Any]: HTTP-style response with paginated data
     """
-    LOGGER.info(
-        "IN %s.paginate_list, name=%s, offset=%d, limit=%d, sort_by=%s, sort_order=%s",
-        __name__, name, offset, limit, sort_by, sort_order
-    )
+    LOGGER.info("IN utils.paginate_list: name=%s, offset=%d, limit=%d, sort_by=%s, sort_order=%s", name, offset, limit, sort_by, sort_order)
     # Validate data list
     if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
         return return_response(400, {"error": "Data must be a list of dictionaries."})
@@ -112,22 +101,15 @@ def paginate_list(
         if sort_by not in valid_keys:
             return return_response(400, {"error": f"Invalid sort_by field '{sort_by}'."})
         reverse = sort_order == "desc"
-        data_to_page = sorted(
-            data,
-            key=lambda x: (x.get(sort_by) or ""),
-            reverse=reverse
-        )
-        LOGGER.info("IN %s.paginate_list, sorted data by %s", __name__, sort_by)
+        data_to_page = sorted(data, key=lambda x: (x.get(sort_by) or ""), reverse=reverse)
+        LOGGER.info("IN utils.paginate_list: sorted data by %s", sort_by)
 
     # Pagination slice
     start = (offset - 1) * limit
     end = start + limit
     paginated = data_to_page[start:end]
     total_items = len(data_to_page)
-    LOGGER.info(
-        "IN %s.paginate_list, paginated items %d to %d of %d",
-        __name__, start, end, total_items
-    )
+    LOGGER.info("IN utils.paginate_list: paginated items %d to %d of %d", start, end, total_items)
 
     body = {
         name: paginated,
@@ -140,14 +122,7 @@ def paginate_list(
     return return_response(200, body)
 
 
-def log_activity(
-    table: Any,
-    resource_type: str,
-    resource_name: str,
-    resource_id: str,
-    user_id: str,
-    action: str
-) -> None:
+def log_activity(table: Any, resource_type: str, resource_name: str, resource_id: str, user_id: str, action: str) -> None:
     """
     Write an activity record to a DynamoDB table.
 
@@ -178,8 +153,5 @@ def log_activity(
         "EventTime": timestamp,
         "Action": action
     }
-    LOGGER.info(
-        "IN %s.log_activity, logging activity %s for %s:%s by %s",
-        __name__, action, resource_type, resource_id, user_id
-    )
+    LOGGER.info("IN utils.log_activity: logging activity %s for %s:%s by %s", action, resource_type, resource_id, user_id)
     table.put_item(Item=item)

@@ -62,10 +62,7 @@ def create_error_response(action_group: str, function: str, version: str, messag
     Returns:
         Response: formatted error payload
     """
-    LOGGER.info(
-        "IN bedrock_lambda.create_error_response, Building error response for %s.%s: %s",
-        action_group, function, message
-    )
+    LOGGER.info("IN ArchitectureAgentAG.create_error_response: Building error response for %s.%s: %s", action_group, function, message)
     return {
         'response': {
             'actionGroup': action_group,
@@ -98,10 +95,7 @@ def create_success_response(action_group: str, function: str, version: str, body
     Returns:
         Response: formatted success payload
     """
-    LOGGER.info(
-        "IN bedrock_lambda.create_success_response, Building success response for %s.%s",
-        action_group, function
-    )
+    LOGGER.info("IN ArchitectureAgentAG.create_success_response: Building success response for %s.%s", action_group, function)
     ans: Dict[str, str] = {}
     if 'PresignedURL' in body:
         ans['<PresignedURL>'] = body['PresignedURL']
@@ -136,9 +130,7 @@ def handle_presigned_url(event: Event) -> Response:
     Returns:
         Response: either an error or success payload with the presigned URL
     """
-    LOGGER.info(
-        "IN bedrock_lambda.handle_presigned_url, Starting PresignedURL handler"
-    )
+    LOGGER.info("IN ArchitectureAgentAG.handle_presigned_url: Starting PresignedURL handler")
     action_group = event['actionGroup']
     function = event['function']
     version = event.get('messageVersion', '1.0')
@@ -146,25 +138,15 @@ def handle_presigned_url(event: Event) -> Response:
 
     filename = get_parameter_value(params, 'filename')
     if not filename:
-        LOGGER.error(
-            "IN bedrock_lambda.handle_presigned_url, Missing 'filename' parameter"
-        )
+        LOGGER.error("IN ArchitectureAgentAG.handle_presigned_url: Missing 'filename' parameter")
         return create_error_response(action_group, function, version, 'Missing "filename" parameter')
 
     if not filename.lower().endswith('.png'):
-        LOGGER.error(
-            "IN bedrock_lambda.handle_presigned_url, Invalid file extension for %s", filename
-        )
+        LOGGER.error("IN ArchitectureAgentAG.handle_presigned_url: Invalid file extension for %s", filename)
         return create_error_response(action_group, function, version, 'Only PNG files are allowed')
 
-    url = s3_client.generate_presigned_url(
-        ClientMethod='put_object',
-        Params={'Bucket': S3_BUCKET, 'Key': filename, 'ContentType': 'image/png'},
-        ExpiresIn=PRESIGN_EXPIRES_IN
-    )
-    LOGGER.info(
-        "IN bedrock_lambda.handle_presigned_url, Generated presigned URL for %s", filename
-    )
+    url = s3_client.generate_presigned_url(ClientMethod='put_object', Params={'Bucket': S3_BUCKET, 'Key': filename, 'ContentType': 'image/png'}, ExpiresIn=PRESIGN_EXPIRES_IN)
+    LOGGER.info("IN ArchitectureAgentAG.handle_presigned_url: Generated presigned URL for %s", filename)
     return create_success_response(action_group, function, version, {'PresignedURL': url})
 
 
@@ -190,35 +172,21 @@ def lambda_handler(event: Event, context: Any) -> Any:
     Returns:
         Any: either an HTTP response dict or an agent response payload
     """
-    LOGGER.info(
-        "IN bedrock_lambda.lambda_handler, Received event: %s", event
-    )
+    LOGGER.info("IN ArchitectureAgentAG.lambda_handler: Received event: %s", event)
     try:
         action_group = event['actionGroup']
         function = event['function']
     except KeyError as e:
-        LOGGER.error(
-            "IN bedrock_lambda.lambda_handler, Missing event field: %s", e
-        )
+        LOGGER.error("IN ArchitectureAgentAG.lambda_handler: Missing event field: %s", e)
         return {
             'statusCode': HTTPStatus.BAD_REQUEST,
             'body': f'Missing required field: {e}'
         }
 
-    LOGGER.info(
-        "IN bedrock_lambda.lambda_handler, Dispatching to handler for %s.%s",
-        action_group, function
-    )
+    LOGGER.info("IN ArchitectureAgentAG.lambda_handler: Dispatching to handler for %s.%s", action_group, function)
     handler = HANDLERS.get(function)
     if not handler:
-        LOGGER.error(
-            "IN bedrock_lambda.lambda_handler, Unsupported function: %s", function
-        )
-        return create_error_response(
-            action_group,
-            function,
-            event.get('messageVersion', '1.0'),
-            f'Unknown function: {function}'
-        )
+        LOGGER.error("IN ArchitectureAgentAG.lambda_handler: Unsupported function: %s", function)
+        return create_error_response(action_group, function, event.get('messageVersion', '1.0'), f'Unknown function: {function}')
 
     return handler(event)

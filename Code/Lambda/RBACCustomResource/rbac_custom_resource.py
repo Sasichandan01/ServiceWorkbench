@@ -28,52 +28,34 @@ def lambda_handler(event, context):
     Returns:
         None
     """
-    LOGGER.info(
-        "IN custom_resource_roles.lambda_handler, received event: %s", event
-    )
+    LOGGER.info("IN RBACCustomResource.lambda_handler: received event: %s", event)
     try:
         props = event.get('ResourceProperties', {})
         roles_table_name = props.get('RolesTable')
-        LOGGER.info(
-            "IN custom_resource_roles.lambda_handler, RolesTable property: %s", roles_table_name
-        )
+        LOGGER.info("IN RBACCustomResource.lambda_handler: RolesTable property: %s", roles_table_name)
 
         table = DYNAMODB_RESOURCE.Table(roles_table_name)
 
         mapping_path = '/opt/python/RBAC/role_permission_mapping.json'
-        LOGGER.info(
-            "IN custom_resource_roles.lambda_handler, loading role mapping from %s", mapping_path
-        )
+        LOGGER.info("IN RBACCustomResource.lambda_handler: loading role mapping from %s", mapping_path)
         with open(mapping_path, 'r', encoding='utf-8') as f:
             role_mapping = json.load(f)
 
-        LOGGER.info(
-            "IN custom_resource_roles.lambda_handler, syncing %d roles", len(role_mapping)
-        )
+        LOGGER.info("IN RBACCustomResource.lambda_handler: syncing %d roles", len(role_mapping))
         sync_system_roles(table, role_mapping)
 
-        LOGGER.info(
-            "IN custom_resource_roles.lambda_handler, roles synchronized successfully"
-        )
+        LOGGER.info("IN RBACCustomResource.lambda_handler: roles synchronized successfully")
         send_cfn_response(event, context, "SUCCESS")
 
     except botocore.exceptions.ClientError as e:
-        LOGGER.exception(
-            "IN custom_resource_roles.lambda_handler, AWS ClientError: %s", e
-        )
+        LOGGER.exception("IN RBACCustomResource.lambda_handler: AWS ClientError: %s", e)
         send_cfn_response(event, context, "FAILED", reason=str(e))
     except KeyError as e:
-        LOGGER.exception(
-            "IN custom_resource_roles.lambda_handler, Missing key: %s", e
-        )
+        LOGGER.exception("IN RBACCustomResource.lambda_handler: Missing key: %s", e)
         send_cfn_response(event, context, "FAILED", reason=f"Missing key: {e}")
     except TypeError as e:
-        LOGGER.exception(
-            "IN custom_resource_roles.lambda_handler, Type error: %s", e
-        )
+        LOGGER.exception("IN RBACCustomResource.lambda_handler: Type error: %s", e)
         send_cfn_response(event, context, "FAILED", reason=str(e))
     except Exception as e:
-        LOGGER.exception(
-            "IN custom_resource_roles.lambda_handler, Unexpected error: %s", e
-        )
+        LOGGER.exception("IN RBACCustomResource.lambda_handler: Unexpected error: %s", e)
         send_cfn_response(event, context, "FAILED", reason=str(e))
