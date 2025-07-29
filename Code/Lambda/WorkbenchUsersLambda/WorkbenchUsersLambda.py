@@ -3,25 +3,33 @@ import boto3
 import os
 import logging
 from boto3.dynamodb.conditions import Key
-from Utils.utils import paginate_list,  return_response
+from Utils.utils import paginate_list, return_response
 from RBAC.rbac import is_user_action_valid
 from datetime import datetime, timezone
 
-VALID_USERS_SORT_KEYS= ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
- 
 # Setup logger
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
-# Environment variable and client setup
-USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-MISC_BUCKET = os.environ.get("MISC_BUCKET")
-ROLES_TABLE = os.environ.get("ROLES_TABLE")
-GLUE_JOB_NAME = os.environ.get('GLUE_JOB_NAME')
-glue=boto3.client('glue')
-dynamodb = boto3.resource('dynamodb')
-user_table = dynamodb.Table(USER_TABLE_NAME)
-table = dynamodb.Table(ROLES_TABLE)
+try:
+    # Environment variable and client setup
+    USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
+    MISC_BUCKET = os.environ.get("MISC_BUCKET")
+    ROLES_TABLE = os.environ.get("ROLES_TABLE")
+    GLUE_JOB_NAME = os.environ.get('GLUE_JOB_NAME')
+    
+    VALID_USERS_SORT_KEYS = ['CreationTime', 'UserId', 'Username', 'Email', 'Role', 
+                            'LastUpdationTime', 'LastUpdatedBy', 'LastLoginTime']
+    
+    # Initialize AWS clients
+    glue = boto3.client('glue')
+    dynamodb = boto3.resource('dynamodb')
+    user_table = dynamodb.Table(USER_TABLE_NAME)
+    table = dynamodb.Table(ROLES_TABLE)
+    
+except Exception as e:
+    LOGGER.error("IN develop-UsersLambdaFunction, Failed to initialize environment variables or AWS clients: %s", e)
+    raise
 
 def lambda_handler(event, context):
     """
@@ -36,7 +44,8 @@ def lambda_handler(event, context):
         dict: API Gateway-compatible HTTP response.
     """
     try:
-        LOGGER.info("Received event: %s", json.dumps(event))
+        LOGGER.info("IN develop-UsersLambdaFunction.lambda_handler(), Received event: %s", json.dumps(event))
+        
         # Check for S3 trigger (presence of 'Records' with 's3' key)
         if "Records" in event and event["Records"][0].get("eventSource") == "aws:s3":
             return update_profile_image_on_s3_upload(event, context)
@@ -49,8 +58,9 @@ def lambda_handler(event, context):
 
         auth = event.get("requestContext", {}).get("authorizer", {})
         user_id = auth.get("user_id")
-        LOGGER.info("User ID: %s", user_id)
+        LOGGER.info("IN develop-UsersLambdaFunction.lambda_handler(), User ID: %s", user_id)
         role = auth.get("role")
+        
         valid, msg = is_user_action_valid(user_id, role, resource, http_method, table)
         if not valid:
             return return_response(403, {"Error": msg})
@@ -77,19 +87,19 @@ def lambda_handler(event, context):
             if action == 'profile_image':
                 return get_profile_image_upload_url(user_id, body)
             elif action == 'insert_role':
-                return update_user_roles(user_id, body,role,requester_user_id)
+                return update_user_roles(user_id, body, role, requester_user_id)
             elif action == 'delete_role':
-                return delete_user_roles(user_id, body, role,requester_user_id)
+                return delete_user_roles(user_id, body, role, requester_user_id)
             else:
                 return update_user_details(user_id, body)
         
-        if http_method == 'POST' and path=='/rag-sync':
+        if http_method == 'POST' and path == '/rag-sync':
             return rag_sync(event)
 
         return return_response(404, {"message": "Route not found"})
 
     except Exception as e:
-        LOGGER.error("Error processing request: %s", e, exc_info=True)
+        LOGGER.error("IN develop-UsersLambdaFunction.lambda_handler(), Error processing request: %s", e, exc_info=True)
         return return_response(500, {"message": "Internal server error"})
 
 def get_all_users(query_params):
@@ -102,48 +112,54 @@ def get_all_users(query_params):
     Returns:
         dict: HTTP response with users data.
     """
-    LOGGER.info("Getting all Users")
-    limit = int(query_params.get("limit", 5))
-    sort_by = query_params.get("sort_by", "Username")
-    sort_order = query_params.get("sort_order", "asc")
-    offset = int(query_params.get("offset", 1))
+    try:
+        LOGGER.info("IN develop-UsersLambdaFunction.get_all_users(), Getting all Users")
+        limit = int(query_params.get("limit", 5))
+        sort_by = query_params.get("sort_by", "Username")
+        sort_order = query_params.get("sort_order", "asc")
+        offset = int(query_params.get("offset", 1))
 
-    scan_response = user_table.scan()
-    items = scan_response.get("Items", [])
+        scan_response = user_table.scan()
+        items = scan_response.get("Items", [])
 
-    # Simplified response structure
-    Name = "Users"
-    simplified_items = [
-        {
-            "UserId": item.get("UserId"),
-            "Username": item.get("Username"),
-            "Email": item.get("Email"),
-            "Roles": item.get("Role", []),
-            "ProfileImageURL": item.get("ProfileImageURL"),
-            "LastLoginTime": item.get("LastLoginTime", "")
-        } for item in items
-    ]
-    paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, offset, limit, sort_by, sort_order)
-    LOGGER.info("Paginated result: %s", paginated_result)
+        # Simplified response structure
+        Name = "Users"
+        simplified_items = [
+            {
+                "UserId": item.get("UserId"),
+                "Username": item.get("Username"),
+                "Email": item.get("Email"),
+                "Roles": item.get("Role", []),
+                "ProfileImageURL": item.get("ProfileImageURL"),
+                "LastLoginTime": item.get("LastLoginTime", "")
+            } for item in items
+        ]
+        
+        paginated_result = paginate_list(Name, simplified_items, VALID_USERS_SORT_KEYS, 
+                                       offset, limit, sort_by, sort_order)
+        LOGGER.info("IN develop-UsersLambdaFunction.get_all_users(), Paginated result: %s", paginated_result)
 
-    # Correctly parse the 'body' and extract values from there
-    body_dict = json.loads(paginated_result.get("body", "{}"))
-    pagination = body_dict.get("Pagination", {})
+        # Correctly parse the 'body' and extract values from there
+        body_dict = json.loads(paginated_result.get("body", "{}"))
+        pagination = body_dict.get("Pagination", {})
 
-    formatted_response = {
-        "Users": body_dict.get("Users", []),
-        "TotalUsers": int(pagination.get("TotalCount", 0)),
-        "TotalWokspaces": 0,
-        "Pagination": {
-            "Count": pagination.get("Count", 0),
-            "TotalCount": pagination.get("TotalCount", 0),
-            "NextAvailable": pagination.get("NextAvailable", False)
+        formatted_response = {
+            "Users": body_dict.get("Users", []),
+            "TotalUsers": int(pagination.get("TotalCount", 0)),
+            "TotalWokspaces": 0,
+            "Pagination": {
+                "Count": pagination.get("Count", 0),
+                "TotalCount": pagination.get("TotalCount", 0),
+                "NextAvailable": pagination.get("NextAvailable", False)
+            }
         }
-    }
 
-    LOGGER.info("result: %s", formatted_response)
-    return return_response(200, formatted_response)
-
+        LOGGER.info("IN develop-UsersLambdaFunction.get_all_users(), result: %s", formatted_response)
+        return return_response(200, formatted_response)
+    
+    except Exception as e:
+        LOGGER.error("IN develop-UsersLambdaFunction.get_all_users(), Error: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to retrieve users"})
 
 def get_user_profile(user_id):
     """
@@ -155,52 +171,54 @@ def get_user_profile(user_id):
     Returns:
         dict: HTTP response with user profile.
     """
-    LOGGER.info("Getting User Profile for %s", user_id)
-    res = user_table.get_item(Key={"UserId": user_id})
-    item = res.get("Item")
-    LOGGER.info("Item: %s", item)
+    try:
+        LOGGER.info("IN develop-UsersLambdaFunction.get_user_profile(), Getting User Profile for %s", user_id)
+        res = user_table.get_item(Key={"UserId": user_id})
+        item = res.get("Item")
+        LOGGER.info("IN develop-UsersLambdaFunction.get_user_profile(), Item: %s", item)
 
-    if not item:
-        return return_response(404, {"message": "User not found"})
+        if not item:
+            return return_response(404, {"message": "User not found"})
 
-    image_key = f"profile-images/{user_id}/{user_id}"
-    current_time = int(datetime.now(timezone.utc).timestamp())
-    profile_image_url = item.get("ProfileImageURL")
-    profile_image_expiry = item.get("ProfileImageExpiry", 0)
-    LOGGER.info("Profile image expiry: %s", profile_image_expiry)
-    LOGGER.info("Current time: %s", current_time)
+        image_key = f"profile-images/{user_id}/{user_id}"
+        current_time = int(datetime.now(timezone.utc).timestamp())
+        profile_image_url = item.get("ProfileImageURL")
+        profile_image_expiry = item.get("ProfileImageExpiry", 0)
+        
+        LOGGER.info("IN develop-UsersLambdaFunction.get_user_profile(), Profile image expiry: %s", profile_image_expiry)
+        LOGGER.info("IN develop-UsersLambdaFunction.get_user_profile(), Current time: %s", current_time)
 
-    # Regenerate pre-signed URL if expired
-    if not profile_image_url:
-        pass
-    elif profile_image_url or current_time >= profile_image_expiry:
-        LOGGER.info("Regenerating profile image URL for user %s", user_id)
-        s3_client = boto3.client("s3")
-        new_presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": MISC_BUCKET, "Key": image_key},
-            ExpiresIn=604800  # 7 days
-        )
-        new_expiry = current_time + 604800
+        # Regenerate pre-signed URL if expired
+        if not profile_image_url:
+            pass
+        elif profile_image_url or current_time >= profile_image_expiry:
+            LOGGER.info("IN develop-UsersLambdaFunction.get_user_profile(), Regenerating profile image URL for user %s", user_id)
+            s3_client = boto3.client("s3")
+            new_presigned_url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": MISC_BUCKET, "Key": image_key},
+                ExpiresIn=604800  # 7 days
+            )
+            new_expiry = current_time + 604800
 
-        item["ProfileImageURL"] = new_presigned_url
-        item["ProfileImageExpiry"] = new_expiry
+            item["ProfileImageURL"] = new_presigned_url
+            item["ProfileImageExpiry"] = new_expiry
 
-        # Save the updated info
-        user_table.update_item(
-            Key={"UserId": user_id},
-            UpdateExpression="SET ProfileImageURL = :url, ProfileImageExpiry = :expiry",
-            ExpressionAttributeValues={
-                ":url": new_presigned_url,
-                ":expiry": new_expiry
-            }
-        )
+            # Save the updated info
+            user_table.update_item(
+                Key={"UserId": user_id},
+                UpdateExpression="SET ProfileImageURL = :url, ProfileImageExpiry = :expiry",
+                ExpressionAttributeValues={
+                    ":url": new_presigned_url,
+                    ":expiry": new_expiry
+                }
+            )
 
-    return return_response(200, item)
-
-
-    # return return_response(200, item)
-
+        return return_response(200, item)
+    
+    except Exception as e:
+        LOGGER.error("IN develop-UsersLambdaFunction.get_user_profile(), Error: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to retrieve user profile"})
 
 def update_user_details(user_id, body):
     """
@@ -213,23 +231,28 @@ def update_user_details(user_id, body):
     Returns:
         dict: HTTP response confirming update.
     """
-    LOGGER.info("Updating User Details for %s", user_id)
-    username = body.get("Username")
-    if not username:
-        return return_response(400, {"message": "Username is required"})
+    try:
+        LOGGER.info("IN develop-UsersLambdaFunction.update_user_details(), Updating User Details for %s", user_id)
+        username = body.get("Username")
+        if not username:
+            return return_response(400, {"message": "Username is required"})
 
-    last_updated_time = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+        last_updated_time = str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
-    user_table.update_item(
-        Key={"UserId": user_id},
-        UpdateExpression="SET Username = :username, LastUpdatedTime = :time",
-        ExpressionAttributeValues={
-            ":username": username,
-            ":time": last_updated_time
-        }
-    )
+        user_table.update_item(
+            Key={"UserId": user_id},
+            UpdateExpression="SET Username = :username, LastUpdatedTime = :time",
+            ExpressionAttributeValues={
+                ":username": username,
+                ":time": last_updated_time
+            }
+        )
 
-    return return_response(200, {"message": "User details updated"})
+        return return_response(200, {"message": "User details updated"})
+    
+    except Exception as e:
+        LOGGER.error("IN develop-UsersLambdaFunction.update_user_details(), Error: %s", e, exc_info=True)
+        return return_response(500, {"message": "Failed to update user details"})
 
 def get_profile_image_upload_url(user_id, body):
     """
@@ -243,36 +266,22 @@ def get_profile_image_upload_url(user_id, body):
     Returns:
         dict: Response with status code, UploadURL and ImageURL.
     """
-    LOGGER.info("Generating pre-signed upload URL for user: %s", user_id)
-
-    if not MISC_BUCKET:
-        return return_response(500, {"message": "S3 bucket not configured"})
-
-    file_name = user_id
-
-    # Get and validate file extension
-    # extension = os.path.splitext(file_name)[-1].lower()
-    # allowed_types = {
-    #     ".jpeg": "image/jpeg",
-    #     ".jpg": "image/jpeg",
-    #     ".png": "image/png",
-    #     ".webp": "image/webp"
-    # }
-
-    # If no extension is provided, use .jpg
-    # if not extension:
-    #     extension = ".jpg"
-    #     file_name += extension
-        
-    content_type = body.get("ContentType", "")
-    if not content_type:
-        return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
-
-    LOGGER.info("Content type: %s", content_type)
-    object_key = f"profile-images/{user_id}/{file_name}"
-    s3_client = boto3.client("s3")
-
     try:
+        LOGGER.info("IN develop-UsersLambdaFunction.get_profile_image_upload_url(), Generating pre-signed upload URL for user: %s", user_id)
+
+        if not MISC_BUCKET:
+            return return_response(500, {"message": "S3 bucket not configured"})
+
+        file_name = user_id
+        content_type = body.get("ContentType", "")
+        
+        if not content_type:
+            return return_response(400, {"message": "Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp"})
+
+        LOGGER.info("IN develop-UsersLambdaFunction.get_profile_image_upload_url(), Content type: %s", content_type)
+        object_key = f"profile-images/{user_id}/{file_name}"
+        s3_client = boto3.client("s3")
+
         presigned_url = s3_client.generate_presigned_url(
             "put_object",
             Params={
@@ -283,16 +292,13 @@ def get_profile_image_upload_url(user_id, body):
             ExpiresIn=3600
         )
 
-        # object_url = f"https://{s3_bucket}.s3.amazonaws.com/{object_key}"
-
         return return_response(200, {
             "message": "Pre-signed URL generated",
             "PreSignedURL": presigned_url
-            # "ImageURL": object_url
         })
 
     except Exception as e:
-        LOGGER.error("Failed to generate pre-signed URL: %s", e, exc_info=True)
+        LOGGER.error("IN develop-UsersLambdaFunction.get_profile_image_upload_url(), Failed to generate pre-signed URL: %s", e, exc_info=True)
         return return_response(500, {"message": "Error generating pre-signed URL"})
 
 def update_profile_image_on_s3_upload(event, context):
@@ -307,30 +313,29 @@ def update_profile_image_on_s3_upload(event, context):
     Returns:
         dict: Status message of the operation.
     """
-    LOGGER.info("Received S3 event: %s", json.dumps(event))
-
     try:
+        LOGGER.info("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Received S3 event: %s", json.dumps(event))
+
         for record in event.get("Records", []):
             s3_info = record.get("s3", {})
             bucket_name = s3_info.get("bucket", {}).get("name")
             object_key = s3_info.get("object", {}).get("key")
-            LOGGER.info("Bucket: %s, Key: %s", bucket_name, object_key)
+            LOGGER.info("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Bucket: %s, Key: %s", bucket_name, object_key)
 
             if not bucket_name or not object_key:
-                LOGGER.warning("Missing bucket or key in record: %s", record)
+                LOGGER.warning("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Missing bucket or key in record: %s", record)
                 continue
 
             # Extract user_id from the object key pattern: profile-images/{user_id}/{filename}
             parts = object_key.split("/")
             if len(parts) < 3:
-                LOGGER.warning("Unexpected object key format: %s", object_key)
+                LOGGER.warning("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Unexpected object key format: %s", object_key)
                 continue
 
             user_id = parts[1]
-            LOGGER.info("Extracted user_id: %s", user_id)
+            LOGGER.info("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Extracted user_id: %s", user_id)
 
-           # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
-            # image_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
+            # Construct the public or virtual-hosted URL (if needed, you could use a GET presigned URL)
             presigned_url = boto3.client("s3").generate_presigned_url(
                 "get_object",
                 Params={"Bucket": bucket_name, "Key": object_key},
@@ -347,16 +352,6 @@ def update_profile_image_on_s3_upload(event, context):
                     ":expiry": expiry_time
                 }
             )
-            LOGGER.info("Image URL: %s", image_url)
-
-            # # Update DynamoDB record
-            # user_table.update_item(
-            #     Key={"UserId": user_id},
-            #     UpdateExpression="SET ProfileImageURL = :url",
-            #     ExpressionAttributeValues={":url": image_url}
-            # )
-
-            # LOGGER.info("Updated profile image URL for user %s", user_id)
 
         return {
             "statusCode": 200,
@@ -364,7 +359,7 @@ def update_profile_image_on_s3_upload(event, context):
         }
 
     except Exception as e:
-        LOGGER.error("Error processing S3 event: %s", e, exc_info=True)
+        LOGGER.error("IN develop-UsersLambdaFunction.update_profile_image_on_s3_upload(), Error processing S3 event: %s", e, exc_info=True)
         return {
             "statusCode": 500,
             "body": json.dumps({"message": "Failed to update profile image URL"})
@@ -377,21 +372,23 @@ def update_user_roles(user_id, body, requester_role, requester_user_id):
     Args:
         user_id (str): Unique identifier for the user.
         body (dict): JSON body containing the 'Role'.
+        requester_role (str): Role of the requesting user.
+        requester_user_id (str): ID of the requesting user.
 
     Returns:
         dict: HTTP response confirming update.
     """
-    LOGGER.info("Updating roles for user: %s", user_id)
-    
-    # Enforce RBAC
-    if requester_role != 'ITAdmin':
-        return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
-
-    new_role = body.get("Role")
-    if not new_role:
-        return return_response(400, {"message": "Role is required"})
-
     try:
+        LOGGER.info("IN develop-UsersLambdaFunction.update_user_roles(), Updating roles for user: %s", user_id)
+        
+        # Enforce RBAC
+        if requester_role != 'ITAdmin':
+            return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
+
+        new_role = body.get("Role")
+        if not new_role:
+            return return_response(400, {"message": "Role is required"})
+
         # Fetch the current roles
         result = user_table.get_item(Key={"UserId": user_id})
         user = result.get("Item")
@@ -440,11 +437,10 @@ def update_user_roles(user_id, body, requester_role, requester_user_id):
             ExpressionAttributeValues={":users": existing_users}
         )
 
-
         return return_response(200, {"message": f"Role '{new_role}' added successfully"})
 
     except Exception as e:
-        LOGGER.error("Failed to update user roles: %s", e, exc_info=True)
+        LOGGER.error("IN develop-UsersLambdaFunction.update_user_roles(), Failed to update user roles: %s", e, exc_info=True)
         return return_response(500, {"message": "Error updating user roles"})
 
 def delete_user_roles(user_id, body, requester_role, requester_user_id):
@@ -455,21 +451,22 @@ def delete_user_roles(user_id, body, requester_role, requester_user_id):
         user_id (str): ID of the user whose role is to be removed.
         body (dict): JSON body containing the 'Role' to remove.
         requester_role (str): Role of the requesting user from JWT/authorizer.
+        requester_user_id (str): ID of the requesting user.
 
     Returns:
         dict: HTTP response.
     """
-    LOGGER.info("Attempting to delete role from user: %s", user_id)
-
-    # Enforce RBAC
-    if requester_role != 'ITAdmin':
-        return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
-
-    role_to_remove = body.get("Role")
-    if not role_to_remove:
-        return return_response(400, {"message": "Role to remove is required"})
-
     try:
+        LOGGER.info("IN develop-UsersLambdaFunction.delete_user_roles(), Attempting to delete role from user: %s", user_id)
+
+        # Enforce RBAC
+        if requester_role != 'ITAdmin':
+            return return_response(403, {"message": "Only ITAdmin can remove roles from a user"})
+
+        role_to_remove = body.get("Role")
+        if not role_to_remove:
+            return return_response(400, {"message": "Role to remove is required"})
+
         # Fetch user from DynamoDB
         result = user_table.get_item(Key={"UserId": user_id})
         user = result.get("Item")
@@ -484,13 +481,6 @@ def delete_user_roles(user_id, body, requester_role, requester_user_id):
             return return_response(404, {"message": f"Role '{role_to_remove}' not assigned to user"})
 
         updated_roles = [r for r in current_roles if r != role_to_remove]
-
-        # user_table.update_item(
-        #     Key={"UserId": user_id},
-        #     UpdateExpression="SET #r = :roles",
-        #     ExpressionAttributeNames={"#r": "Role"},
-        #     ExpressionAttributeValues={":roles": updated_roles}
-        # )
 
         user_table.update_item(
             Key={"UserId": user_id},
@@ -523,34 +513,46 @@ def delete_user_roles(user_id, body, requester_role, requester_user_id):
         return return_response(200, {"message": f"Role '{role_to_remove}' removed successfully"})
 
     except Exception as e:
-        LOGGER.error("Failed to delete user role: %s", e, exc_info=True)
+        LOGGER.error("IN develop-UsersLambdaFunction.delete_user_roles(), Failed to delete user role: %s", e, exc_info=True)
         return return_response(500, {"message": "Error removing user role"})
 
 def rag_sync(event):
-    '''This function is used to sync the web scrap and dynamodb data to knowledge base'''
-    LOGGER.info("Event: %s", event)
-    query_string_parameters = event.get("queryStringParameters") or {}
-    action = query_string_parameters.get("action")
-    print(action)
-    arguments = {}
-    if action is None:
-        arguments['--ACTION'] = 'docsapp'
-    elif action is not None and action == 'docs':
-        arguments['--ACTION'] = 'docs'
-    elif action is not None and action == 'app':
-        arguments['--ACTION'] = 'app'
-    else:
-        return return_response(400, {"message": "Invalid or missing action parameter"})
+    """
+    Sync the web scrap and dynamodb data to knowledge base.
 
+    Args:
+        event (dict): The event object containing query parameters.
+
+    Returns:
+        dict: HTTP response indicating job status.
+    """
     try:
+        LOGGER.info("IN develop-UsersLambdaFunction.rag_sync(), Event: %s", event)
+        query_string_parameters = event.get("queryStringParameters") or {}
+        action = query_string_parameters.get("action")
+        LOGGER.info("IN develop-UsersLambdaFunction.rag_sync(), Action: %s", action)
+        
+        arguments = {}
+        if action is None:
+            arguments['--ACTION'] = 'docsapp'
+        elif action is not None and action == 'docs':
+            arguments['--ACTION'] = 'docs'
+        elif action is not None and action == 'app':
+            arguments['--ACTION'] = 'app'
+        else:
+            return return_response(400, {"message": "Invalid or missing action parameter"})
+
         response = glue.start_job_run(
             JobName=GLUE_JOB_NAME,
             Arguments=arguments
         )
-        return return_response(200,{
+        
+        LOGGER.info("IN develop-UsersLambdaFunction.rag_sync(), Glue job started successfully with ID: %s", response['JobRunId'])
+        return return_response(200, {
                 "message": "Glue job started successfully",
                 "job_run_id": response['JobRunId']
             })
+            
     except Exception as e:
+        LOGGER.error("IN develop-UsersLambdaFunction.rag_sync(), Error starting Glue job: %s", e, exc_info=True)
         return return_response(500, {"message": f"Error starting Glue job {str(e)}"})
-    

@@ -6,22 +6,37 @@ import logging
 import uuid
 from FGAC.fgac import create_workspace_fgac, check_workspace_access
 
+# Initialize logger with consistent format
 LOGGER = logging.getLogger()
-LOGGER.setLevel(logging.INFO)
+try:
+    LOGGER.setLevel(logging.INFO)
+    LOGGER.info("IN develop-PostConfirm, Logger initialized successfully")
+except Exception as e:
+    print(f"Failed to initialize logger: {str(e)}")
+    raise
 
-cognito = boto3.client('cognito-idp')
-dynamodb = boto3.resource('dynamodb')
-ses = boto3.client('ses')
+try:
+    # Initialize AWS clients and resources
+    cognito = boto3.client('cognito-idp')
+    dynamodb = boto3.resource('dynamodb')
+    ses = boto3.client('ses')
 
-USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
-ROLE_TABLE_NAME = os.environ['ROLE_TABLE_NAME']
-WORKSPACES_TABLE_NAME=os.environ['WORKSPACES_TABLE_NAME']
-DOMAIN = os.environ['DOMAIN']
-SOURCE_EMAIL = os.environ['SOURCE_EMAIL']
-ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
-RESOURCE_ACCESS_TABLE = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
-
-workspace_table = dynamodb.Table(os.environ['WORKSPACES_TABLE_NAME'])
+    # Load environment variables
+    USER_TABLE_NAME = os.environ['USER_TABLE_NAME']
+    ROLE_TABLE_NAME = os.environ['ROLE_TABLE_NAME']
+    WORKSPACES_TABLE_NAME = os.environ['WORKSPACES_TABLE_NAME']
+    DOMAIN = os.environ['DOMAIN']
+    SOURCE_EMAIL = os.environ['SOURCE_EMAIL']
+    
+    # Initialize DynamoDB tables
+    ACTIVITY_LOGS_TABLE = dynamodb.Table(os.environ['ACTIVITY_LOGS_TABLE'])
+    RESOURCE_ACCESS_TABLE = dynamodb.Table(os.environ['RESOURCE_ACCESS_TABLE'])
+    workspace_table = dynamodb.Table(WORKSPACES_TABLE_NAME)
+    
+    LOGGER.info("IN develop-PostConfirm, Global variables initialized successfully")
+except Exception as e:
+    LOGGER.error("IN develop-PostConfirm, Failed to initialize global variables: %s", str(e))
+    raise
 
 
 def send_email(subject, body, recipient):
@@ -36,9 +51,9 @@ def send_email(subject, body, recipient):
     Returns:
         None: Logs success or failure
     """
-    LOGGER.info("Inside Workbench-PostConfirmation.send_email - Attempting to send email to %s", recipient)
+    LOGGER.info("IN develop-PostConfirm.send_email(), Attempting to send email to %s", recipient)
     try:
-        ses.send_email(
+        response = ses.send_email(
             Source=SOURCE_EMAIL,
             Destination={'ToAddresses': [recipient]},
             Message={
@@ -46,203 +61,286 @@ def send_email(subject, body, recipient):
                 'Body': {'Text': {'Data': body}}
             }
         )
-        LOGGER.info("Inside Workbench-PostConfirmation.send_email - Email sent successfully to %s", recipient)
+        LOGGER.info("IN develop-PostConfirm.send_email(), Email sent successfully to %s", recipient)
+        return response
     except Exception as e:
-        LOGGER.error("Inside Workbench-PostConfirmation.send_email - Failed to send email: %s", str(e))
+        LOGGER.error("IN develop-PostConfirm.send_email(), Failed to send email: %s", str(e))
+        raise
+
 
 def get_user_role():
-    """Check if 'ITAdmin' role has any users assigned. If not, assign ITAdmin, else Default."""
+    """
+    Determine the appropriate role for a new user.
+    
+    Checks if 'ITAdmin' role has any users assigned. If not, assigns ITAdmin role,
+    otherwise assigns Default role.
+    
+    Returns:
+        str: The assigned role ('ITAdmin' or 'Default')
+        
+    Raises:
+        Exception: If there's an error accessing the role table or if ITAdmin role is not found
+    """
+    LOGGER.info("IN develop-PostConfirm.get_user_role(), Checking user role assignment")
     table = dynamodb.Table(ROLE_TABLE_NAME)
     try:
         response = table.get_item(Key={'Role': 'ITAdmin'})
         role_item = response.get('Item')
 
-        LOGGER.info("Fetched role item: %s", role_item)
-        LOGGER.info("Role item type: %s", type(role_item))
-        if role_item :
+        LOGGER.info("IN develop-PostConfirm.get_user_role(), Fetched role item: %s", role_item)
+        if role_item:
             if 'Users' not in role_item:
+                LOGGER.info("IN develop-PostConfirm.get_user_role(), Assigning ITAdmin role")
                 return "ITAdmin"
             else:
+                LOGGER.info("IN develop-PostConfirm.get_user_role(), Assigning Default role")
                 return "Default"
         else:
-            LOGGER.info("No valid ITAdmin role item found, defaulting role to Default.")
-            raise Exception("ITAdmin role not found or invalid.")
+            error_msg = "ITAdmin role not found or invalid."
+            LOGGER.error("IN develop-PostConfirm.get_user_role(), %s", error_msg)
+            raise Exception(error_msg)
     except Exception as e:
-        LOGGER.error("Error fetching role from Roles table: %s", str(e))
+        LOGGER.error("IN develop-PostConfirm.get_user_role(), Error fetching role: %s", str(e))
         raise
 
 
 def put_item(table_name, item):
-    """Put a new item into the specified DynamoDB table."""
+    """
+    Put a new item into the specified DynamoDB table.
+    
+    Args:
+        table_name (str): Name of the DynamoDB table
+        item (dict): Item to be inserted
+        
+    Raises:
+        Exception: If the put operation fails
+    """
+    LOGGER.info("IN develop-PostConfirm.put_item(), Attempting to put item in %s", table_name)
     try:
         table = dynamodb.Table(table_name)
         table.put_item(Item=item)
-        LOGGER.info("put_item - Successfully put item in %s", table_name)
+        LOGGER.info("IN develop-PostConfirm.put_item(), Successfully put item in %s", table_name)
     except Exception as e:
-        LOGGER.error("put_item - Failed to put item in %s: %s", table_name, str(e))
+        LOGGER.error("IN develop-PostConfirm.put_item(), Failed to put item in %s: %s", table_name, str(e))
+        raise
+
 
 def get_item(table_name, key):
-    """Retrieve an item from the specified DynamoDB table by key."""
+    """
+    Retrieve an item from the specified DynamoDB table by key.
+    
+    Args:
+        table_name (str): Name of the DynamoDB table
+        key (dict): Key to retrieve the item
+        
+    Returns:
+        dict: The retrieved item or None if not found
+        
+    Raises:
+        Exception: If the get operation fails
+    """
+    LOGGER.info("IN develop-PostConfirm.get_item(), Retrieving item from %s", table_name)
     try:
         table = dynamodb.Table(table_name)
         response = table.get_item(Key=key)
         item = response.get("Item")
-        LOGGER.info("get_item - Retrieved item from %s: %s", table_name, item)
+        LOGGER.info("IN develop-PostConfirm.get_item(), Retrieved item from %s", table_name)
         return item
     except Exception as e:
-        LOGGER.error("get_item - Failed to retrieve item from %s: %s", table_name, str(e))
-        return None
+        LOGGER.error("IN develop-PostConfirm.get_item(), Failed to retrieve item from %s: %s", table_name, str(e))
+        raise
+
 
 def delete_item(table_name, key):
-    """Delete an item from the specified DynamoDB table by key."""
+    """
+    Delete an item from the specified DynamoDB table by key.
+    
+    Args:
+        table_name (str): Name of the DynamoDB table
+        key (dict): Key of the item to delete
+        
+    Raises:
+        Exception: If the delete operation fails
+    """
+    LOGGER.info("IN develop-PostConfirm.delete_item(), Deleting item from %s", table_name)
     try:
         table = dynamodb.Table(table_name)
         table.delete_item(Key=key)
-        LOGGER.info("delete_item - Deleted item from %s with key %s", table_name, key)
+        LOGGER.info("IN develop-PostConfirm.delete_item(), Successfully deleted item from %s", table_name)
     except Exception as e:
-        LOGGER.error("delete_item - Failed to delete item from %s: %s", table_name, str(e))
+        LOGGER.error("IN develop-PostConfirm.delete_item(), Failed to delete item from %s: %s", table_name, str(e))
+        raise
+
 
 def add_user_to_role(role, user_id):
+    """
+    Add a user to a role in the Roles table.
+    
+    Args:
+        role (str): The role to add the user to
+        user_id (str): The ID of the user to add
+        
+    Raises:
+        Exception: If the update operation fails
+    """
+    LOGGER.info("IN develop-PostConfirm.add_user_to_role(), Adding user %s to role %s", user_id, role)
     table = dynamodb.Table(ROLE_TABLE_NAME)
     try:
         table.update_item(
             Key={"Role": role},
             UpdateExpression="SET #u = list_append(if_not_exists(#u, :empty), :user)",
-            ExpressionAttributeNames={
-                "#u": "Users" 
-            },
+            ExpressionAttributeNames={"#u": "Users"},
             ExpressionAttributeValues={
                 ":user": [user_id],
                 ":empty": []
             },
             ReturnValues="UPDATED_NEW"
         )
-        LOGGER.info("Successfully added user %s to role %s", user_id, role)
+        LOGGER.info("IN develop-PostConfirm.add_user_to_role(), Successfully added user %s to role %s", user_id, role)
     except Exception as e:
-        LOGGER.error("Failed to update role %s with user %s: %s", role, user_id, str(e))
+        LOGGER.error("IN develop-PostConfirm.add_user_to_role(), Failed to update role %s with user %s: %s", 
+                    role, user_id, str(e))
         raise
 
 
 def lambda_handler(event, context):
-    """Handles post-confirmation trigger from AWS Cognito.
-
-    Assigns a role (SuperAdmin or Users), adds the user to a Cognito group,
-    stores user details in DYNAMODB, and sends a welcome email.
-
-    Args:
-        event (dict): Event data from AWS Lambda trigger.
-        context (LambdaContext): Runtime information.
-
-    Returns:
-        dict: The input event, unmodified.
-
-    Raises:
-        Exception: Reraises any errors after cleaning up resources (user from Cognito and DYNAMODB).
     """
-    LOGGER.info(event)
+    Handles post-confirmation trigger from AWS Cognito.
+    
+    This function is triggered after a user confirms their account in Cognito. It:
+    1. Assigns a role (ITAdmin if first user, otherwise Default)
+    2. Stores user details in DynamoDB
+    3. Creates a default workspace for the user
+    4. Sets up fine-grained access control for the workspace
+    5. Logs the account creation activity
+    6. Sends a welcome email
+    
+    Args:
+        event (dict): Event data from AWS Lambda trigger containing user information
+        context (LambdaContext): Runtime information from AWS Lambda
+        
+    Returns:
+        dict: The input event, unmodified
+        
+    Raises:
+        Exception: If any step fails, with cleanup of created resources
+    """
+    LOGGER.info("IN develop-PostConfirm.lambda_handler(), Received event: %s", json.dumps(event, default=str))
     user_id = None
     role = "Default"  # Default role if not set
         
     try:
+        # Step 1: Determine and assign user role
         role = get_user_role()
-
-        # Set custom attribute 'custom:Role' in Cognito
+        
+        # Set custom role attribute in Cognito
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Setting role %s for user %s", 
+                   role, event['userName'])
         cognito.admin_update_user_attributes(
             UserPoolId=event['userPoolId'],
             Username=event['userName'],
-            UserAttributes=[
-                {
-                    'Name': 'custom:Role',
-                    'Value': role
-                }
-            ]
+            UserAttributes=[{'Name': 'custom:Role', 'Value': role}]
         )
-        LOGGER.info("Set custom:Role = %s for user %s in Cognito", role, event['userName'])
 
-        # attributes we get from cognito
+        # Extract user attributes from Cognito event
         userAttributes = event['request']['userAttributes']
         email = userAttributes.get('email', '')
         username = userAttributes.get('name', '')
         user_id = event.get('userName')
+        
         if not user_id or not isinstance(user_id, str) or user_id.strip() == "":
-            raise ValueError("preferred_username is missing or invalid in Cognito attributes.")
+            error_msg = "preferred_username is missing or invalid in Cognito attributes."
+            LOGGER.error("IN develop-PostConfirm.lambda_handler(), %s", error_msg)
+            raise ValueError(error_msg)
 
-        # attributes to DYNAMODB
+        # Step 2: Store user in DynamoDB
+        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         dynamo_items = {
             'UserId': user_id,
             'Username': username,
             'Email': email,
-            'CreationTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+            'CreationTime': current_time,
             "ProfileImageURL": "",
             'Role': [role],
             'LastUpdatedBy': user_id,
-            'LastUpdatedTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-            'LastLoginTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+            'LastUpdatedTime': current_time,
+            'LastLoginTime': current_time
         }
         put_item(USER_TABLE_NAME, dynamo_items)
-        LOGGER.info("engagements.cognito, added user %s ", username)
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Successfully stored user %s in DynamoDB", username)
 
-        # Create default workspace
+        # Step 3: Create default workspace
         workspace_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-
         workspace_item = {
             'WorkspaceId': workspace_id,
             'CreatedBy': user_id,
-            'CreationTime': now,
+            'CreationTime': current_time,
             'Description': 'Default workspace created for user',
             'LastUpdatedBy': user_id,
-            'LastUpdationTime': now,
-            'Tags': [
-                {'Key': 'Type', 'Value': 'Default'}
-            ],
+            'LastUpdationTime': current_time,
+            'Tags': [{'Key': 'Type', 'Value': 'Default'}],
             'WorkspaceName': 'Default Workspace',
             'WorkspaceStatus': 'Active',
             'WorkspaceType': "DEFAULT"
         }
-
         workspace_table.put_item(Item=workspace_item)
-        LOGGER.info(" Default workspace created for user %s", user_id)
-        create_workspace_fgac(RESOURCE_ACCESS_TABLE,user_id,"owner",workspace_id)
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Created default workspace for user %s", user_id)
 
+        # Step 4: Set up workspace access control
+        create_workspace_fgac(RESOURCE_ACCESS_TABLE, user_id, "owner", workspace_id)
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Created FGAC for workspace %s", workspace_id)
+
+        # Step 5: Log account creation activity
         log_item = {
             'LogId': str(uuid.uuid4()),
             'UserId': user_id,
             'Action': 'ACCOUNT CREATED',
             'Email': email,
-            'EventTime': str(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+            'EventTime': current_time,
             'ResourceName': 'CognitoPostAuth',
             'ResourceType': 'Cognito',
             'ResourceId': user_id
         }
-        LOGGER.info(f"Logging login for user {user_id}")
         ACTIVITY_LOGS_TABLE.put_item(Item=log_item)
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Logged account creation for user %s", user_id)
 
+        # Step 6: Add user to role in Roles table
         add_user_to_role(role, user_id)
 
+        # Step 7: Send welcome email
         subject = f"Welcome to {DOMAIN}"
         body = f"Hi {username},\n\nWelcome to {DOMAIN}.\n\nRegards,\nTeam {DOMAIN}"
         send_email(subject, body, email)
+        LOGGER.info("IN develop-PostConfirm.lambda_handler(), Sent welcome email to %s", email)
                 
         return event
+        
     except Exception as e:
-        # delete user from cognito user pool
-        try:
-            cognito.admin_delete_user(
-                UserPoolId=event['userPoolId'],
-                Username=event['userName']
-            )
-            LOGGER.info("engagements.cognito, deleted Cognito user %s", event['userName'])
-        except Exception as delete_err:
-            LOGGER.error("Failed to delete user from Cognito: %s", delete_err)
+        LOGGER.error("IN develop-PostConfirm.lambda_handler(), Error processing user: %s", str(e))
+        
+        # Cleanup: Delete user from Cognito if created
+        if 'userName' in event:
+            try:
+                cognito.admin_delete_user(
+                    UserPoolId=event['userPoolId'],
+                    Username=event['userName']
+                )
+                LOGGER.info("IN develop-PostConfirm.lambda_handler(), Deleted Cognito user %s during cleanup", 
+                           event['userName'])
+            except Exception as delete_err:
+                LOGGER.error("IN develop-PostConfirm.lambda_handler(), Failed to delete user from Cognito: %s", 
+                            str(delete_err))
 
-        if user_id:  # Only attempt cleanup if we have a user_id
+        # Cleanup: Delete user from DynamoDB if created
+        if user_id:
             try:
                 user_item = get_item(USER_TABLE_NAME, {'UserId': user_id})
                 if user_item:
                     delete_item(USER_TABLE_NAME, {'UserId': user_id})
-                    LOGGER.info("Deleted dynamodb entry for user %s", user_id)
+                    LOGGER.info("IN develop-PostConfirm.lambda_handler(), Deleted DynamoDB entry for user %s during cleanup", 
+                               user_id)
             except Exception as ddb_err:
-                LOGGER.error(f"Failed to delete user from DYNAMODB: {ddb_err}")
+                LOGGER.error("IN develop-PostConfirm.lambda_handler(), Failed to delete user from DynamoDB: %s", 
+                            str(ddb_err))
         
         raise e
