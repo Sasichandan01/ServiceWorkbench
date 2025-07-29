@@ -258,6 +258,24 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
     return String(value);
   };
 
+  const PERMISSION_CATEGORIES = [
+    {
+      label: "Platform Permissions",
+      keys: ["workspaces", "datasources", "users", "roles", "executions"],
+    },
+    {
+      label: "AWS Services",
+      keys: ["glue", "stepfunction", "lambda", "s3", "dynamodb"],
+    },
+  ];
+
+  const PERMISSION_LEVELS = [
+    { value: "", label: "None" },
+    { value: "Fullaccess", label: "Full Access" },
+    { value: "Manage", label: "Manage" },
+    { value: "View", label: "View" },
+  ];
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -393,80 +411,45 @@ const RoleDetailsDialog = ({ role, trigger, onRoleUpdated }: RoleDetailsDialogPr
               </CardHeader>
               <CardContent>
                 {isEditing ? (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">Platform Permissions</h3>
-                      <div className="grid grid-cols-2 gap-6">
-                        {(['workspaces', 'datasources', 'users', 'roles'] as const).map((permission) => (
-                          <div key={permission} className="space-y-3">
-                            <Label className="text-sm font-medium capitalize">{permission}</Label>
-                            <RadioGroup
-                              value={editForm.permissions[permission]}
-                              onValueChange={(value) => 
-                                setEditForm({
-                                  ...editForm,
-                                  permissions: {
-                                    ...editForm.permissions,
-                                    [permission]: value as 'fullaccess' | 'manage' | 'view'
-                                  }
-                                })
-                              }
-                            >
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="fullaccess" id={`${permission}-full`} />
-                                <Label htmlFor={`${permission}-full`}>Full Access</Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="manage" id={`${permission}-manage`} />
-                                <Label htmlFor={`${permission}-manage`}>Manage</Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="view" id={`${permission}-view`} />
-                                <Label htmlFor={`${permission}-view`}>View</Label>
-                              </div>
-                            </RadioGroup>
-                          </div>
-                        ))}
+                  <div className="space-y-8">
+                    {PERMISSION_CATEGORIES.map(category => (
+                      <div key={category.label}>
+                        <h3 className="text-lg font-semibold mb-2">{category.label}</h3>
+                        <div className="grid grid-cols-2 gap-6">
+                          {category.keys.map((key) => (
+                            <div key={key} className="space-y-3">
+                              <Label className="text-sm font-medium capitalize">{key === 'stepfunction' ? 'Step Functions' : key.charAt(0).toUpperCase() + key.slice(1)}</Label>
+                              <RadioGroup
+                                value={editForm.permissions[key] || ''}
+                                onValueChange={(value) =>
+                                  setEditForm(f => ({
+                                    ...f,
+                                    permissions: { ...f.permissions, [key]: value === '' ? undefined : value as 'Fullaccess' | 'Manage' | 'View' }
+                                  }))
+                                }
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="" id={`${key}-none`} />
+                                  <Label htmlFor={`${key}-none`}>None</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="Fullaccess" id={`${key}-full`} />
+                                  <Label htmlFor={`${key}-full`}>Full Access</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="Manage" id={`${key}-manage`} />
+                                  <Label htmlFor={`${key}-manage`}>Manage</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="View" id={`${key}-view`} />
+                                  <Label htmlFor={`${key}-view`}>View</Label>
+                                </div>
+                              </RadioGroup>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">AWS Services</h3>
-                      <div className="grid grid-cols-2 gap-6">
-                        {(['glue', 'stepfunction', 'lambda'] as const).map((service) => (
-                          <div key={service} className="space-y-3">
-                            <Label className="text-sm font-medium capitalize">
-                              {service === 'stepfunction' ? 'Step Functions' : service.toUpperCase()}
-                            </Label>
-                            <RadioGroup
-                              value={editForm.permissions[service]}
-                              onValueChange={(value) => 
-                                setEditForm({
-                                  ...editForm,
-                                  permissions: {
-                                    ...editForm.permissions,
-                                    [service]: value as 'fullaccess' | 'manage' | 'view'
-                                  }
-                                })
-                              }
-                            >
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="fullaccess" id={`${service}-full`} />
-                                <Label htmlFor={`${service}-full`}>Full Access</Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="manage" id={`${service}-manage`} />
-                                <Label htmlFor={`${service}-manage`}>Manage</Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="view" id={`${service}-view`} />
-                                <Label htmlFor={`${service}-view`}>View</Label>
-                              </div>
-                            </RadioGroup>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   roleDetails.Permissions && Array.isArray(roleDetails.Permissions) && roleDetails.Permissions.length > 0 ? (

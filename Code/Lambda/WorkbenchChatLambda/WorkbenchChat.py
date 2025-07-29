@@ -9,7 +9,7 @@ from decimal import Decimal
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
-
+ 
 
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -195,6 +195,8 @@ def read_selected_s3_files(bucket: str, prefix: str, filenames: list[str]) -> di
     
     for filename in filenames:
         try:
+            if 'code' in filename:
+                filename.replace('code', 'codes')
             # Construct the full S3 key
             key = f"{prefix}{filename}"
             
@@ -239,8 +241,9 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Received chat context: {chatcontext}")
    
     combined_prompt=""
-    if chatcontext == 'AIChat':
+    if chatcontext == 'Editor':
         file_context=body.get('FileContext')
+        print(file_context)
         if file_context:
             s3_data=read_selected_s3_files("develop-service-workbench-workspaces",f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}", file_context)
             combined_prompt = f"Here is the file context: {s3_data}."
@@ -339,7 +342,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         if code_generated == "true" and function == "storeServiceArtifactsInS3":
                             LOGGER.info("<codegenerated> is true")
-
+                            s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
                             
                         else:
                             LOGGER.info("<codegenerated> is not true")

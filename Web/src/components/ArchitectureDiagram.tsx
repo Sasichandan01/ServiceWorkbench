@@ -3,7 +3,24 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Database } from "lucide-react";
 import Mermaid from "./ui/Mermaid";
 
-const diagram = `graph TD\n    A[CSV File Upload] -->|Trigger| B[S3 Input Bucket]\n    B -->|Invoke| C[Lambda Trigger]\n    C -->|Start| D[Step Functions Workflow]\n    D -->|Execute| E[Glue ETL Job]\n    E -->|Read| B\n    E -->|Write| F[S3 Output Bucket]\n    D -->|On Completion| G[SNS Notification]\n    D -->|On Failure| H[SNS Error Notification]\n\n    classDef s3 fill:#569A31,color:#fff,stroke:#3d6c23,stroke-width:2px\n    classDef lambda fill:#ff9900,color:#fff,stroke:#c77600,stroke-width:2px\n    classDef stepfunctions fill:#1D4ED8,color:#fff,stroke:#1e3a8a,stroke-width:2px\n    classDef glue fill:#6b21a8,color:#fff,stroke:#4c1d95,stroke-width:2px\n    classDef sns fill:#facc15,color:#000,stroke:#b45309,stroke-width:2px\n    classDef error fill:#dc2626,color:#fff,stroke:#991b1b,stroke-width:2px\n\n    class B,F s3\n    class C lambda\n    class D stepfunctions\n    class E glue\n    class G,H sns\n    class H error`;
+const diagram = `graph TD
+    A[User] -->|Invoke| D[Glue ETL Job]
+    D -->|Read| E[S3 Input Bucket]
+    D -->|Write| E
+    D -->|Send Completion Status| A
+    subgraph "Data Processing"
+    D -->|1. Clean Data| D1[Clean Data]
+    D1 -->|2. Calculate Returns| D2[Calculate Returns]
+    D2 -->|3. Compute SMA| D3[Compute SMA]
+    end
+    classDef s3 fill:#569A31,color:#fff,stroke:#3d6c23,stroke-width:2px
+    classDef lambda fill:#ff9900,color:#fff,stroke:#c77600,stroke-width:2px
+    classDef stepfunctions fill:#1D4ED8,color:#fff,stroke:#1e3a8a,stroke-width:2px
+    classDef glue fill:#6b21a8,color:#fff,stroke:#4c1d95,stroke-width:2px
+    classDef user fill:#facc15,color:#000,stroke:#b45309,stroke-width:2px
+    class E s3
+    class D,D1,D2,D3 glue
+    class A user`;
 
 const ArchitectureDiagram = () => {
   return (

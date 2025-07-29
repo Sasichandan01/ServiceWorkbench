@@ -67,8 +67,8 @@ def fetch_resources_for_solution(workspace_id,solution_id):
     """Fetch resources for a given solution from the solutions table."""
     try:
         response = solutions_table.get_item(Key={'WorkspaceId':workspace_id,'SolutionId': solution_id})
-        print(response)
-        return response.get('Item', {}).get('Resources', [])
+        
+        return response.get('Item', {}).get('Resource', [])
     except Exception as e:
         logger.error(f"Error fetching resources for solution: {str(e)}")
         raise
@@ -93,7 +93,7 @@ def fetch_logs_for_resource(resource, start_time, end_time):
     """
     try:
         resource_type = resource.get('Type', '').lower() if isinstance(resource, dict) else str(resource).lower()
-        resource_name = resource.get('Name') if isinstance(resource, dict) else str(resource)
+        resource_name = resource.get('ResourceId') if isinstance(resource, dict) else str(resource)
         logs_content = ""
         print(resource_type)
         print(resource_name)
