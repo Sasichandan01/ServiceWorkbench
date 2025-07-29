@@ -14,7 +14,7 @@ import logging
 
 LOGGER=logging.getLogger()
 LOGGER.setLevel(logging.INFO)
-
+s3=boto3.client('s3')
 dynamodb = boto3.resource("dynamodb")
 roles_table = dynamodb.Table(os.environ.get('ROLES_TABLE'))
 
@@ -22,6 +22,31 @@ chat_table = dynamodb.Table(os.environ.get('CHAT_TABLE'))
 
 def build_chat_pk(solution_id, user_id):
     return f"{solution_id}#{user_id}#AIChat"
+
+def read_multiple_s3_files(bucket: str, prefix: str) -> dict[str, str]:
+    result = {}
+    try:
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        if 'Contents' not in response:
+            LOGGER.warning(f"No files found under s3://{bucket}/{prefix}")
+            return result
+
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith('/'):  # skip folders
+                continue
+            file_obj = s3.get_object(Bucket=bucket, Key=key)
+            body = file_obj['Body'].read()
+            filename = key.split('/')[-1]
+            result[filename] = body.decode('utf-8')
+        return result
+
+    except Exception as e:
+
+            # Handle other exceptions (like NameError, etc.)
+        LOGGER.warning(f"Error reading S3 files for prefix s3://{bucket}/{prefix}: {str(e)}")
+        return result
+
 
 def get_chat_history(workspace_id, solution_id, user_id):
     pk = build_chat_pk(solution_id, user_id)
@@ -32,25 +57,55 @@ def get_chat_history(workspace_id, solution_id, user_id):
     items = response.get('Items', [])
     LOGGER.info(f"Chat history for {solution_id} by {user_id}: {items}")
     chat_list = []
+    
     for item in items:
-        # trace = item.get("Trace", [])
-        # Ensure trace is always a list
-        # if not isinstance(trace, list):
-        #     try:
-        #         import json
-        #         trace = json.loads(trace) if trace else []
-        #     except Exception:
-        #         trace = [trace] if trace else []
-        chat_list.append({
+        s3_key = item.get('S3Key')
+        
+        # Initialize default structure
+        item_data = {
             "ChatId": item.get("ChatId"),
             "TimeStamp": item.get("Timestamp"),
             "Message": item.get("Message", ""),
             "MessageId": item.get("MessageId"),
-            "Sender": item.get("Sender")
-            # "Trace": trace
-        })
+            "Sender": item.get("Sender"),
+            "S3key": item.get("S3Key", ""),
+            "Code": []
+        }
+        
+        if s3_key:
+            print(f"Processing S3 key: {s3_key}")
+            try:
+                bucket = "develop-service-workbench-workspaces"
+                
+                # Read files from S3
+                s3_files = read_multiple_s3_files(bucket, s3_key)
+                
+                if s3_files:
+                    print(f"Found S3 files: {list(s3_files.keys())}")
+                    
+                    # Create code structure with metadata
+                    code_response = {
+                        'Metadata': {
+                            'IsCode': True
+                        }
+                    }
+                    
+                    # Add files directly as filename: content pairs
+                    for filename, content in s3_files.items():
+                        code_response[filename] = content
+                    item_data['Code'] = code_response
+                    
+                    LOGGER.info(f"Successfully read {len(s3_files)} files for message with s3_key: {s3_key}")
+                else:
+                    LOGGER.info(f"No files found for s3_key: {s3_key}")
+                    
+            except Exception as e:
+                LOGGER.error(f"Failed to read S3 files for key {s3_key}: {str(e)}")
+                # Code remains empty list as initialized
+        
+        chat_list.append(item_data)
+    
     return return_response(200, chat_list)
-
 def delete_chat_history(workspace_id, solution_id, user_id):
     pk = build_chat_pk(solution_id, user_id)
     response = chat_table.query(

@@ -123,6 +123,7 @@ def start_execution(event, context):
     """Start a new solution execution"""
     try:
         # Extract parameters
+        print(event)
         path_parameters = event.get('pathParameters', {})
         workspace_id = path_parameters['workspace_id']
         solution_id = path_parameters['solution_id']
@@ -161,11 +162,13 @@ def start_execution(event, context):
         invocation = solution.get('Invocation')
         if invocation is None:
             return return_response(400, {"Error": "Invocation not found"})
-
-        for resource in solution.get('Resources', []):
-            resource_name = resource['Name']
-            resource_type = resource['Type']
-            
+        print(invocation)
+        print(solution.get('Resource',[]))
+        for resource in solution.get('Resource', []):
+            resource_name = resource['ResourceId']
+            resource_type = resource['Type'].lower()
+            print(resource_name)
+            print(resource_type)
             if resource_name == invocation and 'lambda' in resource_type:
                 response=lambda_client.invoke(
                     FunctionName=resource_name,
@@ -180,7 +183,7 @@ def start_execution(event, context):
                     'status': 'GENERATING'
                 }
 
-            elif resource_name == invocation and 'stepfunction' in resource_type:
+            elif resource_name == invocation and 'step' in resource_type:
                 resource_arn="arn:aws:states:us-east-1:043309350924:stateMachine:"+resource_name
                 response = sfn_client.start_execution(
                     stateMachineArn=resource_arn,
@@ -200,16 +203,10 @@ def start_execution(event, context):
                     'status': 'GENERATING',
                     'runId': response['JobRunId']
                 }
-            else:
-                executions_table.update_item(
-                    Key={'ExecutionId': execution_id, 'SolutionId': solution_id},
-                    UpdateExpression="SET ExecutionStatus = :status, EndTime = :end_time",
-                    ExpressionAttributeValues={
-                        ':status': "FAILED",
-                        ':end_time': current_time()
-                    }
-                )
-                return return_response(400, {"Error": "Invalid invocation, resource not found"})
+                print(response)
+
+
+            
 
         payload = {
             "execution_id": execution_id,
@@ -220,7 +217,7 @@ def start_execution(event, context):
             "action": "execution-poll"
         }
         lambda_client.invoke(
-            FunctionName='wb-bhargav-workspacesandsolutions-lambda',  
+            FunctionName='develop-workspacesandsolutions-lambda',  
             InvocationType='Event', 
             Payload=json.dumps(payload)
         )       
@@ -305,7 +302,7 @@ def process_execution(event, context):
  
             # Exit if all completed
             if all_completed:
-                final_status = 'FAILED' if any_failed else 'GENERATED'
+                final_status = 'FAILED' if any_failed else 'SUCCEEDED'
                 time.sleep(1)
                 executions_table.update_item(
                     Key={'ExecutionId': execution_id, 'SolutionId': solution_id},

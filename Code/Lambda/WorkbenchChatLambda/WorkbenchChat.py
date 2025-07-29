@@ -112,8 +112,8 @@ def add_chat_message(workspace_id, solution_id, user_id, role, message=None, tra
     chat_table.put_item(Item=item)
 
 
-def get_latest_chat_messages(user_id, solution_id, limit=10):
-    chat_id = f"{solution_id}#{user_id}#AIChat"
+def get_latest_chat_messages(user_id, solution_id, limit=10,chat_context="AIChat"):
+    chat_id = f"{solution_id}#{user_id}#{chat_context}"
 
     # Step 1: Fetch latest N messages (reverse scan)
     response = chat_table.query(
@@ -195,6 +195,8 @@ def read_selected_s3_files(bucket: str, prefix: str, filenames: list[str]) -> di
     
     for filename in filenames:
         try:
+            if 'code' in filename:
+                filename.replace('code', 'codes')
             # Construct the full S3 key
             key = f"{prefix}{filename}"
             
@@ -239,8 +241,9 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     LOGGER.info(f"Received chat context: {chatcontext}")
    
     combined_prompt=""
-    if chatcontext == 'AIChat':
+    if chatcontext == 'Editor':
         file_context=body.get('FileContext')
+        print(file_context)
         if file_context:
             s3_data=read_selected_s3_files("develop-service-workbench-workspaces",f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}", file_context)
             combined_prompt = f"Here is the file context: {s3_data}."
@@ -265,7 +268,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
     current_lambda_requirements = generate_requirements()
     
     # Get the last 10 chat messages
-    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10)
+    chat_history = get_latest_chat_messages(user_id, body['solutionid'], limit=10,chat_context=chatcontext)
     chat_context = ""
     if chat_history:
         chat_context = "\n\nChat History:\n"
@@ -341,13 +344,6 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                             LOGGER.info("<codegenerated> is true")
                             s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
                             
-
-                            code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
-                            if 'Metadata' not in code_payload:
-                                code_payload['Metadata'] = {}
-                            code_payload['Metadata']['IsCode'] = True
-
-                            
                         else:
                             LOGGER.info("<codegenerated> is not true")
                             
@@ -362,10 +358,10 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         LOGGER.info(f"CFT generation agent response: {text}")
                         
                         outer_json = json.loads(text)
-                        code_generated = outer_json.get("<codegenerated>", "false")
+                        cft_generated = outer_json.get("<codegenerated>", "false")
                         
-                        if code_generated == "true":
-                            LOGGER.info("<codegenerated> is true for CFT")
+                        if cft_generated == "true":
+                            LOGGER.info("<cftgenerated> is true for CFT")
                             s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/cft"
                             
                             # Don't send code immediately, wait for completion
@@ -390,7 +386,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         
                         # Fix: Parse JSON to extract URL
                         outer_json = json.loads(text)
-                        url_generated = outer_json.get('<PreSignedURL>', "false")
+                        url_generated = outer_json.get('<PresignedURL>', "false")
                     
                         if url_generated != "false":
                             LOGGER.info("URL generated is true")
@@ -418,8 +414,12 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     send_message_to_websocket(apigw_client, connection_id, response_obj)
                     
                     # Now send code/artifacts if they were generated
-                    if code_generated == "true" and code_payload:
-                        code_payload['Metadata']['IsComplete'] = True
+                    if code_generated == "true" :
+                        s3_key = f"workspaces/{body['workspaceid']}/solutions/{body['solutionid']}/codes"
+                        code_payload = read_multiple_s3_files("develop-service-workbench-workspaces", s3_key)
+                        if 'Metadata' not in code_payload:
+                            code_payload['Metadata'] = {}
+                        code_payload['Metadata']['IsCode'] = True
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
                         LOGGER.info("Code payload sent after completion")
                     
@@ -431,6 +431,11 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                         code_payload['Metadata']['IsComplete'] = True
                         send_message_to_websocket(apigw_client, connection_id, code_payload)
                         LOGGER.info("URL payload sent after completion")
+                    
+                    if cft_generated == "true" and 'Metadata' in code_payload:
+                        code_payload['Metadata']['IsComplete'] = True
+                        send_message_to_websocket(apigw_client, connection_id, code_payload)
+                        LOGGER.info("CFT payload sent after completion")
                     
                     # Store chat message with s3_key if available
                     if s3_key:
@@ -458,6 +463,7 @@ def handle_send_message(event, apigw_client, connection_id, user_id):
                     # Reset state after completion
                     code_payload = {}
                     code_generated = "false"
+                    cft_generated = "false"
                     url_generated = "false"
                     s3_key = None
                     
